@@ -17,7 +17,8 @@ export type TabId =
   | 'drawings'
   | 'engconfig'
   | 'drawings2'
-  | 'drawingmatrix';
+  | 'drawingmatrix'
+  | 'aerospace';
 
 export type DesignStudioSubPageId =
   | '3d_creator'

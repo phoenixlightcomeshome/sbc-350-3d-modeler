@@ -37,6 +37,7 @@ import { TabEngConfig } from './components/TabEngConfig';
 import { TabEngineeringConfig } from './components/TabEngineeringConfig';
 import { TabMoreDrawings } from './components/TabMoreDrawings';
 import { TabDrawingMatrix } from './components/TabDrawingMatrix';
+import { TabAerospaceMatrix } from './components/TabAerospaceMatrix';
 import { MatrixComponentKey } from './data/manufacturingMatrix';
 import { EcosystemRegistryModal } from './components/EcosystemRegistryModal';
 import { AutoPartsStorePanel, ActiveStoreSelection } from './components/AutoPartsStorePanel';
@@ -524,6 +525,8 @@ export default function App() {
               onJumpToTab={setActiveTab}
             />
           )}
+
+          {activeTab === 'aerospace' && <TabAerospaceMatrix />}
           </ErrorBoundary>
         </main>
       </div>
