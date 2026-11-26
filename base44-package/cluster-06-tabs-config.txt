@@ -1,0 +1,4642 @@
+# cluster-06-tabs-config.txt — SBC 350 v14 source, cluster 7 of 8
+# Source: ai-studio-app-v13-staging (v14, restored Nov 25 from the 08:04 backup). Paste ONE cluster per builder message, in order.
+# Files in this cluster: 10
+
+===== FILE: src/components/AutoPartsStorePanel.tsx (22444 bytes, md5 078c42b23179decb37352ae6257b785a) =====
+
+/**
+ * @license
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+import React, { useState, useMemo } from 'react';
+import {
+  EngineConfig,
+  PartsGradeTier,
+  StoreEngineSpec,
+  StorePartOption,
+  StoreVehicleModel
+} from '../types/engine';
+import {
+  STORE_YEARS,
+  STORE_VEHICLE_MODELS,
+  STORE_ENGINES,
+  PARTS_GRADE_TIERS,
+  getStorePartsForEngine
+} from '../data/autoPartsCatalog';
+import {
+  Store,
+  Search,
+  CheckCircle2,
+  Package,
+  Wrench,
+  ShieldCheck,
+  ShoppingCart,
+  ArrowRight,
+  RotateCcw,
+  Layers
+} from 'lucide-react';
+
+export interface ActiveStoreSelection {
+  yearLabel: string;
+  vehicle: StoreVehicleModel | null;
+  engine: StoreEngineSpec;
+  tier: PartsGradeTier;
+  selectedParts: StorePartOption[];
+}
+
+interface AutoPartsStorePanelProps {
+  config: EngineConfig;
+  activeSelection: ActiveStoreSelection | null;
+  onApplyStoreEngine: (
+    engine: StoreEngineSpec,
+    vehicle: StoreVehicleModel | null,
+    yearLabel: string,
+    tier: PartsGradeTier,
+    selectedParts: StorePartOption[]
+  ) => void;
+  onUpdateStoreParts: (parts: StorePartOption[], tier: PartsGradeTier) => void;
+  onResetRay: () => void;
+  compact?: boolean;
+}
+
+export const AutoPartsStorePanel: React.FC<AutoPartsStorePanelProps> = ({
+  config,
+  activeSelection,
+  onApplyStoreEngine,
+  onUpdateStoreParts,
+  onResetRay,
+  compact = false
+}) => {
+  const [selectedYear, setSelectedYear] = useState<string>(
+    activeSelection?.yearLabel || '1969'
+  );
+  const [selectedMake, setSelectedMake] = useState<string>(
+    activeSelection?.vehicle?.make || activeSelection?.engine.make || 'Chevrolet'
+  );
+  const [selectedModelId, setSelectedModelId] = useState<string>(
+    activeSelection?.vehicle?.id || 'camaro1969'
+  );
+  const [selectedEngineId, setSelectedEngineId] = useState<string>(
+    activeSelection?.engine.id || 'sbc_350_ray'
+  );
+  const [selectedTier, setSelectedTier] = useState<PartsGradeTier>(
+    activeSelection?.tier || 'street_perf'
+  );
+  const [searchQuery, setSearchQuery] = useState<string>('');
+  const [checkedPartIds, setCheckedPartIds] = useState<Record<string, boolean>>(() => {
+    const initial: Record<string, boolean> = {};
+    if (activeSelection?.selectedParts?.length) {
+      activeSelection.selectedParts.forEach((p) => {
+        initial[p.id] = true;
+      });
+    }
+    return initial;
+  });
+
+  // 1. Vehicles filtered by Year
+  const vehiclesForYear = useMemo(() => {
+    if (selectedYear === 'ALL') return STORE_VEHICLE_MODELS;
+    const yr = parseInt(selectedYear, 10);
+    return STORE_VEHICLE_MODELS.filter((v) => yr >= v.yearStart && yr <= v.yearEnd);
+  }, [selectedYear]);
+
+  // 2. Available Makes for selected Year
+  const availableMakes = useMemo(() => {
+    const set = new Set<string>(vehiclesForYear.map((v) => v.make));
+    return Array.from(set).sort();
+  }, [vehiclesForYear]);
+
+  // 3. Available Models for selected Year + Make
+  const availableModels = useMemo(() => {
+    return vehiclesForYear.filter((v) =>
+      selectedMake === 'ALL' ? true : v.make === selectedMake
+    );
+  }, [vehiclesForYear, selectedMake]);
+
+  // Resolved Model
+  const currentVehicle = useMemo(() => {
+    return (
+      availableModels.find((m) => m.id === selectedModelId) ||
+      availableModels[0] ||
+      null
+    );
+  }, [availableModels, selectedModelId]);
+
+  // 4. Available Engines (either for the chosen Vehicle Model, or search-matched across ALL engines)
+  const availableEngines = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (q.length >= 2) {
+      return Object.values(STORE_ENGINES).filter(
+        (e) =>
+          e.name.toLowerCase().includes(q) ||
+          e.code.toLowerCase().includes(q) ||
+          e.make.toLowerCase().includes(q) ||
+          e.family.toLowerCase().includes(q) ||
+          `${e.liters}l`.includes(q) ||
+          `${e.cid}`.includes(q)
+      );
+    }
+
+    if (currentVehicle) {
+      return currentVehicle.engineIds
+        .map((id) => STORE_ENGINES[id])
+        .filter((e): e is StoreEngineSpec => Boolean(e));
+    }
+
+    return Object.values(STORE_ENGINES);
+  }, [currentVehicle, searchQuery]);
+
+  const currentEngine = useMemo(() => {
+    return (
+      availableEngines.find((e) => e.id === selectedEngineId) ||
+      availableEngines[0] ||
+      STORE_ENGINES.sbc_350_ray
+    );
+  }, [availableEngines, selectedEngineId]);
+
+  // 5. Store Parts Catalog for Current Engine + Tier
+  const storeParts = useMemo(() => {
+    return getStorePartsForEngine(currentEngine, selectedTier);
+  }, [currentEngine, selectedTier]);
+
+  const filteredParts = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return storeParts;
+    const engineMatched =
+      currentEngine.name.toLowerCase().includes(q) ||
+      currentEngine.code.toLowerCase().includes(q);
+    if (engineMatched) return storeParts;
+    const partHits = storeParts.filter(
+      (p) =>
+        p.name.toLowerCase().includes(q) ||
+        p.brand.toLowerCase().includes(q) ||
+        p.sku.toLowerCase().includes(q) ||
+        p.category.toLowerCase().includes(q)
+    );
+    return partHits.length > 0 ? partHits : storeParts;
+  }, [storeParts, searchQuery, currentEngine]);
+
+  const selectedPartsList = useMemo(() => {
+    return storeParts.filter((p) => checkedPartIds[p.id]);
+  }, [storeParts, checkedPartIds]);
+
+  const selectedPartsTotal = useMemo(() => {
+    return selectedPartsList.reduce(
+      (sum, p) => sum + p.price + (p.coreCharge || 0),
+      0
+    );
+  }, [selectedPartsList]);
+
+  // Handlers for cascading Year -> Make -> Model -> Engine
+  const handleYearChange = (yr: string) => {
+    setSelectedYear(yr);
+    const list =
+      yr === 'ALL'
+        ? STORE_VEHICLE_MODELS
+        : STORE_VEHICLE_MODELS.filter(
+            (v) => parseInt(yr, 10) >= v.yearStart && parseInt(yr, 10) <= v.yearEnd
+          );
+    if (list.length > 0) {
+      const keepMake = list.some((v) => v.make === selectedMake)
+        ? selectedMake
+        : list[0].make;
+      setSelectedMake(keepMake);
+      const models = list.filter((v) => v.make === keepMake);
+      if (models.length > 0) {
+        const nextModel =
+          models.find((m) => m.id === selectedModelId) || models[0];
+        setSelectedModelId(nextModel.id);
+        if (nextModel.engineIds.length > 0 && !nextModel.engineIds.includes(selectedEngineId)) {
+          setSelectedEngineId(nextModel.engineIds[0]);
+        }
+      }
+    }
+  };
+
+  const handleMakeChange = (mk: string) => {
+    setSelectedMake(mk);
+    const models = vehiclesForYear.filter((v) =>
+      mk === 'ALL' ? true : v.make === mk
+    );
+    if (models.length > 0) {
+      setSelectedModelId(models[0].id);
+      if (models[0].engineIds.length > 0) {
+        setSelectedEngineId(models[0].engineIds[0]);
+      }
+    }
+  };
+
+  const handleModelChange = (modelId: string) => {
+    setSelectedModelId(modelId);
+    const m = STORE_VEHICLE_MODELS.find((v) => v.id === modelId);
+    if (m && m.engineIds.length > 0) {
+      setSelectedEngineId(m.engineIds[0]);
+    }
+  };
+
+  const handleTogglePart = (part: StorePartOption) => {
+    const nextMap = { ...checkedPartIds, [part.id]: !checkedPartIds[part.id] };
+    setCheckedPartIds(nextMap);
+    const nextParts = storeParts.filter((p) => nextMap[p.id]);
+    onUpdateStoreParts(nextParts, selectedTier);
+  };
+
+  const handleSelectCoreProKit = () => {
+    // Select key build subsystems (Pistons, Bearings, Gaskets, Oil Pump, Timing, Cam, Water Pump, Ignition, Fasteners)
+    const nextMap: Record<string, boolean> = {};
+    storeParts.slice(1).forEach((p) => {
+      nextMap[p.id] = true;
+    });
+    setCheckedPartIds(nextMap);
+    onUpdateStoreParts(storeParts.slice(1), selectedTier);
+  };
+
+  const handleTierSwitch = (tier: PartsGradeTier) => {
+    setSelectedTier(tier);
+    const newParts = getStorePartsForEngine(currentEngine, tier);
+    // Keep same subsystem categories checked when switching tier
+    const checkedCategories = new Set(
+      storeParts.filter((p) => checkedPartIds[p.id]).map((p) => p.category)
+    );
+    const nextMap: Record<string, boolean> = {};
+    const nextParts: StorePartOption[] = [];
+    newParts.forEach((p) => {
+      if (checkedCategories.has(p.category)) {
+        nextMap[p.id] = true;
+        nextParts.push(p);
+      }
+    });
+    setCheckedPartIds(nextMap);
+    if (nextParts.length > 0) {
+      onUpdateStoreParts(nextParts, tier);
+    }
+  };
+
+  const isAppliedEngine =
+    Math.abs(config.bore - currentEngine.bore) < 0.002 &&
+    Math.abs(config.stroke - currentEngine.stroke) < 0.002 &&
+    (config.cylinders ?? 8) === currentEngine.cylinders;
+
+  return (
+    <div className="bg-[#151a20] border border-orange-500/40 rounded-2xl p-4 sm:p-5 space-y-4 shadow-2xl font-mono text-xs text-gray-200">
+      {/* Counter Header */}
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-800 pb-3">
+        <div>
+          <div className="flex items-center gap-2">
+            <Store className="w-5 h-5 text-orange-500" />
+            <h3 className="text-sm sm:text-base font-black text-white uppercase tracking-wider font-sans">
+              PRO AUTO PARTS COUNTER — ALL YEARS, MAKES, MODELS &amp; ENGINE SIZES
+            </h3>
+            <span className="px-2 py-0.5 rounded bg-emerald-500/15 border border-emerald-500/40 text-emerald-400 text-[10px] font-bold">
+              1955–2026 CATALOG
+            </span>
+          </div>
+          <p className="text-[11px] text-gray-400 font-sans mt-0.5">
+            Select Year, Make, Model &amp; Engine displacement, choose OE / Commercial HD / Street Perf / Forged Race parts grade, and sync directly into 3D CAD &amp; Build Sheet BOM.
+          </p>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <button
+            onClick={onResetRay}
+            className="px-2.5 py-1.5 rounded-lg text-[10px] font-bold border border-orange-500/70 bg-orange-500/10 hover:bg-orange-600 text-orange-300 hover:text-white transition flex items-center gap-1"
+          >
+            <RotateCcw className="w-3 h-3" />
+            <span>Reset Ray's 350</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Row 1: Year -> Make -> Model -> Engine Size -> Search */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2.5 bg-[#0f1318] p-3 rounded-xl border border-gray-800">
+        {/* Year */}
+        <div>
+          <label className="text-[10px] font-bold text-gray-400 uppercase block mb-1">
+            1. MODEL YEAR (1955–2026)
+          </label>
+          <select
+            value={selectedYear}
+            onChange={(e) => handleYearChange(e.target.value)}
+            className="w-full bg-[#1a2027] border border-gray-700 focus:border-orange-500 rounded-lg px-2.5 py-1.5 text-white font-bold text-xs"
+          >
+            <option value="ALL">All Model Years (1955–2026)</option>
+            {STORE_YEARS.map((yr) => (
+              <option key={yr} value={String(yr)}>
+                {yr} Model Year
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {/* Make */}
+        <div>
+          <label className="text-[10px] font-bold text-gray-400 uppercase block mb-1">
+            2. VEHICLE MAKE ({availableMakes.length})
+          </label>
+          <select
+            value={selectedMake}
+            onChange={(e) => handleMakeChange(e.target.value)}
+            className="w-full bg-[#1a2027] border border-gray-700 focus:border-orange-500 rounded-lg px-2.5 py-1.5 text-white font-bold text-xs"
+          >
+            <option value="ALL">All Makes ({vehiclesForYear.length} models)</option>
+            {availableMakes.map((mk) => (
+              <option key={mk} value={mk}>
+                {mk}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {/* Model */}
+        <div>
+          <label className="text-[10px] font-bold text-gray-400 uppercase block mb-1">
+            3. VEHICLE MODEL ({availableModels.length})
+          </label>
+          <select
+            value={currentVehicle?.id || ''}
+            onChange={(e) => handleModelChange(e.target.value)}
+            className="w-full bg-[#1a2027] border border-gray-700 focus:border-orange-500 rounded-lg px-2.5 py-1.5 text-white font-bold text-xs"
+          >
+            {availableModels.map((mod) => (
+              <option key={mod.id} value={mod.id}>
+                {mod.model} ({mod.yearStart}–{mod.yearEnd})
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {/* Engine Size */}
+        <div>
+          <label className="text-[10px] font-bold text-orange-400 uppercase block mb-1">
+            4. ENGINE SIZE / SUBMODEL ({availableEngines.length})
+          </label>
+          <select
+            value={currentEngine.id}
+            onChange={(e) => setSelectedEngineId(e.target.value)}
+            className="w-full bg-[#1a2027] border border-orange-500/70 rounded-lg px-2.5 py-1.5 text-white font-bold text-xs"
+          >
+            {availableEngines.map((eng) => (
+              <option key={eng.id} value={eng.id}>
+                {eng.liters.toFixed(1)}L / {eng.cid} CID {eng.configLabel} — {eng.code}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {/* Quick Search */}
+        <div>
+          <label className="text-[10px] font-bold text-cyan-400 uppercase block mb-1">
+            SEARCH CID / CODE / SKU
+          </label>
+          <div className="relative">
+            <Search className="w-3.5 h-3.5 text-gray-400 absolute left-2.5 top-2" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="e.g. 350, LS3, 5.0L, Fel-Pro..."
+              className="w-full bg-[#1a2027] border border-gray-700 focus:border-cyan-400 rounded-lg pl-8 pr-2.5 py-1.5 text-white text-xs placeholder:text-gray-500"
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* Row 2: Selected Engine Blueprint Strip & Load Button */}
+      <div className="bg-black/60 border border-gray-800 rounded-xl p-3 flex flex-wrap items-center justify-between gap-3">
+        <div className="space-y-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="px-2 py-0.5 rounded bg-orange-600 text-white font-black text-[10px]">
+              {selectedYear === 'ALL'
+                ? `${currentEngine.yearStart}–${currentEngine.yearEnd}`
+                : selectedYear}{' '}
+              {currentVehicle ? `${currentVehicle.make} ${currentVehicle.model}` : currentEngine.make}
+            </span>
+            <span className="text-white font-black text-xs sm:text-sm font-sans">
+              {currentEngine.name}
+            </span>
+            <span className="px-1.5 py-0.5 rounded bg-cyan-950 border border-cyan-500/40 text-cyan-300 text-[10px] font-bold">
+              {currentEngine.cylinders}-CYL {currentEngine.configLabel} | {currentEngine.family}
+            </span>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-gray-400">
+            <span>
+              Bore × Stroke:{' '}
+              <strong className="text-white">
+                {currentEngine.bore.toFixed(3)}" × {currentEngine.stroke.toFixed(3)}"
+              </strong>
+            </span>
+            <span>
+              Rod: <strong className="text-emerald-400">{currentEngine.rodLength.toFixed(3)}"</strong>
+            </span>
+            <span>
+              Deck: <strong className="text-cyan-300">{currentEngine.deckHeight.toFixed(3)}"</strong>
+            </span>
+            <span>
+              Firing Order: <strong className="text-amber-300">{currentEngine.firingOrder}</strong>
+            </span>
+            <span>
+              Induction: <strong className="text-gray-200">{currentEngine.fuelSystem}</strong>
+            </span>
+          </div>
+        </div>
+
+        <button
+          onClick={() =>
+            onApplyStoreEngine(
+              currentEngine,
+              currentVehicle,
+              selectedYear,
+              selectedTier,
+              selectedPartsList
+            )
+          }
+          className={`px-4 py-2 rounded-xl font-bold text-xs flex items-center gap-2 transition shadow-lg ${
+            isAppliedEngine
+              ? 'bg-emerald-600/20 border border-emerald-500 text-emerald-300 hover:bg-emerald-600 hover:text-white'
+              : 'bg-orange-600 hover:bg-orange-500 text-white border border-orange-400'
+          }`}
+        >
+          {isAppliedEngine ? (
+            <>
+              <CheckCircle2 className="w-4 h-4" />
+              <span>ACTIVE IN 3D CAD &amp; DYNO — RE-SYNC</span>
+            </>
+          ) : (
+            <>
+              <Layers className="w-4 h-4" />
+              <span>LOAD ENGINE INTO 3D CAD &amp; DYNO</span>
+              <ArrowRight className="w-3.5 h-3.5" />
+            </>
+          )}
+        </button>
+      </div>
+
+      {/* Row 3: Professional-Grade Motor Parts Tier Selector */}
+      <div className="space-y-2">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <span className="text-[10px] font-bold text-gray-400 uppercase flex items-center gap-1.5">
+            <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+            SELECT PROFESSIONAL-GRADE MOTOR PARTS LINE:
+          </span>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleSelectCoreProKit}
+              className="px-2.5 py-1 rounded-lg bg-cyan-950/60 hover:bg-cyan-900/70 border border-cyan-500/50 text-cyan-300 text-[10px] font-bold transition flex items-center gap-1"
+            >
+              <Package className="w-3 h-3" />
+              <span>Check Full Pro Rebuild Parts Pack</span>
+            </button>
+            <div className="px-2.5 py-1 rounded-lg bg-black/70 border border-gray-700 text-[10px] font-bold text-emerald-400 flex items-center gap-1.5">
+              <ShoppingCart className="w-3 h-3" />
+              <span>
+                {selectedPartsList.length} SKUs Selected (${selectedPartsTotal.toFixed(2)})
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
+          {PARTS_GRADE_TIERS.map((t) => {
+            const active = selectedTier === t.id;
+            return (
+              <button
+                key={t.id}
+                onClick={() => handleTierSwitch(t.id)}
+                className={`text-left p-2.5 rounded-xl border transition ${
+                  active
+                    ? `${t.accent} ring-1 ring-white/30`
+                    : 'bg-[#101419] border-gray-800 text-gray-400 hover:border-gray-600 hover:text-gray-200'
+                }`}
+              >
+                <div className="flex items-center justify-between gap-1">
+                  <span className="font-black text-xs text-white">{t.label}</span>
+                  <span className="text-[9px] px-1.5 py-0.5 rounded bg-black/60 border border-current font-bold">
+                    {t.badge}
+                  </span>
+                </div>
+                <div className="text-[10px] text-gray-400 font-sans mt-1 leading-tight">
+                  {t.tagline}
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Row 4: Counter Motor Parts SKU Grid */}
+      <div
+        className={`grid grid-cols-1 md:grid-cols-2 gap-2.5 ${
+          compact ? 'max-h-[340px] overflow-y-auto pr-1' : ''
+        }`}
+      >
+        {filteredParts.map((part) => {
+          const isChecked = Boolean(checkedPartIds[part.id]);
+          return (
+            <div
+              key={part.id}
+              onClick={() => handleTogglePart(part)}
+              className={`cursor-pointer p-3 rounded-xl border transition flex flex-col justify-between gap-1.5 ${
+                isChecked
+                  ? 'bg-emerald-950/25 border-emerald-500/70'
+                  : 'bg-[#0f1318] border-gray-800 hover:border-gray-600'
+              }`}
+            >
+              <div className="flex items-start justify-between gap-2">
+                <div className="space-y-0.5">
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <span className="text-[9px] px-1.5 py-0.5 rounded bg-gray-800 text-gray-300 font-bold uppercase">
+                      {part.category}
+                    </span>
+                    <span className="text-[10px] text-cyan-300 font-bold">
+                      SKU: {part.sku}
+                    </span>
+                  </div>
+                  <div className="text-xs font-bold text-white font-sans">
+                    {part.name}
+                  </div>
+                  <div className="text-[10px] text-amber-300 font-semibold">
+                    {part.brand} • {part.warranty}
+                  </div>
+                </div>
+
+                <div className="text-right shrink-0">
+                  <div className="text-sm font-black text-emerald-400">
+                    ${part.price.toFixed(2)}
+                  </div>
+                  {part.coreCharge ? (
+                    <div className="text-[9px] text-gray-400">
+                      +${part.coreCharge.toFixed(2)} Core
+                    </div>
+                  ) : null}
+                  <div
+                    className={`mt-1 inline-flex items-center gap-1 px-2 py-0.5 rounded text-[9px] font-bold border ${
+                      isChecked
+                        ? 'bg-emerald-600 border-emerald-400 text-white'
+                        : 'bg-black/60 border-gray-700 text-gray-300'
+                    }`}
+                  >
+                    <Wrench className="w-2.5 h-2.5" />
+                    <span>{isChecked ? 'IN BOM' : 'ADD TO BOM'}</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="text-[10px] text-gray-400 font-sans border-t border-gray-800/80 pt-1.5 flex flex-wrap items-center justify-between gap-2">
+                <span className="leading-snug">{part.specSummary}</span>
+                <span className="text-[9px] text-emerald-400 font-mono font-bold shrink-0">
+                  {part.inStock}
+                </span>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+};
+
+
+===== FILE: src/components/AutoTechKnowledgeDrawer.tsx (12115 bytes, md5 85659c5331dbbd4ffa73897f0106e8d0) =====
+
+/**
+ * @license
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+import React, { useState, useMemo } from 'react';
+import { CoordinatedSpecs, EngineConfig, TabId } from '../types/engine';
+import {
+  TECH_KNOWLEDGE_DOMAINS,
+  TECH_KNOWLEDGE_ARTICLES
+} from '../data/autoTechKnowledge';
+import {
+  BookOpen,
+  Search,
+  X,
+  ArrowUpRight,
+  Wrench,
+  AlertTriangle,
+  CheckCircle2
+} from 'lucide-react';
+
+interface AutoTechKnowledgeDrawerProps {
+  isOpen: boolean;
+  onClose: () => void;
+  specs: CoordinatedSpecs;
+  config: EngineConfig;
+  onJumpToTab: (tab: TabId) => void;
+}
+
+export const AutoTechKnowledgeDrawer: React.FC<AutoTechKnowledgeDrawerProps> = ({
+  isOpen,
+  onClose,
+  specs,
+  config,
+  onJumpToTab
+}) => {
+  const [selectedDomain, setSelectedDomain] = useState<string>('ALL');
+  const [searchQuery, setSearchQuery] = useState<string>('');
+
+  const filteredArticles = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    return TECH_KNOWLEDGE_ARTICLES.filter((article) => {
+      const domainMatch =
+        selectedDomain === 'ALL' || article.domainId === selectedDomain;
+      if (!domainMatch) return false;
+      if (!q) return true;
+      return (
+        article.title.toLowerCase().includes(q) ||
+        article.summary.toLowerCase().includes(q) ||
+        article.subsystemTag.toLowerCase().includes(q) ||
+        article.keyPrinciples.some((p) => p.toLowerCase().includes(q)) ||
+        article.failureDiagnostics.some((f) => f.toLowerCase().includes(q)) ||
+        (article.formula && article.formula.toLowerCase().includes(q))
+      );
+    });
+  }, [selectedDomain, searchQuery]);
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/80 flex justify-end">
+      <div className="w-full max-w-5xl h-full bg-[#11151b] border-l border-slate-800 flex flex-col shadow-2xl">
+        {/* Top Bar */}
+        <div className="px-5 py-3.5 border-b border-slate-800 bg-[#151a21] flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3 min-w-0">
+            <BookOpen className="w-5 h-5 text-amber-400 shrink-0" />
+            <div className="min-w-0">
+              <h2 className="text-base font-bold text-white truncate">
+                Global Automotive &amp; Motor Technology Encyclopedia
+              </h2>
+              <p className="text-xs text-slate-400 truncate">
+                Engine architecture, kinematics, metallurgy, forced induction, ignition, driveline &amp; metrology reference
+              </p>
+            </div>
+          </div>
+
+          <button
+            onClick={onClose}
+            className="p-2 rounded-lg border border-slate-700 bg-[#0d1014] text-slate-300 hover:text-white hover:border-slate-500 transition shrink-0"
+            aria-label="Close Encyclopedia"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        {/* Live Telemetry Reference Bar (Synced to Active Engine Config) */}
+        <div className="px-5 py-2.5 bg-[#0d1014] border-b border-slate-800 flex flex-wrap items-center justify-between gap-4 text-xs">
+          <span className="text-slate-400 font-medium">
+            Active Engine Telemetry Reference:
+          </span>
+          <div className="flex flex-wrap items-center gap-5 font-mono tabular-nums">
+            <span>
+              <span className="text-slate-500">DISP </span>
+              <strong className="text-white">{specs.displacementCi} CID ({specs.displacementL}L)</strong>
+            </span>
+            <span>
+              <span className="text-slate-500">B×S </span>
+              <strong className="text-slate-200">{config.bore.toFixed(3)}" × {config.stroke.toFixed(3)}"</strong>
+            </span>
+            <span>
+              <span className="text-slate-500">QUENCH </span>
+              <strong className="text-emerald-400">{specs.quenchDistance}"</strong>
+            </span>
+            <span>
+              <span className="text-slate-500">SCR / DCR </span>
+              <strong className="text-amber-400">{specs.staticCR}:1 / {specs.dynamicCR}:1</strong>
+            </span>
+            <span>
+              <span className="text-slate-500">DEMAND </span>
+              <strong className="text-cyan-400">{specs.peakCfmDemand} CFM</strong>
+            </span>
+          </div>
+        </div>
+
+        {/* Search + Split Domain Rail & Content */}
+        <div className="flex-1 min-h-0 flex flex-col md:flex-row">
+          {/* Left Domain Rail */}
+          <aside className="w-full md:w-64 shrink-0 border-b md:border-b-0 md:border-r border-slate-800 bg-[#0f1318] p-3 flex flex-col gap-2 overflow-y-auto">
+            <div className="relative">
+              <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-2.5" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search formulas, parts, failures..."
+                className="w-full bg-[#161c24] border border-slate-700 focus:border-amber-500 rounded-lg pl-8 pr-3 py-1.5 text-xs text-white placeholder:text-slate-500 outline-none"
+              />
+            </div>
+
+            <div className="space-y-1 pt-1">
+              <button
+                onClick={() => setSelectedDomain('ALL')}
+                className={`w-full text-left px-3 py-2 rounded-lg text-xs font-medium transition ${
+                  selectedDomain === 'ALL'
+                    ? 'bg-orange-600/20 text-orange-300 border border-orange-500/40'
+                    : 'text-slate-400 hover:text-white hover:bg-slate-800/50 border border-transparent'
+                }`}
+              >
+                All Domains ({TECH_KNOWLEDGE_ARTICLES.length} Guides)
+              </button>
+
+              {TECH_KNOWLEDGE_DOMAINS.map((domain) => (
+                <button
+                  key={domain.id}
+                  onClick={() => setSelectedDomain(domain.id)}
+                  className={`w-full text-left px-3 py-2 rounded-lg text-xs transition ${
+                    selectedDomain === domain.id
+                      ? 'bg-orange-600/20 text-orange-300 border border-orange-500/40 font-semibold'
+                      : 'text-slate-400 hover:text-white hover:bg-slate-800/50 border border-transparent'
+                  }`}
+                >
+                  <div className="truncate">{domain.name}</div>
+                </button>
+              ))}
+            </div>
+          </aside>
+
+          {/* Right Article Stream */}
+          <div className="flex-1 overflow-y-auto p-5 space-y-5">
+            {filteredArticles.length === 0 ? (
+              <div className="p-8 text-center border border-slate-800 rounded-xl bg-[#151a21]">
+                <p className="text-sm font-semibold text-white">
+                  No engineering references matched "{searchQuery}"
+                </p>
+                <p className="text-xs text-slate-400 mt-1">
+                  Try searching terms like "Quench", "4340", "ZDDP", "17-Bolt", "LS", or "5252".
+                </p>
+                <button
+                  onClick={() => {
+                    setSearchQuery('');
+                    setSelectedDomain('ALL');
+                  }}
+                  className="mt-3 px-4 py-1.5 rounded-lg bg-orange-600 text-white text-xs font-semibold hover:bg-orange-500 transition"
+                >
+                  Reset Filter
+                </button>
+              </div>
+            ) : (
+              filteredArticles.map((article) => (
+                <article
+                  key={article.id}
+                  className="border border-slate-800 rounded-xl bg-[#151a21] p-5 space-y-4"
+                >
+                  <div className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-800 pb-3">
+                    <div className="space-y-1">
+                      <div className="text-xs text-slate-400 flex items-center gap-2">
+                        <span className="text-amber-400 font-medium">
+                          {article.subsystemTag}
+                        </span>
+                        <span aria-hidden="true">·</span>
+                        <span>
+                          {TECH_KNOWLEDGE_DOMAINS.find((d) => d.id === article.domainId)?.name}
+                        </span>
+                      </div>
+                      <h3 className="text-base font-bold text-white">
+                        {article.title}
+                      </h3>
+                    </div>
+
+                    <button
+                      onClick={() => {
+                        onJumpToTab(article.relatedTab);
+                        onClose();
+                      }}
+                      className="px-3 py-1.5 rounded-lg border border-slate-700 hover:border-orange-500 bg-[#0d1014] text-xs font-medium text-slate-200 hover:text-orange-300 transition flex items-center gap-1.5 shrink-0"
+                    >
+                      <span>Open Workbench</span>
+                      <ArrowUpRight className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+
+                  <p className="text-sm text-slate-300 leading-relaxed">
+                    {article.summary}
+                  </p>
+
+                  {article.formula && (
+                    <div className="px-3.5 py-2.5 rounded-lg bg-[#0d1014] border border-slate-800 font-mono text-xs text-cyan-300">
+                      Formula: {article.formula}
+                    </div>
+                  )}
+
+                  {/* Reference Specs Grid */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
+                    {article.engineeringSpecs.map((spec) => (
+                      <div
+                        key={spec.label}
+                        className="p-2.5 rounded-lg bg-[#0d1014] border border-slate-800/80"
+                      >
+                        <div className="text-[11px] text-slate-400">{spec.label}</div>
+                        <div className="text-xs font-mono font-bold text-white mt-0.5 tabular-nums">
+                          {spec.value}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Key Principles & Diagnostics */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-1">
+                    <div className="space-y-2">
+                      <div className="text-xs font-semibold text-emerald-400 flex items-center gap-1.5">
+                        <CheckCircle2 className="w-3.5 h-3.5" />
+                        <span>Design &amp; Blueprint Principles</span>
+                      </div>
+                      <ul className="space-y-1.5 text-xs text-slate-300 leading-relaxed">
+                        {article.keyPrinciples.map((kp, idx) => (
+                          <li key={idx} className="flex gap-2">
+                            <Wrench className="w-3 h-3 text-slate-500 shrink-0 mt-1" />
+                            <span>{kp}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+
+                    <div className="space-y-2">
+                      <div className="text-xs font-semibold text-amber-400 flex items-center gap-1.5">
+                        <AlertTriangle className="w-3.5 h-3.5" />
+                        <span>Failure Modes &amp; Shop Diagnostics</span>
+                      </div>
+                      <ul className="space-y-1.5 text-xs text-slate-300 leading-relaxed">
+                        {article.failureDiagnostics.map((fd, idx) => (
+                          <li key={idx} className="flex gap-2">
+                            <span className="text-amber-500 font-mono shrink-0">!</span>
+                            <span>{fd}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  </div>
+                </article>
+              ))
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+
+===== FILE: src/components/BrandEngineSelector.tsx (36411 bytes, md5 736b2eafa068edb10cf7c3234d0c1e74) =====
+
+/**
+ * @license
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+import React, { useMemo, useState } from 'react';
+import { EngineConfig, CoordinatedSpecs } from '../types/engine';
+import { TRANSMISSIONS_DB } from '../data/engineData';
+import {
+  EngineBrand,
+  EngineConfigurationType,
+  EngineFuelType,
+  ENGINE_CONFIGURATIONS,
+  ENGINE_FAMILIES,
+  ENGINE_FAMILY_LIST,
+  EngineFamilySpec
+} from '../data/engineFamilies';
+import {
+  VEHICLE_CATALOG,
+  VEHICLE_CATALOG_LIST,
+  getCatalogBrands,
+  getVehiclesForBrand,
+  getValidYearsForVehicle,
+  getEnginesForVehicleYear
+} from '../data/vehicleCatalog';
+import {
+  Car,
+  CheckCircle2,
+  AlertTriangle,
+  Wrench,
+  Gauge,
+  Cog,
+  Sliders,
+  Info
+} from 'lucide-react';
+
+interface BrandEngineSelectorProps {
+  config: EngineConfig;
+  specs: CoordinatedSpecs;
+  onUpdateConfig: (newConfig: Partial<EngineConfig>) => void;
+}
+
+const CUSTOM_BRAND_VALUE = '__CUSTOM__';
+
+export const BrandEngineSelector: React.FC<BrandEngineSelectorProps> = ({
+  config,
+  specs,
+  onUpdateConfig
+}) => {
+  const brands = useMemo(() => getCatalogBrands(), []);
+
+  // Derive sensible initial cascade state from current config if available
+  const initialFamily = config.engineFamilyId
+    ? ENGINE_FAMILIES[config.engineFamilyId]
+    : undefined;
+  const initialVehicle =
+    (config.selectedVehicle && VEHICLE_CATALOG[config.selectedVehicle]) ||
+    (initialFamily
+      ? getVehiclesForBrand(initialFamily.brand).find((v) =>
+          v.yearEngineOptions.some((o) => o.engineFamilyIds.includes(initialFamily.id))
+        )
+      : undefined) ||
+    VEHICLE_CATALOG.chevy_camaro;
+
+  const [selectedBrand, setSelectedBrand] = useState<string>(
+    initialFamily?.brand || initialVehicle?.brand || brands[0] || 'GM / Chevrolet'
+  );
+  const [selectedVehicleId, setSelectedVehicleId] = useState<string>(
+    initialVehicle?.id || 'chevy_camaro'
+  );
+  const [selectedYear, setSelectedYear] = useState<number>(() => {
+    const yrs = getValidYearsForVehicle(initialVehicle?.id || 'chevy_camaro');
+    if (yrs.includes(1969) && !initialFamily) return 1969;
+    if (initialFamily) {
+      const matchingYear = yrs.find((y) =>
+        getEnginesForVehicleYear(initialVehicle?.id || '', y).engineFamilyIds.includes(
+          initialFamily.id
+        )
+      );
+      if (matchingYear) return matchingYear;
+    }
+    return yrs[0] || 1969;
+  });
+  const [selectedEngineId, setSelectedEngineId] = useState<string>(
+    config.engineFamilyId || 'gm_sbc_350'
+  );
+  const [typeFilter, setTypeFilter] = useState<'ALL' | EngineConfigurationType>('ALL');
+  const [fuelFilter, setFuelFilter] = useState<'ALL' | EngineFuelType>('ALL');
+  const [lastAppliedLabel, setLastAppliedLabel] = useState<string | null>(null);
+
+  const isCustomMode = selectedBrand === CUSTOM_BRAND_VALUE;
+
+  const matchesFilters = (eng: EngineFamilySpec): boolean => {
+    if (typeFilter !== 'ALL' && eng.configuration !== typeFilter) return false;
+    const fuel = eng.fuelType || 'Gasoline';
+    if (fuelFilter !== 'ALL' && fuel !== fuelFilter) return false;
+    return true;
+  };
+
+  const filteredBrands = useMemo(() => {
+    return brands.filter((brand) =>
+      getVehiclesForBrand(brand).some((veh) =>
+        veh.yearEngineOptions.some((opt) =>
+          opt.engineFamilyIds.some((id) => {
+            const fam = ENGINE_FAMILIES[id];
+            return fam ? matchesFilters(fam) : false;
+          })
+        )
+      )
+    );
+  }, [brands, typeFilter, fuelFilter]);
+
+  const brandVehicles = useMemo(() => {
+    if (isCustomMode) return [];
+    const list = getVehiclesForBrand(selectedBrand as EngineBrand);
+    if (typeFilter === 'ALL' && fuelFilter === 'ALL') return list;
+    return list.filter((veh) =>
+      veh.yearEngineOptions.some((opt) =>
+        opt.engineFamilyIds.some((id) => {
+          const fam = ENGINE_FAMILIES[id];
+          return fam ? matchesFilters(fam) : false;
+        })
+      )
+    );
+  }, [selectedBrand, isCustomMode, typeFilter, fuelFilter]);
+
+  const validYears = useMemo(() => {
+    if (isCustomMode || !selectedVehicleId) return [];
+    if (typeFilter === 'ALL' && fuelFilter === 'ALL') {
+      return getValidYearsForVehicle(selectedVehicleId);
+    }
+    const entry = VEHICLE_CATALOG[selectedVehicleId];
+    if (!entry) return [];
+    const years = new Set<number>();
+    entry.yearEngineOptions.forEach((opt) => {
+      const hasMatch = opt.engineFamilyIds.some((id) => {
+        const fam = ENGINE_FAMILIES[id];
+        return fam ? matchesFilters(fam) : false;
+      });
+      if (hasMatch) {
+        for (let y = opt.yearStart; y <= opt.yearEnd; y++) years.add(y);
+      }
+    });
+    return Array.from(years).sort((a, b) => b - a);
+  }, [selectedVehicleId, isCustomMode, typeFilter, fuelFilter]);
+
+  const yearEngineLookup = useMemo(() => {
+    if (isCustomMode || !selectedVehicleId) {
+      return { engineFamilyIds: [] as string[], trimNotes: [] as string[] };
+    }
+    return getEnginesForVehicleYear(selectedVehicleId, selectedYear);
+  }, [selectedVehicleId, selectedYear, isCustomMode]);
+
+  const offeredEngines: EngineFamilySpec[] = useMemo(() => {
+    return yearEngineLookup.engineFamilyIds
+      .map((id) => ENGINE_FAMILIES[id])
+      .filter((f): f is EngineFamilySpec => Boolean(f) && matchesFilters(f));
+  }, [yearEngineLookup, typeFilter, fuelFilter]);
+
+  const previewFamily: EngineFamilySpec | undefined = useMemo(() => {
+    if (isCustomMode) return undefined;
+    return (
+      offeredEngines.find((e) => e.id === selectedEngineId) ||
+      offeredEngines[0] ||
+      ENGINE_FAMILIES[selectedEngineId]
+    );
+  }, [isCustomMode, offeredEngines, selectedEngineId]);
+
+  const activeConfigFamily = config.engineFamilyId
+    ? ENGINE_FAMILIES[config.engineFamilyId]
+    : undefined;
+
+  const applyEngineDefaults = (
+    family: EngineFamilySpec,
+    vehicleId: string,
+    year: number
+  ) => {
+    const recTrans = TRANSMISSIONS_DB[family.recommendedTransId];
+    onUpdateConfig({
+      bore: family.bore,
+      stroke: family.stroke,
+      rodLength: family.rodLength,
+      deckHeight: family.deckHeight,
+      deckClearance: family.deckClearance,
+      gasketThickness: family.gasketThickness,
+      chamberCc: family.chamberCc,
+      pistonReliefCc: family.pistonReliefCc,
+      cylinders: family.cylinders,
+      pistonAlloy: family.pistonAlloyBaseline,
+      ringApplication: family.ringApplicationBaseline,
+      camProfile: family.camBaseline.camProfileId,
+      rockerRatio: family.camBaseline.rockerRatio,
+      selectedIntake: family.inductionBaseline.selectedIntake,
+      inductionDress: family.inductionBaseline.inductionDress,
+      carbCfm: family.inductionBaseline.carbCfm,
+      targetAFR: family.inductionBaseline.targetAFR,
+      ignitionTiming: family.inductionBaseline.ignitionTiming,
+      sparkPlugGap: family.inductionBaseline.sparkPlugGap,
+      selectedTrans: recTrans ? recTrans.id : config.selectedTrans,
+      stallSpeed: recTrans ? recTrans.defaultStall : config.stallSpeed,
+      selectedVehicle: vehicleId,
+      engineFamilyId: family.id,
+      firingOrder: family.firingOrder,
+      bellhousingPattern: family.bellhousingPattern
+    });
+
+    const veh = VEHICLE_CATALOG[vehicleId];
+    setLastAppliedLabel(
+      `${year} ${veh ? `${veh.make} ${veh.model.split('(')[0].trim()}` : ''} — ${family.shortName}`
+    );
+  };
+
+  const handleBrandChange = (nextBrand: string) => {
+    setSelectedBrand(nextBrand);
+    setLastAppliedLabel(null);
+    if (nextBrand === CUSTOM_BRAND_VALUE) {
+      // Custom / Other path leaves the current manual EngineConfig completely untouched
+      return;
+    }
+    const nextVehicles = getVehiclesForBrand(nextBrand as EngineBrand);
+    const firstVeh = nextVehicles[0];
+    if (firstVeh) {
+      setSelectedVehicleId(firstVeh.id);
+      const nextYears = getValidYearsForVehicle(firstVeh.id);
+      const firstYear = nextYears[0] || firstVeh.yearEnd;
+      setSelectedYear(firstYear);
+      const nextEngines = getEnginesForVehicleYear(firstVeh.id, firstYear).engineFamilyIds;
+      if (nextEngines[0]) {
+        setSelectedEngineId(nextEngines[0]);
+      }
+    }
+  };
+
+  const handleVehicleChange = (nextVehicleId: string) => {
+    setSelectedVehicleId(nextVehicleId);
+    setLastAppliedLabel(null);
+    const nextYears = getValidYearsForVehicle(nextVehicleId);
+    const nextYear = nextYears.includes(selectedYear) ? selectedYear : nextYears[0] || 1970;
+    setSelectedYear(nextYear);
+    const nextEngines = getEnginesForVehicleYear(nextVehicleId, nextYear).engineFamilyIds;
+    if (nextEngines[0]) {
+      setSelectedEngineId(
+        nextEngines.includes(selectedEngineId) ? selectedEngineId : nextEngines[0]
+      );
+    }
+  };
+
+  const handleYearChange = (nextYear: number) => {
+    setSelectedYear(nextYear);
+    setLastAppliedLabel(null);
+    const nextEngines = getEnginesForVehicleYear(selectedVehicleId, nextYear).engineFamilyIds;
+    if (nextEngines[0]) {
+      setSelectedEngineId(
+        nextEngines.includes(selectedEngineId) ? selectedEngineId : nextEngines[0]
+      );
+    }
+  };
+
+  const handleEngineSelect = (engineId: string) => {
+    setSelectedEngineId(engineId);
+    const family = ENGINE_FAMILIES[engineId];
+    if (family) {
+      applyEngineDefaults(family, selectedVehicleId, selectedYear);
+    }
+  };
+
+  const currentVehicleObj = VEHICLE_CATALOG[selectedVehicleId];
+
+  return (
+    <div className="bg-[#12161c] border border-slate-800 rounded-xl p-4 sm:p-5 space-y-4 text-xs text-slate-200">
+      {/* Selector Header */}
+      <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-800">
+        <div>
+          <h3 className="text-sm sm:text-base font-bold text-white flex items-center gap-2">
+            <Car className="w-4 h-4 text-orange-400" />
+            <span>Global Multi-Brand Vehicle &amp; Engine Fitment Selector</span>
+          </h3>
+          <p className="text-xs text-slate-400 mt-0.5">
+            {brands.length} OEM Groups · {ENGINE_CONFIGURATIONS.length} Engine Architectures · {ENGINE_FAMILY_LIST.length} Factory Engine Families · {VEHICLE_CATALOG_LIST.length} Vehicle Lines
+          </p>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2">
+          {config.engineFamilyId && ENGINE_FAMILIES[config.engineFamilyId] ? (
+            <span className="px-2.5 py-1 rounded-md bg-orange-950/60 border border-orange-500/50 text-orange-300 font-mono text-[11px] font-semibold">
+              Active: {ENGINE_FAMILIES[config.engineFamilyId].shortName}
+            </span>
+          ) : (
+            <span className="px-2.5 py-1 rounded-md bg-slate-900 border border-slate-700 text-slate-300 font-mono text-[11px]">
+              Active: Manual / Baseline ({specs.displacementCi} CID)
+            </span>
+          )}
+        </div>
+      </div>
+
+      {/* Quick Engine Architecture & Fuel Filters */}
+      <div className="flex flex-wrap items-center gap-3 p-2.5 rounded-lg bg-[#0d1014] border border-slate-800/90">
+        <div className="flex items-center gap-2">
+          <label htmlFor="selector-arch-filter" className="text-[11px] font-semibold text-slate-400">
+            Engine Type:
+          </label>
+          <select
+            id="selector-arch-filter"
+            value={typeFilter}
+            onChange={(e) => {
+              const nextType = e.target.value as 'ALL' | EngineConfigurationType;
+              setTypeFilter(nextType);
+              setLastAppliedLabel(null);
+              if (nextType !== 'ALL' && !isCustomMode) {
+                const firstBrand = brands.find((b) =>
+                  getVehiclesForBrand(b).some((v) =>
+                    v.yearEngineOptions.some((o) =>
+                      o.engineFamilyIds.some((id) => {
+                        const f = ENGINE_FAMILIES[id];
+                        return f && f.configuration === nextType && (fuelFilter === 'ALL' || (f.fuelType || 'Gasoline') === fuelFilter);
+                      })
+                    )
+                  )
+                );
+                if (firstBrand) {
+                  const veh = getVehiclesForBrand(firstBrand).find((v) =>
+                    v.yearEngineOptions.some((o) =>
+                      o.engineFamilyIds.some((id) => ENGINE_FAMILIES[id]?.configuration === nextType)
+                    )
+                  );
+                  setSelectedBrand(firstBrand);
+                  if (veh) {
+                    setSelectedVehicleId(veh.id);
+                    const opt = veh.yearEngineOptions.find((o) =>
+                      o.engineFamilyIds.some((id) => ENGINE_FAMILIES[id]?.configuration === nextType)
+                    );
+                    if (opt) setSelectedYear(opt.yearEnd);
+                  }
+                }
+              }
+            }}
+            className="bg-[#12161c] border border-slate-700 focus:border-cyan-400 rounded-md px-2.5 py-1 text-[11px] font-mono text-cyan-300 outline-none"
+          >
+            <option value="ALL">All Types ({ENGINE_CONFIGURATIONS.length})</option>
+            {ENGINE_CONFIGURATIONS.map((cfg) => (
+              <option key={cfg} value={cfg}>
+                {cfg === 'H4'
+                  ? 'H4 (Boxer Flat-4)'
+                  : cfg === 'H6'
+                  ? 'H6 (Boxer Flat-6)'
+                  : cfg === 'Rotary'
+                  ? 'Rotary (Wankel)'
+                  : cfg}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <label htmlFor="selector-fuel-filter" className="text-[11px] font-semibold text-slate-400">
+            Fuel:
+          </label>
+          <select
+            id="selector-fuel-filter"
+            value={fuelFilter}
+            onChange={(e) => {
+              const nextFuel = e.target.value as 'ALL' | EngineFuelType;
+              setFuelFilter(nextFuel);
+              setLastAppliedLabel(null);
+              if (nextFuel !== 'ALL' && !isCustomMode) {
+                const firstBrand = brands.find((b) =>
+                  getVehiclesForBrand(b).some((v) =>
+                    v.yearEngineOptions.some((o) =>
+                      o.engineFamilyIds.some((id) => {
+                        const f = ENGINE_FAMILIES[id];
+                        return f && (f.fuelType || 'Gasoline') === nextFuel && (typeFilter === 'ALL' || f.configuration === typeFilter);
+                      })
+                    )
+                  )
+                );
+                if (firstBrand) {
+                  const veh = getVehiclesForBrand(firstBrand).find((v) =>
+                    v.yearEngineOptions.some((o) =>
+                      o.engineFamilyIds.some((id) => (ENGINE_FAMILIES[id]?.fuelType || 'Gasoline') === nextFuel)
+                    )
+                  );
+                  setSelectedBrand(firstBrand);
+                  if (veh) {
+                    setSelectedVehicleId(veh.id);
+                    const opt = veh.yearEngineOptions.find((o) =>
+                      o.engineFamilyIds.some((id) => (ENGINE_FAMILIES[id]?.fuelType || 'Gasoline') === nextFuel)
+                    );
+                    if (opt) setSelectedYear(opt.yearEnd);
+                  }
+                }
+              }
+            }}
+            className="bg-[#12161c] border border-slate-700 focus:border-cyan-400 rounded-md px-2.5 py-1 text-[11px] font-mono text-amber-300 outline-none"
+          >
+            <option value="ALL">All Fuels (Gas / Diesel / Hybrid)</option>
+            <option value="Gasoline">Gasoline</option>
+            <option value="Diesel">Diesel Turbodiesel</option>
+            <option value="Hybrid / Gasoline">Hybrid / Atkinson</option>
+          </select>
+        </div>
+
+        {(typeFilter !== 'ALL' || fuelFilter !== 'ALL') && (
+          <button
+            type="button"
+            onClick={() => {
+              setTypeFilter('ALL');
+              setFuelFilter('ALL');
+            }}
+            className="px-2.5 py-1 rounded-md border border-slate-700 text-slate-300 hover:text-white hover:border-orange-500 text-[11px]"
+          >
+            Clear Filters
+          </button>
+        )}
+      </div>
+
+      {/* 4-Step Cascading Dropdown Grid */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+        {/* 1. Brand */}
+        <div className="space-y-1.5">
+          <label
+            htmlFor="brand-selector-brand"
+            className="block text-[11px] font-semibold text-slate-400 uppercase tracking-wide"
+          >
+            1. Brand / OEM ({filteredBrands.length})
+          </label>
+          <select
+            id="brand-selector-brand"
+            value={selectedBrand}
+            onChange={(e) => handleBrandChange(e.target.value)}
+            className="w-full bg-[#0d1014] border border-slate-700 focus:border-orange-500 rounded-lg px-3 py-2 text-xs text-white font-medium outline-none"
+          >
+            {filteredBrands.map((brand) => (
+              <option key={brand} value={brand}>
+                {brand}
+              </option>
+            ))}
+            <option value={CUSTOM_BRAND_VALUE}>Custom / Other (Manual Config)</option>
+          </select>
+        </div>
+
+        {/* 2. Vehicle */}
+        <div className="space-y-1.5">
+          <label
+            htmlFor="brand-selector-vehicle"
+            className="block text-[11px] font-semibold text-slate-400 uppercase tracking-wide"
+          >
+            2. Vehicle Model
+          </label>
+          <select
+            id="brand-selector-vehicle"
+            disabled={isCustomMode}
+            value={selectedVehicleId}
+            onChange={(e) => handleVehicleChange(e.target.value)}
+            className="w-full bg-[#0d1014] border border-slate-700 focus:border-orange-500 disabled:opacity-45 rounded-lg px-3 py-2 text-xs text-white font-medium outline-none"
+          >
+            {isCustomMode ? (
+              <option value="">Manual Vehicle Fitment</option>
+            ) : (
+              brandVehicles.map((veh) => (
+                <option key={veh.id} value={veh.id}>
+                  {veh.make} {veh.model} ({veh.yearStart}–{veh.yearEnd})
+                </option>
+              ))
+            )}
+          </select>
+        </div>
+
+        {/* 3. Year */}
+        <div className="space-y-1.5">
+          <label
+            htmlFor="brand-selector-year"
+            className="block text-[11px] font-semibold text-slate-400 uppercase tracking-wide"
+          >
+            3. Model Year
+          </label>
+          <select
+            id="brand-selector-year"
+            disabled={isCustomMode}
+            value={selectedYear}
+            onChange={(e) => handleYearChange(Number(e.target.value))}
+            className="w-full bg-[#0d1014] border border-slate-700 focus:border-orange-500 disabled:opacity-45 rounded-lg px-3 py-2 text-xs text-white font-mono font-medium outline-none"
+          >
+            {isCustomMode ? (
+              <option value="">Custom Year</option>
+            ) : (
+              validYears.map((yr) => (
+                <option key={yr} value={yr}>
+                  {yr}
+                </option>
+              ))
+            )}
+          </select>
+        </div>
+
+        {/* 4. Factory Engine Option */}
+        <div className="space-y-1.5">
+          <label
+            htmlFor="brand-selector-engine"
+            className="block text-[11px] font-semibold text-slate-400 uppercase tracking-wide"
+          >
+            4. Factory Engine ({offeredEngines.length})
+          </label>
+          <select
+            id="brand-selector-engine"
+            disabled={isCustomMode || offeredEngines.length === 0}
+            value={previewFamily?.id || ''}
+            onChange={(e) => handleEngineSelect(e.target.value)}
+            className="w-full bg-[#0d1014] border border-slate-700 focus:border-orange-500 disabled:opacity-45 rounded-lg px-3 py-2 text-xs text-white font-medium outline-none"
+          >
+            {isCustomMode ? (
+              <option value="">Manual Specs Preserved</option>
+            ) : (
+              offeredEngines.map((eng) => (
+                <option key={eng.id} value={eng.id}>
+                  {eng.shortName} — {eng.code}
+                </option>
+              ))
+            )}
+          </select>
+        </div>
+      </div>
+
+      {/* Custom / Other Mode Banner */}
+      {isCustomMode ? (
+        <div className="p-4 rounded-xl bg-[#0d1014] border border-cyan-500/40 flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-start gap-3">
+            <Sliders className="w-5 h-5 text-cyan-400 shrink-0 mt-0.5" />
+            <div className="space-y-1">
+              <div className="font-bold text-white text-sm">
+                Custom / Other Manual Configuration Active
+              </div>
+              <p className="text-slate-400 leading-relaxed">
+                Your current manual EngineConfig values ({config.bore.toFixed(3)}" bore × {config.stroke.toFixed(3)}" stroke, {config.chamberCc.toFixed(1)}cc chamber, {specs.displacementCi} CID) have been left completely untouched. Edit any dimension below directly.
+              </p>
+            </div>
+          </div>
+          {activeConfigFamily && (
+            <button
+              type="button"
+              onClick={() =>
+                onUpdateConfig({
+                  engineFamilyId: undefined,
+                  firingOrder: undefined,
+                  bellhousingPattern: undefined
+                })
+              }
+              className="px-3 py-1.5 rounded-lg border border-slate-700 bg-slate-900 hover:border-cyan-400 text-cyan-300 font-semibold whitespace-nowrap"
+            >
+              Detach Family Tag (Keep Dimensions)
+            </button>
+          )}
+        </div>
+      ) : (
+        <>
+          {/* Clickable Engine Chips for the Chosen Vehicle & Year */}
+          {offeredEngines.length > 0 && (
+            <div className="space-y-2">
+              <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] text-slate-400">
+                <span>
+                  Factory options for <strong className="text-slate-200">{selectedYear} {currentVehicleObj?.make} {currentVehicleObj?.model}</strong>
+                  {yearEngineLookup.trimNotes.length > 0 ? ` — ${yearEngineLookup.trimNotes.join(' / ')}` : ''}
+                </span>
+                <span className="font-mono text-slate-500">
+                  Click any engine below to load factory defaults
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
+                {offeredEngines.map((eng) => {
+                  const isLoaded = config.engineFamilyId === eng.id;
+                  const isPreview = previewFamily?.id === eng.id;
+                  return (
+                    <button
+                      key={eng.id}
+                      type="button"
+                      onClick={() => handleEngineSelect(eng.id)}
+                      className={`text-left p-3 rounded-xl border transition space-y-1.5 ${
+                        isLoaded
+                          ? 'bg-orange-950/35 border-orange-500 text-white'
+                          : isPreview
+                          ? 'bg-[#0d1014] border-cyan-500/60 text-slate-200 hover:border-orange-400'
+                          : 'bg-[#0d1014] border-slate-800 text-slate-300 hover:border-slate-600'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="font-bold text-xs text-white truncate">{eng.shortName}</span>
+                        <span className="font-mono text-[10px] px-1.5 py-0.5 rounded bg-slate-900 border border-slate-700 text-cyan-300 whitespace-nowrap">
+                          {eng.configuration} · {eng.displacementL}L
+                        </span>
+                      </div>
+                      <div className="font-mono text-[11px] text-slate-400 tabular-nums">
+                        {eng.configuration === 'Rotary'
+                          ? '2-Rotor 1,308 cc (79.8 CID)'
+                          : `${eng.bore.toFixed(3)}" × ${eng.stroke.toFixed(3)}"`}{' '}
+                        · {eng.camBaseline.baseHp} HP / {eng.camBaseline.baseTq} TQ
+                      </div>
+                      <div className="flex items-center justify-between text-[10px]">
+                        <span className="text-amber-300 font-mono truncate">
+                          {eng.fuelType || 'Gasoline'} · {eng.aspiration || 'NA'}
+                        </span>
+                        {isLoaded ? (
+                          <span className="text-emerald-400 font-semibold flex items-center gap-1 whitespace-nowrap">
+                            <CheckCircle2 className="w-3 h-3" /> Loaded
+                          </span>
+                        ) : (
+                          <span className="text-orange-400 font-semibold whitespace-nowrap">
+                            Load Factory Defaults
+                          </span>
+                        )}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {lastAppliedLabel && (
+            <div className="p-2.5 rounded-lg bg-emerald-950/40 border border-emerald-500/40 text-emerald-200 flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+              <span>
+                Loaded factory defaults for <strong>{lastAppliedLabel}</strong> into active EngineConfig.
+              </span>
+            </div>
+          )}
+
+          {/* Selected Factory Engine Specification Sheet */}
+          {previewFamily && (
+            <div className="bg-[#0d1014] border border-slate-800 rounded-xl p-4 space-y-3">
+              <div className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-800 pb-3">
+                <div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h4 className="text-sm font-bold text-white">{previewFamily.name}</h4>
+                    <span className="font-mono text-[10px] px-2 py-0.5 rounded bg-slate-900 border border-slate-700 text-slate-300">
+                      {previewFamily.yearStart}–{previewFamily.yearEnd}
+                    </span>
+                    <span className="font-mono text-[10px] px-2 py-0.5 rounded bg-cyan-950/60 border border-cyan-500/40 text-cyan-300">
+                      {previewFamily.configuration} · {previewFamily.fuelType || 'Gasoline'} · {previewFamily.aspiration || 'Naturally Aspirated'}
+                    </span>
+                    {previewFamily.estimatedFields.length > 0 && (
+                      <span className="font-mono text-[10px] px-2 py-0.5 rounded bg-amber-950/60 border border-amber-500/50 text-amber-300 flex items-center gap-1">
+                        <AlertTriangle className="w-3 h-3" />
+                        Contains ESTIMATED secondary fields
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-[11px] text-slate-400 mt-1">
+                    {previewFamily.family} · Code: {previewFamily.code} · {previewFamily.inductionBaseline.fuelSystemLabel}
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => applyEngineDefaults(previewFamily, selectedVehicleId, selectedYear)}
+                  className="px-3.5 py-1.5 rounded-lg bg-orange-600 hover:bg-orange-500 text-white font-semibold text-xs flex items-center gap-1.5 transition whitespace-nowrap"
+                >
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                  <span>Apply {previewFamily.shortName} Defaults</span>
+                </button>
+              </div>
+
+              {/* Factory Architecture & Cam Grid */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                {/* Block & Architecture */}
+                <div className="p-3 rounded-lg bg-[#12161c] border border-slate-800/80 space-y-1.5">
+                  <div className="text-[11px] font-semibold text-cyan-400 flex items-center gap-1.5">
+                    <Gauge className="w-3.5 h-3.5" />
+                    <span>Block, Heads &amp; Firing Order</span>
+                  </div>
+                  <div className="space-y-1 text-[11px]">
+                    <div className="flex justify-between gap-2">
+                      <span className="text-slate-400">Bore × Stroke:</span>
+                      <span className="font-mono text-white tabular-nums">
+                        {previewFamily.bore.toFixed(3)}" × {previewFamily.stroke.toFixed(3)}"
+                      </span>
+                    </div>
+                    <div className="flex justify-between gap-2">
+                      <span className="text-slate-400">Rod / Deck:</span>
+                      <span className="font-mono text-slate-200 tabular-nums">
+                        {previewFamily.rodLength.toFixed(3)}" / {previewFamily.deckHeight.toFixed(3)}"
+                      </span>
+                    </div>
+                    <div className="flex justify-between gap-2">
+                      <span className="text-slate-400">Factory CR:</span>
+                      <span className="font-mono text-amber-300">{previewFamily.factoryCR}</span>
+                    </div>
+                    <div className="flex justify-between gap-2">
+                      <span className="text-slate-400">Firing Order:</span>
+                      <span className="font-mono text-emerald-300">{previewFamily.firingOrder}</span>
+                    </div>
+                    <div className="pt-1 border-t border-slate-800 text-slate-300">
+                      <span className="text-slate-400">Block: </span>
+                      {previewFamily.blockMaterial}
+                    </div>
+                    <div className="text-slate-300">
+                      <span className="text-slate-400">Heads: </span>
+                      {previewFamily.headType}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Stock Cam Baseline */}
+                <div className="p-3 rounded-lg bg-[#12161c] border border-slate-800/80 space-y-1.5">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-[11px] font-semibold text-orange-400 flex items-center gap-1.5">
+                      <Wrench className="w-3.5 h-3.5" />
+                      <span>Stock Cam Baseline</span>
+                    </span>
+                    {previewFamily.camBaseline.isEstimated && (
+                      <span className="font-mono text-[10px] px-1.5 py-0.5 rounded bg-amber-950/70 border border-amber-500/40 text-amber-300">
+                        ESTIMATED
+                      </span>
+                    )}
+                  </div>
+                  <div className="space-y-1 text-[11px]">
+                    <div className="font-semibold text-white">{previewFamily.camBaseline.name}</div>
+                    <div className="text-slate-400">{previewFamily.camBaseline.lifterType}</div>
+                    <div className="flex justify-between gap-2">
+                      <span className="text-slate-400">Dur @ .050":</span>
+                      <span className="font-mono text-white tabular-nums">
+                        {previewFamily.camBaseline.intakeDur050}° / {previewFamily.camBaseline.exhDur050}°
+                      </span>
+                    </div>
+                    <div className="flex justify-between gap-2">
+                      <span className="text-slate-400">Valve Lift:</span>
+                      <span className="font-mono text-slate-200 tabular-nums">
+                        {previewFamily.camBaseline.valveLiftIntake.toFixed(3)}" / {previewFamily.camBaseline.valveLiftExhaust.toFixed(3)}" ({previewFamily.camBaseline.rockerRatio}:1)
+                      </span>
+                    </div>
+                    <div className="flex justify-between gap-2">
+                      <span className="text-slate-400">Factory Output:</span>
+                      <span className="font-mono text-orange-300 tabular-nums">
+                        {previewFamily.camBaseline.baseHp} HP @ {previewFamily.camBaseline.hpRpm} / {previewFamily.camBaseline.baseTq} TQ @ {previewFamily.camBaseline.tqRpm}
+                      </span>
+                    </div>
+                    <p className="pt-1 border-t border-slate-800 text-[10px] text-slate-400 leading-relaxed">
+                      {previewFamily.camBaseline.notes}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Bellhousing & Bolt-Up Transmissions */}
+                <div className="p-3 rounded-lg bg-[#12161c] border border-slate-800/80 space-y-1.5">
+                  <div className="text-[11px] font-semibold text-emerald-400 flex items-center gap-1.5">
+                    <Cog className="w-3.5 h-3.5" />
+                    <span>Bellhousing &amp; Bolt-Up Transmissions</span>
+                  </div>
+                  <div className="text-[11px] space-y-1">
+                    <div>
+                      <span className="text-slate-400">Pattern: </span>
+                      <span className="font-mono text-amber-300 font-semibold">
+                        {previewFamily.bellhousingPattern}
+                      </span>
+                    </div>
+                    <p className="text-[10px] text-slate-400 leading-relaxed">
+                      {previewFamily.bellhousingNotes}
+                    </p>
+                    <div className="pt-1 space-y-1 max-h-32 overflow-y-auto pr-1">
+                      {previewFamily.compatibleTransmissions.map((match) => {
+                        const trans = TRANSMISSIONS_DB[match.transId];
+                        if (!trans) return null;
+                        const isActiveTrans = config.selectedTrans === trans.id;
+                        return (
+                          <button
+                            key={match.transId}
+                            type="button"
+                            onClick={() =>
+                              onUpdateConfig({
+                                selectedTrans: trans.id,
+                                stallSpeed: trans.defaultStall || config.stallSpeed
+                              })
+                            }
+                            className={`w-full text-left px-2 py-1 rounded border text-[10px] transition ${
+                              isActiveTrans
+                                ? 'bg-emerald-950/50 border-emerald-500/60 text-emerald-200'
+                                : 'bg-[#0d1014] border-slate-800 text-slate-300 hover:border-slate-600'
+                            }`}
+                          >
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="font-semibold truncate">{trans.name}</span>
+                              <span className="font-mono uppercase text-[9px] text-cyan-300 shrink-0">
+                                {match.fitment.replace('_', ' ')}
+                              </span>
+                            </div>
+                            <div className="text-slate-400 truncate">{match.notes}</div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Shop Notes & Estimated Flags */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-2 border-t border-slate-800/80 text-[11px]">
+                <div className="flex items-start gap-2 text-slate-300">
+                  <Info className="w-3.5 h-3.5 text-cyan-400 shrink-0 mt-0.5" />
+                  <span>{previewFamily.shopNotes}</span>
+                </div>
+                {previewFamily.estimatedFields.length > 0 && (
+                  <span className="font-mono text-[10px] text-amber-300 shrink-0">
+                    ESTIMATED: {previewFamily.estimatedFields.join(', ')}
+                  </span>
+                )}
+              </div>
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+};
+
+
+===== FILE: src/components/EcosystemRegistryModal.tsx (13594 bytes, md5 e3bc8a39e0fb1696f5fdb683d6897936) =====
+
+/**
+ * @license
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+import React, { useEffect, useState, useMemo } from 'react';
+import {
+  X,
+  Search,
+  Archive,
+  Clock,
+  Check,
+  Copy
+} from 'lucide-react';
+
+export interface AppletHistoryEntry {
+  lastAccessTime: string;
+  firstAccessTime: string;
+  source?: {
+    sourceType?: string;
+    spanner?: {
+      id?: string;
+    };
+  };
+  name: string;
+  description: string;
+  runtimeType?: number;
+}
+
+interface EcosystemRegistryModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onLoadedCount?: (count: number) => void;
+}
+
+export const APPLET_HISTORY_PATH = '/assets/aistudio/applet_access_history_9a35c213.json';
+export const CURRENT_APPLET_ID = '8629f36c-907b-42ca-a68a-28f22675f11e';
+export const SIBLING_ENGINE_ID = '159edc09-c4b8-4b30-b667-dff9d50f6e2d';
+
+type EcosystemCategory =
+  | 'ALL'
+  | 'Engine & Drivetrain'
+  | 'CAD, Pumps & Engineering'
+  | 'Ironworks & Structural'
+  | 'TABs, PODs & Polymer'
+  | 'Studio, Voice & Media';
+
+function getNormalizedCategory(entry: AppletHistoryEntry): Exclude<EcosystemCategory, 'ALL'> {
+  const text = `${entry.name} ${entry.description}`.toLowerCase();
+  if (text.includes('sbc 350') || text.includes('engine') || text.includes('transmission')) {
+    return 'Engine & Drivetrain';
+  }
+  if (text.includes('ironworks') || text.includes('ironconflux') || text.includes('metalwork')) {
+    return 'Ironworks & Structural';
+  }
+  if (
+    text.includes('hydro') ||
+    text.includes('pump') ||
+    text.includes('buoy') ||
+    text.includes('core atlas') ||
+    text.includes('projectschem') ||
+    text.includes('conflux')
+  ) {
+    return 'CAD, Pumps & Engineering';
+  }
+  if (text.includes('polymer') || text.includes('tabs') || text.includes('pods') || text.includes('manifestation')) {
+    return 'TABs, PODs & Polymer';
+  }
+  return 'Studio, Voice & Media';
+}
+
+export const EcosystemRegistryModal: React.FC<EcosystemRegistryModalProps> = ({
+  isOpen,
+  onClose,
+  onLoadedCount
+}) => {
+  const [applets, setApplets] = useState<AppletHistoryEntry[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
+  const [search, setSearch] = useState<string>('');
+  const [category, setCategory] = useState<EcosystemCategory>('ALL');
+  const [sortBy, setSortBy] = useState<'recent' | 'oldest' | 'name'>('recent');
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch(APPLET_HISTORY_PATH)
+      .then((res) => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return res.json();
+      })
+      .then((data) => {
+        if (cancelled) return;
+        const list: AppletHistoryEntry[] = Array.isArray(data?.applets) ? data.applets : [];
+        setApplets(list);
+        setLoading(false);
+        if (onLoadedCount) onLoadedCount(list.length);
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        setError(err instanceof Error ? err.message : 'Unable to load registry JSON');
+        setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [onLoadedCount]);
+
+  const categories: EcosystemCategory[] = [
+    'ALL',
+    'Engine & Drivetrain',
+    'CAD, Pumps & Engineering',
+    'Ironworks & Structural',
+    'TABs, PODs & Polymer',
+    'Studio, Voice & Media'
+  ];
+
+  const categoryCounts = useMemo(() => {
+    const counts: Record<string, number> = { ALL: applets.length };
+    applets.forEach((a) => {
+      const cat = getNormalizedCategory(a);
+      counts[cat] = (counts[cat] || 0) + 1;
+    });
+    return counts;
+  }, [applets]);
+
+  const filteredApplets = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    const list = applets.filter((item) => {
+      const cat = getNormalizedCategory(item);
+      if (category !== 'ALL' && cat !== category) return false;
+      if (!q) return true;
+      const id = item.source?.spanner?.id || '';
+      return (
+        item.name.toLowerCase().includes(q) ||
+        item.description.toLowerCase().includes(q) ||
+        id.toLowerCase().includes(q)
+      );
+    });
+
+    return [...list].sort((a, b) => {
+      if (sortBy === 'name') return a.name.localeCompare(b.name);
+      if (sortBy === 'oldest') {
+        return new Date(a.firstAccessTime).getTime() - new Date(b.firstAccessTime).getTime();
+      }
+      return new Date(b.lastAccessTime).getTime() - new Date(a.lastAccessTime).getTime();
+    });
+  }, [applets, search, category, sortBy]);
+
+  const handleCopyId = (id: string) => {
+    if (!id) return;
+    navigator.clipboard?.writeText(id).catch(() => {});
+    setCopiedId(id);
+    setTimeout(() => setCopiedId(null), 1500);
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-3 sm:p-6 font-mono text-xs text-gray-200">
+      <div className="w-full max-w-5xl max-h-[90vh] bg-[#14191e] border border-orange-500/60 rounded-2xl shadow-2xl flex flex-col overflow-hidden">
+        {/* Modal Header */}
+        <div className="px-5 py-4 bg-[#1a2026] border-b border-gray-800 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-orange-600/20 border border-orange-500/60 flex items-center justify-center text-orange-400">
+              <Archive className="w-5 h-5" />
+            </div>
+            <div>
+              <h2 className="text-sm sm:text-base font-extrabold text-white font-sans tracking-wide flex items-center gap-2">
+                RAY &amp; PHOENIX STUDIO APPLET REGISTRY
+                <span className="text-[10px] px-2 py-0.5 rounded bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 font-mono">
+                  {applets.length} INDEXED
+                </span>
+              </h2>
+              <p className="text-[10px] text-gray-400 font-mono mt-0.5">
+                Loaded directly from <span className="text-cyan-400">{APPLET_HISTORY_PATH}</span>
+              </p>
+            </div>
+          </div>
+
+          <button
+            onClick={onClose}
+            className="p-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-gray-800 transition"
+            title="Close Registry"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        {/* Search, Filter & Sort Toolbar */}
+        <div className="p-4 bg-[#101418] border-b border-gray-800 space-y-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="relative flex-1 min-w-[220px]">
+              <Search className="w-4 h-4 text-gray-500 absolute left-3 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search applets by name, capability, or Spanner ID..."
+                className="w-full bg-[#1a2026] border border-gray-700 focus:border-orange-500 outline-none rounded-lg pl-9 pr-3 py-1.5 text-white text-xs font-sans"
+              />
+            </div>
+
+            <div className="flex items-center gap-1.5">
+              <span className="text-[10px] text-gray-400 font-bold uppercase">SORT:</span>
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value as 'recent' | 'oldest' | 'name')}
+                className="bg-[#1a2026] border border-gray-700 rounded-lg px-2.5 py-1.5 text-white text-xs"
+              >
+                <option value="recent">Last Accessed</option>
+                <option value="oldest">First Created</option>
+                <option value="name">Alphabetical</option>
+              </select>
+            </div>
+          </div>
+
+          {/* Category Filter Bar */}
+          <div className="flex flex-wrap gap-1.5">
+            {categories.map((cat) => (
+              <button
+                key={cat}
+                onClick={() => setCategory(cat)}
+                className={`px-2.5 py-1 rounded-lg text-[11px] transition flex items-center gap-1.5 ${
+                  category === cat
+                    ? 'bg-orange-600 text-white font-bold shadow'
+                    : 'bg-[#1a2026] text-gray-400 hover:text-white border border-gray-800'
+                }`}
+              >
+                <span>{cat}</span>
+                <span className="text-[9px] px-1 rounded bg-black/40 text-gray-300">
+                  {categoryCounts[cat] || 0}
+                </span>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Applet List Body */}
+        <div className="flex-1 overflow-y-auto p-4 space-y-2.5">
+          {loading && (
+            <div className="text-center py-12 text-gray-400">
+              Loading studio applet history from {APPLET_HISTORY_PATH}...
+            </div>
+          )}
+
+          {error && (
+            <div className="p-4 rounded-xl bg-red-950/40 border border-red-500/50 text-red-300">
+              Failed to load {APPLET_HISTORY_PATH}: {error}
+            </div>
+          )}
+
+          {!loading && !error && filteredApplets.length === 0 && (
+            <div className="text-center py-10 text-gray-500">
+              No applets match your search or category filter.
+            </div>
+          )}
+
+          {!loading &&
+            !error &&
+            filteredApplets.map((item, idx) => {
+              const spannerId = item.source?.spanner?.id || 'N/A';
+              const isCurrent = spannerId === CURRENT_APPLET_ID;
+              const isSibling = spannerId === SIBLING_ENGINE_ID;
+              const itemCategory = getNormalizedCategory(item);
+              const lastDate = new Date(item.lastAccessTime).toLocaleString();
+              const firstDate = new Date(item.firstAccessTime).toLocaleDateString();
+
+              return (
+                <div
+                  key={`${spannerId}-${idx}`}
+                  className={`p-3.5 rounded-xl border transition ${
+                    isCurrent
+                      ? 'bg-orange-950/30 border-orange-500 shadow-lg'
+                      : isSibling
+                      ? 'bg-cyan-950/25 border-cyan-500/60'
+                      : 'bg-[#181e24] border-gray-800 hover:border-gray-700'
+                  }`}
+                >
+                  <div className="flex flex-wrap items-start justify-between gap-2">
+                    <div className="space-y-1 flex-1 min-w-[240px]">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <h3 className="font-bold text-sm text-white font-sans">{item.name}</h3>
+                        {isCurrent && (
+                          <span className="px-1.5 py-0.5 rounded bg-orange-600 text-white text-[9px] font-black uppercase">
+                            ACTIVE BUILD
+                          </span>
+                        )}
+                        {isSibling && (
+                          <span className="px-1.5 py-0.5 rounded bg-cyan-500/20 text-cyan-300 border border-cyan-500/50 text-[9px] font-bold uppercase">
+                            SIBLING ENGINE SUITE
+                          </span>
+                        )}
+                        <span className="px-1.5 py-0.5 rounded bg-black/50 text-gray-400 border border-gray-800 text-[9px]">
+                          {itemCategory}
+                        </span>
+                      </div>
+
+                      <p className="text-[11px] text-gray-300 font-sans leading-relaxed">
+                        {item.description}
+                      </p>
+                    </div>
+
+                    <div className="flex flex-col items-end gap-1.5 text-[10px]">
+                      <button
+                        onClick={() => handleCopyId(spannerId)}
+                        className="px-2 py-1 rounded bg-black/60 hover:bg-gray-800 border border-gray-700 text-cyan-300 flex items-center gap-1 transition"
+                        title="Copy Spanner Applet ID"
+                      >
+                        {copiedId === spannerId ? (
+                          <>
+                            <Check className="w-3 h-3 text-emerald-400" />
+                            <span className="text-emerald-400">Copied</span>
+                          </>
+                        ) : (
+                          <>
+                            <Copy className="w-3 h-3" />
+                            <span>{spannerId.slice(0, 8)}...</span>
+                          </>
+                        )}
+                      </button>
+
+                      <div className="text-gray-500 flex items-center gap-1">
+                        <Clock className="w-3 h-3" />
+                        <span>Last: {lastDate}</span>
+                      </div>
+                      <div className="text-gray-600">Created: {firstDate}</div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+        </div>
+
+        {/* Footer */}
+        <div className="px-5 py-3 bg-[#101418] border-t border-gray-800 flex flex-wrap items-center justify-between gap-2 text-[10px] text-gray-400">
+          <span>
+            Source: <strong className="text-gray-300">{APPLET_HISTORY_PATH}</strong> ({filteredApplets.length} of {applets.length} shown)
+          </span>
+          <button
+            onClick={onClose}
+            className="px-3 py-1 rounded-lg bg-orange-600 hover:bg-orange-500 text-white font-bold transition"
+          >
+            Return to SBC 350 Builder
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+
+===== FILE: src/components/ErrorBoundary.tsx (2611 bytes, md5 31a36c642db86f49ff44a504525f827d) =====
+
+/**
+ * @license
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+import React from 'react';
+import { AlertTriangle, RotateCcw } from 'lucide-react';
+
+interface ErrorBoundaryProps {
+  children: React.ReactNode;
+  fallbackTitle?: string;
+  onReset?: () => void;
+  resetKey?: string | number;
+}
+
+interface ErrorBoundaryState {
+  hasError: boolean;
+  message: string;
+}
+
+export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
+  constructor(props: ErrorBoundaryProps) {
+    super(props);
+    this.state = { hasError: false, message: '' };
+  }
+
+  static getDerivedStateFromError(error: Error): ErrorBoundaryState {
+    return {
+      hasError: true,
+      message: error?.message || 'An unexpected rendering error occurred.'
+    };
+  }
+
+  componentDidUpdate(prevProps: ErrorBoundaryProps): void {
+    if (this.state.hasError && prevProps.resetKey !== this.props.resetKey) {
+      this.setState({ hasError: false, message: '' });
+    }
+  }
+
+  componentDidCatch(error: Error, info: React.ErrorInfo): void {
+    console.error('Studio ErrorBoundary caught error:', error, info.componentStack);
+  }
+
+  private handleReset = (): void => {
+    this.setState({ hasError: false, message: '' });
+    this.props.onReset?.();
+  };
+
+  render(): React.ReactNode {
+    if (this.state.hasError) {
+      return (
+        <div className="w-full h-full min-h-[360px] flex items-center justify-center bg-[#0d1014] p-6 text-slate-200">
+          <div className="max-w-md w-full rounded-xl border border-slate-700 bg-[#12161c] p-6 text-center space-y-4">
+            <div className="w-10 h-10 rounded-full bg-orange-600/20 border border-orange-500/50 text-orange-400 flex items-center justify-center mx-auto">
+              <AlertTriangle className="w-5 h-5" />
+            </div>
+            <div className="space-y-1.5">
+              <h2 className="text-sm font-bold text-white">
+                {this.props.fallbackTitle || 'Studio Module Encountered an Error'}
+              </h2>
+              <p className="text-xs text-slate-400 leading-relaxed break-words">
+                {this.state.message}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={this.handleReset}
+              className="px-4 py-2 rounded-lg bg-orange-600 hover:bg-orange-500 text-white text-xs font-semibold inline-flex items-center gap-2 transition"
+            >
+              <RotateCcw className="w-3.5 h-3.5" />
+              <span>Recover Workbench</span>
+            </button>
+          </div>
+        </div>
+      );
+    }
+
+    return this.props.children;
+  }
+}
+
+
+===== FILE: src/components/Header.tsx (3714 bytes, md5 acf7cf91514bc62874f2aa2b71813ca0) =====
+
+/**
+ * @license
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+import React from 'react';
+import { ENGINE_CATALOG } from '../data/engineData';
+import { RotateCcw, Store, BookOpen, Menu } from 'lucide-react';
+
+interface HeaderProps {
+  selectedEngineId: string;
+  onSelectEnginePreset: (engineId: string) => void;
+  onResetRay: () => void;
+  onOpenPartsStore: () => void;
+  onOpenKnowledge: () => void;
+  onToggleMobileSidebar: () => void;
+  activeStoreLabel?: string | null;
+}
+
+export const Header: React.FC<HeaderProps> = ({
+  selectedEngineId,
+  onSelectEnginePreset,
+  onResetRay,
+  onOpenPartsStore,
+  onOpenKnowledge,
+  onToggleMobileSidebar,
+  activeStoreLabel
+}) => {
+  return (
+    <header className="h-12 flex-shrink-0 bg-[#11151b] border-b border-slate-800 px-4 flex items-center justify-between gap-6 z-30">
+      {/* Zone 1: Brand Wordmark (Single-line) */}
+      <div className="flex items-center gap-3 shrink-0">
+        <button
+          onClick={onToggleMobileSidebar}
+          className="lg:hidden p-1.5 rounded-md border border-slate-700 text-slate-300 hover:text-white hover:border-slate-500 transition"
+          aria-label="Toggle Workbenches Menu"
+        >
+          <Menu className="w-4 h-4" />
+        </button>
+        <span className="text-sm sm:text-base font-bold tracking-tight text-white whitespace-nowrap">
+          SBC 350 CAD Studio
+        </span>
+      </div>
+
+      {/* Zone 2: Engine Assembly Selector & Global Studio Libraries */}
+      <div className="hidden md:flex items-center gap-5 min-w-0">
+        <div className="flex items-center gap-2 min-w-0">
+          <label
+            htmlFor="studio-engine-select"
+            className="text-xs font-medium text-slate-400 whitespace-nowrap shrink-0"
+          >
+            Engine
+          </label>
+          <select
+            id="studio-engine-select"
+            value={selectedEngineId}
+            onChange={(e) => onSelectEnginePreset(e.target.value)}
+            className="bg-[#0d1014] border border-slate-700 focus:border-orange-500 rounded-md px-2.5 py-1 text-xs font-medium text-white max-w-[260px] truncate outline-none"
+          >
+            {Object.values(ENGINE_CATALOG).map((eng) => (
+              <option key={eng.id} value={eng.id}>
+                {eng.name}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <nav className="flex items-center gap-5 text-xs font-medium text-slate-300">
+          <button
+            onClick={onOpenPartsStore}
+            className="hover:text-emerald-300 transition-colors whitespace-nowrap shrink-0 flex items-center gap-1.5"
+          >
+            <Store className="w-3.5 h-3.5 text-emerald-400" />
+            <span>{activeStoreLabel ? `Counter: ${activeStoreLabel}` : 'Parts Catalog'}</span>
+          </button>
+
+          <button
+            onClick={onOpenKnowledge}
+            className="hover:text-amber-300 transition-colors whitespace-nowrap shrink-0 flex items-center gap-1.5"
+          >
+            <BookOpen className="w-3.5 h-3.5 text-amber-400" />
+            <span>Tech Knowledge</span>
+          </button>
+        </nav>
+      </div>
+
+      {/* Zone 3: Primary Action */}
+      <div className="flex items-center gap-2 shrink-0">
+        <button
+          onClick={onResetRay}
+          title="Reset to Ray's Confirmed Baseline (4.000 x 3.480, 5.700 Rods, 9.025 Deck, 64cc, .054 Quench)"
+          className="px-3 py-1.5 rounded-md text-xs font-semibold bg-orange-600 hover:bg-orange-500 text-white transition whitespace-nowrap shrink-0 flex items-center gap-1.5"
+        >
+          <RotateCcw className="w-3.5 h-3.5" />
+          <span>Reset Ray's 350</span>
+        </button>
+      </div>
+    </header>
+  );
+};
+
+
+===== FILE: src/components/SchematicBlueprints.tsx (37034 bytes, md5 5e4fbb6180702758e14ba90837aeaa01) =====
+
+/**
+ * @license
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+import React from 'react';
+import {
+  EngineConfig,
+  CoordinatedSpecs,
+  TransmissionItem,
+  TechDrawingSheet,
+  TechDrawingCallout
+} from '../types/engine';
+
+export type BlueprintPaperTheme = 'blueprint' | 'vellum';
+
+interface SchematicEngineSVGProps {
+  config: EngineConfig;
+  specs: CoordinatedSpecs;
+  sheet: TechDrawingSheet;
+  selectedTarget: string | null;
+  onSelectCallout: (callout: TechDrawingCallout) => void;
+  paperTheme: BlueprintPaperTheme;
+  svgRef?: React.RefObject<SVGSVGElement | null>;
+}
+
+interface SchematicTransmissionSVGProps {
+  transmission: TransmissionItem;
+  sheet: TechDrawingSheet;
+  selectedTarget: string | null;
+  onSelectCallout: (callout: TechDrawingCallout) => void;
+  paperTheme: BlueprintPaperTheme;
+  svgRef?: React.RefObject<SVGSVGElement | null>;
+}
+
+function getPalette(theme: BlueprintPaperTheme) {
+  if (theme === 'vellum') {
+    return {
+      bg: '#f8fafc',
+      gridMinor: '#e2e8f0',
+      gridMajor: '#cbd5e1',
+      stroke: '#0f172a',
+      strokeMuted: '#475569',
+      dimLine: '#0369a1',
+      accent: '#c2410c',
+      ok: '#15803d',
+      warn: '#b45309',
+      fillSubtle: '#e2e8f0',
+      fillDark: '#cbd5e1',
+      balloonBg: '#ffffff',
+      balloonActiveBg: '#ea580c',
+      balloonActiveText: '#ffffff',
+      text: '#0f172a',
+      textMuted: '#475569',
+      hatch: '#94a3b8'
+    };
+  }
+  return {
+    bg: '#091628',
+    gridMinor: '#10243e',
+    gridMajor: '#183457',
+    stroke: '#e2e8f0',
+    strokeMuted: '#7dd3fc',
+    dimLine: '#38bdf8',
+    accent: '#fb923c',
+    ok: '#34d399',
+    warn: '#fbbf24',
+    fillSubtle: '#0e223d',
+    fillDark: '#132c4d',
+    balloonBg: '#091628',
+    balloonActiveBg: '#ea580c',
+    balloonActiveText: '#ffffff',
+    text: '#f8fafc',
+    textMuted: '#94a3b8',
+    hatch: '#38bdf8'
+  };
+}
+
+function findCalloutForTarget(sheet: TechDrawingSheet, target: string): TechDrawingCallout | undefined {
+  return sheet.callouts.find((c) => c.targetSubassembly === target);
+}
+
+export const SchematicEngineSVG: React.FC<SchematicEngineSVGProps> = ({
+  config,
+  specs,
+  sheet,
+  selectedTarget,
+  onSelectCallout,
+  paperTheme,
+  svgRef
+}) => {
+  const p = getPalette(paperTheme);
+  const quenchOk = specs.quenchDistance >= 0.038 && specs.quenchDistance <= 0.055;
+
+  // Dynamic pixel proportions anchored cleanly to parametric values
+  const borePx = Math.max(92, Math.min(132, config.bore * 27));
+  const cxLeft = 285;
+  const deckY = 175;
+  const gasketPx = Math.max(7, Math.min(16, config.gasketThickness * 220));
+  const deckClearPx = Math.max(4, Math.min(14, config.deckClearance * 340));
+  const headBottomY = deckY - gasketPx;
+  const pistonCrownY = deckY + deckClearPx;
+  const crankCy = 465;
+
+  const balloons: Array<{
+    target: string;
+    x: number;
+    y: number;
+    lx: number;
+    ly: number;
+    fallbackCode: string;
+    fallbackTitle: string;
+  }> = [
+    { target: 'heads', x: 350, y: 122, lx: 432, ly: 86, fallbackCode: 'C-340', fallbackTitle: 'Cylinder Head & E-I-I-E Valvetrain' },
+    { target: 'rotating', x: cxLeft + borePx * 0.42, y: pistonCrownY + 34, lx: 432, ly: 205, fallbackCode: 'B-220', fallbackTitle: 'Forged Piston & H-Beam Rod' },
+    { target: 'block', x: cxLeft - borePx * 0.56, y: 280, lx: 90, ly: 278, fallbackCode: 'A-101', fallbackTitle: '4-Bolt Cylinder Block Deck' },
+    { target: 'crank', x: cxLeft, y: crankCy, lx: 432, ly: 465, fallbackCode: 'B-201', fallbackTitle: '4340 Forged Crankshaft' },
+    { target: 'intake', x: 765, y: 125, lx: 765, ly: 66, fallbackCode: 'D-410', fallbackTitle: 'Intake & Holley 4150' },
+    { target: 'ignition', x: 965, y: 158, lx: 1058, ly: 102, fallbackCode: 'D-450', fallbackTitle: 'MSD Pro-Billet HEI' },
+    { target: 'cam', x: 745, y: 315, lx: 602, ly: 268, fallbackCode: 'C-305', fallbackTitle: 'Camshaft & Timing Set' },
+    { target: 'timingCover', x: 640, y: 370, lx: 562, ly: 355, fallbackCode: 'A-114', fallbackTitle: 'Timing Cover & 60-2 Wheel' },
+    { target: 'cooling', x: 608, y: 280, lx: 562, ly: 190, fallbackCode: 'E-540', fallbackTitle: 'Water Pump & 160A Alternator' },
+    { target: 'lubrication', x: 800, y: 452, lx: 800, ly: 522, fallbackCode: 'E-510', fallbackTitle: 'M55HV Oil Pump & Baffled Pan' },
+    { target: 'starter', x: 960, y: 420, lx: 1068, ly: 432, fallbackCode: 'F-605', fallbackTitle: 'Powermaster Mini Starter' }
+  ];
+
+  return (
+    <svg
+      ref={svgRef}
+      viewBox="0 0 1180 620"
+      className="w-full h-auto block select-none"
+      role="img"
+      aria-label={`Dimensioned CAD schematic for ${sheet.title}`}
+    >
+      <defs>
+        <pattern id="cadGridMinor" width="20" height="20" patternUnits="userSpaceOnUse">
+          <path d="M 20 0 L 0 0 0 20" fill="none" stroke={p.gridMinor} strokeWidth="0.7" />
+        </pattern>
+        <pattern id="cadGridMajor" width="100" height="100" patternUnits="userSpaceOnUse">
+          <rect width="100" height="100" fill="url(#cadGridMinor)" />
+          <path d="M 100 0 L 0 0 0 100" fill="none" stroke={p.gridMajor} strokeWidth="1.1" />
+        </pattern>
+        <pattern id="sectionHatch" width="8" height="8" patternTransform="rotate(45)" patternUnits="userSpaceOnUse">
+          <line x1="0" y1="0" x2="0" y2="8" stroke={p.hatch} strokeWidth="1.2" opacity="0.45" />
+        </pattern>
+        <marker id="arrowBlue" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 10 5 L 0 8.5 z" fill={p.dimLine} />
+        </marker>
+        <marker id="arrowOrange" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 10 5 L 0 8.5 z" fill={p.accent} />
+        </marker>
+      </defs>
+
+      {/* Blueprint Paper & ASME Border Frame */}
+      <rect width="1180" height="620" fill={p.bg} />
+      <rect width="1180" height="620" fill="url(#cadGridMajor)" />
+      <rect x="14" y="14" width="1152" height="592" fill="none" stroke={p.stroke} strokeWidth="1.6" />
+      <rect x="19" y="19" width="1142" height="582" fill="none" stroke={p.strokeMuted} strokeWidth="0.7" opacity="0.75" />
+
+      {/* Center Divider between Section A-A (Left) and Longitudinal Elevation (Right) */}
+      <line x1="515" y1="24" x2="515" y2="545" stroke={p.gridMajor} strokeWidth="1.2" strokeDasharray="6 4" />
+
+      {/* View Headers */}
+      <text x="34" y="42" fill={p.stroke} fontSize="13" fontWeight="700" fontFamily="JetBrains Mono, monospace">
+        SECTION A-A: CYLINDER, QUENCH &amp; ROTATING GEOMETRY
+      </text>
+      <text x="536" y="42" fill={p.stroke} fontSize="13" fontWeight="700" fontFamily="JetBrains Mono, monospace">
+        VIEW B: LONGITUDINAL SUBSYSTEM ELEVATION (FRONT → REAR)
+      </text>
+
+      {/* ================= LEFT: SECTION A-A CYLINDER & QUENCH ================= */}
+      {/* Cylinder Centerline */}
+      <line x1={cxLeft} y1="62" x2={cxLeft} y2="518" stroke={p.dimLine} strokeWidth="1" strokeDasharray="12 4 2 4" opacity="0.7" />
+
+      {/* Cylinder Head Casting Cross-Section */}
+      <path
+        d={`M ${cxLeft - borePx * 0.85} ${headBottomY}
+            L ${cxLeft - borePx * 0.85} 78
+            L ${cxLeft + borePx * 0.85} 78
+            L ${cxLeft + borePx * 0.85} ${headBottomY}
+            L ${cxLeft + borePx * 0.48} ${headBottomY}
+            L ${cxLeft + borePx * 0.34} ${headBottomY - 38}
+            L ${cxLeft - borePx * 0.16} ${headBottomY - 38}
+            L ${cxLeft - borePx * 0.42} ${headBottomY} Z`}
+        fill="url(#sectionHatch)"
+        stroke={p.stroke}
+        strokeWidth="1.8"
+      />
+
+      {/* Valves & Springs inside Section A-A */}
+      <line x1={cxLeft - 24} y1="86" x2={cxLeft - 14} y2={headBottomY - 12} stroke={p.accent} strokeWidth="2.4" />
+      <line x1={cxLeft - 28} y1={headBottomY - 10} x2={cxLeft + 2} y2={headBottomY - 14} stroke={p.accent} strokeWidth="3.5" />
+      <line x1={cxLeft + 26} y1="86" x2={cxLeft + 18} y2={headBottomY - 18} stroke={p.dimLine} strokeWidth="2.2" />
+      <line x1={cxLeft + 4} y1={headBottomY - 18} x2={cxLeft + 30} y2={headBottomY - 16} stroke={p.dimLine} strokeWidth="3.2" />
+
+      {/* Combustion Chamber Label */}
+      <text x={cxLeft + 4} y={headBottomY - 22} textAnchor="middle" fill={p.warn} fontSize="10.5" fontWeight="700" fontFamily="JetBrains Mono, monospace">
+        {config.chamberCc.toFixed(1)} cc
+      </text>
+
+      {/* Fel-Pro Head Gasket Band */}
+      <rect
+        x={cxLeft - borePx * 0.84}
+        y={headBottomY}
+        width={borePx * 0.34}
+        height={gasketPx}
+        fill={p.accent}
+        opacity="0.7"
+      />
+      <rect
+        x={cxLeft + borePx * 0.5}
+        y={headBottomY}
+        width={borePx * 0.34}
+        height={gasketPx}
+        fill={p.accent}
+        opacity="0.7"
+      />
+
+      {/* Quench Pad Highlight Zone (Piston Quench Pad to Cylinder Head Flat) */}
+      <rect
+        x={cxLeft - borePx * 0.49}
+        y={headBottomY}
+        width={borePx * 0.24}
+        height={gasketPx + deckClearPx}
+        fill={quenchOk ? p.ok : p.warn}
+        opacity="0.32"
+        stroke={quenchOk ? p.ok : p.warn}
+        strokeWidth="1"
+        strokeDasharray="2 2"
+      />
+
+      {/* Cylinder Block Cast Iron Walls (Left & Right Cutaway) */}
+      <rect
+        x={cxLeft - borePx * 0.84}
+        y={deckY}
+        width={borePx * 0.34}
+        height="175"
+        fill="url(#sectionHatch)"
+        stroke={p.stroke}
+        strokeWidth="1.8"
+      />
+      <rect
+        x={cxLeft + borePx * 0.5}
+        y={deckY}
+        width={borePx * 0.34}
+        height="175"
+        fill="url(#sectionHatch)"
+        stroke={p.stroke}
+        strokeWidth="1.8"
+      />
+
+      {/* Piston Assembly (TDC Position) */}
+      <rect
+        x={cxLeft - borePx * 0.48}
+        y={pistonCrownY}
+        width={borePx * 0.96}
+        height="68"
+        rx="3"
+        fill={p.fillDark}
+        stroke={p.stroke}
+        strokeWidth="1.8"
+      />
+      {/* Top / 2nd / Oil Rings */}
+      <line x1={cxLeft - borePx * 0.48} y1={pistonCrownY + 12} x2={cxLeft + borePx * 0.48} y2={pistonCrownY + 12} stroke={p.accent} strokeWidth="2" />
+      <line x1={cxLeft - borePx * 0.48} y1={pistonCrownY + 21} x2={cxLeft + borePx * 0.48} y2={pistonCrownY + 21} stroke={p.dimLine} strokeWidth="1.8" />
+      <line x1={cxLeft - borePx * 0.48} y1={pistonCrownY + 30} x2={cxLeft + borePx * 0.48} y2={pistonCrownY + 30} stroke={p.ok} strokeWidth="1.8" />
+
+      {/* Wrist Pin */}
+      <circle cx={cxLeft} cy={pistonCrownY + 46} r="12" fill={p.bg} stroke={p.stroke} strokeWidth="2" />
+
+      {/* H-Beam Connecting Rod */}
+      <path
+        d={`M ${cxLeft - 8} ${pistonCrownY + 56}
+            L ${cxLeft - 11} ${crankCy - 56}
+            L ${cxLeft + 11} ${crankCy - 56}
+            L ${cxLeft + 8} ${pistonCrownY + 56} Z`}
+        fill={p.fillSubtle}
+        stroke={p.stroke}
+        strokeWidth="1.7"
+      />
+      <line x1={cxLeft} y1={pistonCrownY + 62} x2={cxLeft} y2={crankCy - 62} stroke={p.strokeMuted} strokeWidth="1" />
+
+      {/* Crankshaft Throw & Main Centerline */}
+      <circle cx={cxLeft} cy={crankCy} r="44" fill={p.fillSubtle} stroke={p.stroke} strokeWidth="1.6" strokeDasharray="4 3" />
+      <circle cx={cxLeft} cy={crankCy - 46} r="17" fill={p.fillDark} stroke={p.accent} strokeWidth="2" />
+      <circle cx={cxLeft} cy={crankCy} r="14" fill={p.bg} stroke={p.stroke} strokeWidth="2" />
+      <line x1={cxLeft - 62} y1={crankCy} x2={cxLeft + 62} y2={crankCy} stroke={p.dimLine} strokeWidth="1" strokeDasharray="8 3 2 3" />
+
+      {/* ASME DIMENSION LINES — SECTION A-A */}
+      {/* 1. Bore Diameter across cylinder */}
+      <line x1={cxLeft - borePx * 0.5} y1="186" x2={cxLeft - borePx * 0.5} y2="386" stroke={p.dimLine} strokeWidth="0.9" strokeDasharray="3 3" />
+      <line x1={cxLeft + borePx * 0.5} y1="186" x2={cxLeft + borePx * 0.5} y2="386" stroke={p.dimLine} strokeWidth="0.9" strokeDasharray="3 3" />
+      <line
+        x1={cxLeft - borePx * 0.5}
+        y1="376"
+        x2={cxLeft + borePx * 0.5}
+        y2="376"
+        stroke={p.dimLine}
+        strokeWidth="1.4"
+        markerStart="url(#arrowBlue)"
+        markerEnd="url(#arrowBlue)"
+      />
+      <rect x={cxLeft - 42} y="366" width="84" height="17" fill={p.bg} />
+      <text x={cxLeft} y="378" textAnchor="middle" fill={p.dimLine} fontSize="11" fontWeight="700" fontFamily="JetBrains Mono, monospace">
+        Ø {config.bore.toFixed(3)}"
+      </text>
+
+      {/* 2. Deck Height (Crank CL to Block Deck) */}
+      <line x1="118" y1={deckY} x2={cxLeft - borePx * 0.84} y2={deckY} stroke={p.dimLine} strokeWidth="0.9" />
+      <line x1="118" y1={crankCy} x2={cxLeft - 44} y2={crankCy} stroke={p.dimLine} strokeWidth="0.9" />
+      <line
+        x1="130"
+        y1={deckY}
+        x2="130"
+        y2={crankCy}
+        stroke={p.dimLine}
+        strokeWidth="1.4"
+        markerStart="url(#arrowBlue)"
+        markerEnd="url(#arrowBlue)"
+      />
+      <rect x="64" y="308" width="90" height="32" fill={p.bg} stroke={p.dimLine} strokeWidth="0.8" />
+      <text x="109" y="322" textAnchor="middle" fill={p.dimLine} fontSize="10" fontWeight="700" fontFamily="JetBrains Mono, monospace">
+        DECK HEIGHT
+      </text>
+      <text x="109" y="335" textAnchor="middle" fill={p.stroke} fontSize="11" fontWeight="700" fontFamily="JetBrains Mono, monospace">
+        {config.deckHeight.toFixed(3)}"
+      </text>
+
+      {/* 3. Quench Stackup Callout Box (Gasket + Deck Clearance = Quench) */}
+      <line x1={cxLeft - borePx * 0.37} y1={headBottomY + 4} x2="176" y2="128" stroke={quenchOk ? p.ok : p.warn} strokeWidth="1.2" />
+      <rect x="34" y="88" width="168" height="62" rx="4" fill={p.bg} stroke={quenchOk ? p.ok : p.warn} strokeWidth="1.2" />
+      <text x="44" y="104" fill={quenchOk ? p.ok : p.warn} fontSize="10" fontWeight="700" fontFamily="JetBrains Mono, monospace">
+        QUENCH: {specs.quenchDistance}"
+      </text>
+      <text x="44" y="119" fill={p.textMuted} fontSize="9.5" fontFamily="JetBrains Mono, monospace">
+        Gasket: {config.gasketThickness.toFixed(3)}"
+      </text>
+      <text x="44" y="133" fill={p.textMuted} fontSize="9.5" fontFamily="JetBrains Mono, monospace">
+        Deck Clr: {config.deckClearance.toFixed(3)}"
+      </text>
+      <text x="44" y="145" fill={p.stroke} fontSize="9.5" fontWeight="700" fontFamily="JetBrains Mono, monospace">
+        SCR {specs.staticCR}:1 / DCR {specs.dynamicCR}:1
+      </text>
+
+      {/* 4. Rod Length C-to-C & Stroke Spec */}
+      <line x1={cxLeft + 18} y1={pistonCrownY + 46} x2="404" y2={pistonCrownY + 46} stroke={p.dimLine} strokeWidth="0.9" />
+      <line x1={cxLeft + 24} y1={crankCy - 46} x2="404" y2={crankCy - 46} stroke={p.dimLine} strokeWidth="0.9" />
+      <line
+        x1="394"
+        y1={pistonCrownY + 46}
+        x2="394"
+        y2={crankCy - 46}
+        stroke={p.dimLine}
+        strokeWidth="1.4"
+        markerStart="url(#arrowBlue)"
+        markerEnd="url(#arrowBlue)"
+      />
+      <rect x="348" y="294" width="128" height="46" fill={p.bg} stroke={p.dimLine} strokeWidth="0.8" />
+      <text x="412" y="309" textAnchor="middle" fill={p.dimLine} fontSize="10" fontWeight="700" fontFamily="JetBrains Mono, monospace">
+        ROD: {config.rodLength.toFixed(3)}"
+      </text>
+      <text x="412" y="322" textAnchor="middle" fill={p.stroke} fontSize="10" fontFamily="JetBrains Mono, monospace">
+        STROKE: {config.stroke.toFixed(3)}"
+      </text>
+      <text x="412" y="334" textAnchor="middle" fill={p.textMuted} fontSize="9" fontFamily="JetBrains Mono, monospace">
+        R/S {specs.rodStrokeRatio}:1 · {specs.maxRodAngleDeg}°
+      </text>
+
+      {/* 5. Ring Gap & PTW Callout Box */}
+      <rect x="34" y="428" width="174" height="62" rx="4" fill={p.bg} stroke={p.strokeMuted} strokeWidth="1" />
+      <text x="44" y="444" fill={p.stroke} fontSize="10" fontWeight="700" fontFamily="JetBrains Mono, monospace">
+        RING GAPS &amp; VALVE LIFT
+      </text>
+      <text x="44" y="458" fill={p.dimLine} fontSize="9.5" fontFamily="JetBrains Mono, monospace">
+        Top {specs.topRingGap}" / 2nd {specs.secondRingGap}"
+      </text>
+      <text x="44" y="471" fill={p.dimLine} fontSize="9.5" fontFamily="JetBrains Mono, monospace">
+        Oil {specs.oilRingGap.toFixed(3)}" · Lift {specs.totalValveLift}"
+      </text>
+      <text x="44" y="484" fill={p.ok} fontSize="9.5" fontFamily="JetBrains Mono, monospace">
+        Alloys: {config.pistonAlloy.toUpperCase()}
+      </text>
+
+      {/* ================= RIGHT: LONGITUDINAL ENGINE ELEVATION ================= */}
+      {/* Datum Centerline Crank */}
+      <line x1="540" y1="365" x2="1130" y2="365" stroke={p.dimLine} strokeWidth="1" strokeDasharray="12 4 2 4" opacity="0.7" />
+      {/* Datum Tag -A- */}
+      <rect x="540" y="354" width="22" height="22" fill={p.bg} stroke={p.dimLine} strokeWidth="1.2" />
+      <text x="551" y="369" textAnchor="middle" fill={p.dimLine} fontSize="11" fontWeight="700" fontFamily="JetBrains Mono, monospace">
+        A
+      </text>
+
+      {/* Main Engine Block Silhouette */}
+      <rect x="655" y="232" width="320" height="156" rx="4" fill={p.fillSubtle} stroke={p.stroke} strokeWidth="1.8" />
+      {/* Cylinder Head + Finned Valve Cover */}
+      <rect x="665" y="168" width="300" height="64" rx="2" fill="url(#sectionHatch)" stroke={p.stroke} strokeWidth="1.6" />
+      <rect x="672" y="138" width="270" height="30" rx="4" fill={p.fillDark} stroke={p.stroke} strokeWidth="1.6" />
+      {/* Exhaust Header Flanges (4 ports scaled with headerPrimaryIn) */}
+      {[700, 775, 850, 925].map((px) => (
+        <circle
+          key={px}
+          cx={px}
+          cy="206"
+          r={Math.round(12 + ((config.headerPrimaryIn ?? 1.625) - 1.5) * 9)}
+          fill={p.bg}
+          stroke={p.accent}
+          strokeWidth="1.6"
+        />
+      ))}
+
+      {/* Intake & Carburetor */}
+      <rect x="720" y="110" width="145" height="28" fill={p.fillSubtle} stroke={p.stroke} strokeWidth="1.5" />
+      <rect x="742" y="76" width="96" height="34" rx="2" fill={p.fillDark} stroke={p.accent} strokeWidth="1.6" />
+      <text x="790" y="92" textAnchor="middle" fill={p.stroke} fontSize="9" fontWeight="700" fontFamily="JetBrains Mono, monospace">
+        {config.carbCfm} CFM · {(config.carbVenturiIn ?? 1.375).toFixed(2)}"
+      </text>
+      <text x="790" y="104" textAnchor="middle" fill={p.dimLine} fontSize="8" fontFamily="JetBrains Mono, monospace">
+        {config.intakePortCc ?? 185}cc / {config.exhaustPortCc ?? 68}cc
+      </text>
+
+      {/* MSD HEI Distributor (Rear Right) */}
+      <rect x="945" y="128" width="36" height="44" rx="3" fill={p.fillDark} stroke={p.accent} strokeWidth="1.6" />
+      <line x1="963" y1="172" x2="963" y2="232" stroke={p.stroke} strokeWidth="2.5" />
+
+      {/* Timing Cover, 60-2 Trigger & Harmonic Damper (Front Left of Engine) */}
+      <rect x="628" y="255" width="27" height="125" fill={p.fillDark} stroke={p.stroke} strokeWidth="1.6" />
+      <rect x="596" y="328" width="32" height="74" rx="3" fill={p.fillSubtle} stroke={p.dimLine} strokeWidth="1.6" />
+      {/* Water Pump & Alternator */}
+      <rect x="590" y="252" width="38" height="48" rx="3" fill={p.fillDark} stroke={p.dimLine} strokeWidth="1.5" />
+      <circle cx="628" cy="215" r="24" fill={p.fillDark} stroke={p.stroke} strokeWidth="1.5" />
+
+      {/* Deep Sump Oil Pan */}
+      <path d="M 655 388 L 975 388 L 975 462 L 800 462 L 775 426 L 655 426 Z" fill={p.fillDark} stroke={p.stroke} strokeWidth="1.8" />
+      {/* Mini Starter */}
+      <rect x="920" y="395" width="76" height="38" rx="4" fill={p.fillSubtle} stroke={p.accent} strokeWidth="1.5" />
+      {/* Rear Bellhousing Flange & Flywheel */}
+      <rect x="975" y="245" width="22" height="145" fill={p.fillDark} stroke={p.stroke} strokeWidth="1.8" />
+
+      {/* Overall Engine Length & Clearance Callouts */}
+      <line x1="596" y1="490" x2="997" y2="490" stroke={p.dimLine} strokeWidth="1.4" markerStart="url(#arrowBlue)" markerEnd="url(#arrowBlue)" />
+      <line x1="596" y1="405" x2="596" y2="500" stroke={p.dimLine} strokeWidth="0.9" />
+      <line x1="997" y1="395" x2="997" y2="500" stroke={p.dimLine} strokeWidth="0.9" />
+      <rect x="708" y="480" width="180" height="18" fill={p.bg} />
+      <text x="798" y="493" textAnchor="middle" fill={p.dimLine} fontSize="10.5" fontWeight="700" fontFamily="JetBrains Mono, monospace">
+        SBC ASSEMBLY 28.00" OAL
+      </text>
+
+      {/* Interactive Balloon Callouts across both views */}
+      {balloons.map((b) => {
+        const callout = findCalloutForTarget(sheet, b.target);
+        const code = callout?.indexCode || b.fallbackCode;
+        const isSel = selectedTarget === b.target;
+        const handleClick = () => {
+          if (callout) {
+            onSelectCallout(callout);
+          } else {
+            onSelectCallout({
+              row: code.charAt(0) || 'A',
+              indexCode: code,
+              partName: b.fallbackTitle,
+              category: 'Engine Assembly',
+              targetSubassembly: b.target
+            });
+          }
+        };
+        return (
+          <g
+            key={b.target}
+            onClick={handleClick}
+            style={{ cursor: 'pointer' }}
+          >
+            <line
+              x1={b.x}
+              y1={b.y}
+              x2={b.lx}
+              y2={b.ly}
+              stroke={isSel ? p.accent : p.strokeMuted}
+              strokeWidth={isSel ? 2 : 1.1}
+              markerStart={isSel ? 'url(#arrowOrange)' : undefined}
+            />
+            <circle cx={b.x} cy={b.y} r="3.5" fill={isSel ? p.accent : p.dimLine} />
+            <rect
+              x={b.lx - 29}
+              y={b.ly - 12}
+              width="58"
+              height="24"
+              rx="12"
+              fill={isSel ? p.balloonActiveBg : p.balloonBg}
+              stroke={isSel ? p.accent : p.dimLine}
+              strokeWidth={isSel ? 2 : 1.3}
+            />
+            <text
+              x={b.lx}
+              y={b.ly + 4}
+              textAnchor="middle"
+              fill={isSel ? p.balloonActiveText : p.stroke}
+              fontSize="10"
+              fontWeight="700"
+              fontFamily="JetBrains Mono, monospace"
+            >
+              {code}
+            </text>
+          </g>
+        );
+      })}
+
+      {/* ASME Technical Title Block (Bottom Strip) */}
+      <rect x="19" y="545" width="1142" height="56" fill={p.fillSubtle} stroke={p.stroke} strokeWidth="1.4" />
+      <line x1="390" y1="545" x2="390" y2="601" stroke={p.stroke} strokeWidth="1.2" />
+      <line x1="780" y1="545" x2="780" y2="601" stroke={p.stroke} strokeWidth="1.2" />
+      <line x1="990" y1="545" x2="990" y2="601" stroke={p.stroke} strokeWidth="1.2" />
+
+      <text x="34" y="566" fill={p.textMuted} fontSize="9.5" fontFamily="JetBrains Mono, monospace">
+        TITLE / ENGINE ASSEMBLY
+      </text>
+      <text x="34" y="587" fill={p.stroke} fontSize="12" fontWeight="700" fontFamily="Plus Jakarta Sans, sans-serif">
+        {sheet.title.slice(0, 44)}
+      </text>
+
+      <text x="406" y="566" fill={p.textMuted} fontSize="9.5" fontFamily="JetBrains Mono, monospace">
+        CONFIRMED DIMENSIONS &amp; OUTPUT
+      </text>
+      <text x="406" y="587" fill={p.dimLine} fontSize="11" fontWeight="700" fontFamily="JetBrains Mono, monospace">
+        {specs.displacementCi} CID · {specs.staticCR}:1 CR · {specs.peakHp} HP / {specs.peakTq} TQ
+      </text>
+
+      <text x="796" y="566" fill={p.textMuted} fontSize="9.5" fontFamily="JetBrains Mono, monospace">
+        DRAWING NUMBER
+      </text>
+      <text x="796" y="587" fill={p.accent} fontSize="11.5" fontWeight="700" fontFamily="JetBrains Mono, monospace">
+        {sheet.drawingNumber}
+      </text>
+
+      <text x="1006" y="566" fill={p.textMuted} fontSize="9.5" fontFamily="JetBrains Mono, monospace">
+        TOLERANCE STD
+      </text>
+      <text x="1006" y="587" fill={p.stroke} fontSize="11" fontWeight="700" fontFamily="JetBrains Mono, monospace">
+        ASME Y14.5 · IN / CC
+      </text>
+    </svg>
+  );
+};
+
+export const SchematicTransmissionSVG: React.FC<SchematicTransmissionSVGProps> = ({
+  transmission,
+  sheet,
+  selectedTarget,
+  onSelectCallout,
+  paperTheme,
+  svgRef
+}) => {
+  const p = getPalette(paperTheme);
+  const isAuto = transmission.type === 'Automatic';
+  const clY = 268;
+
+  const balloons: Array<{
+    target: string;
+    x: number;
+    y: number;
+    lx: number;
+    ly: number;
+    fallbackCode: string;
+    fallbackTitle: string;
+  }> = [
+    { target: 'bellhousing', x: 195, y: 205, lx: 120, ly: 105, fallbackCode: 'C-700', fallbackTitle: 'Bellhousing Flange' },
+    { target: 'converter', x: 300, y: 215, lx: 292, ly: 105, fallbackCode: 'A-001', fallbackTitle: isAuto ? 'Torque Converter' : 'Flywheel & Clutch' },
+    { target: 'frontPump', x: 422, y: 212, lx: 432, ly: 105, fallbackCode: 'A-500', fallbackTitle: isAuto ? 'Front Oil Pump' : 'Input Retainer' },
+    { target: 'clutchPack', x: 545, y: 222, lx: 568, ly: 105, fallbackCode: 'B-554', fallbackTitle: isAuto ? 'Multi-Disc Clutch Pack' : 'Synchro Hub Pack' },
+    { target: 'mainCase', x: 660, y: 200, lx: 718, ly: 105, fallbackCode: 'C-582', fallbackTitle: 'Planetary / Helical Main Case' },
+    { target: 'valveBody', x: 605, y: 368, lx: 485, ly: 452, fallbackCode: 'D-740', fallbackTitle: isAuto ? 'Valve Body & Filter' : 'Countershaft Cluster' },
+    { target: 'pan', x: 625, y: 405, lx: 675, ly: 452, fallbackCode: 'D-765', fallbackTitle: 'Deep Sump Pan' },
+    { target: 'tailhousing', x: 845, y: 235, lx: 882, ly: 105, fallbackCode: 'F-770', fallbackTitle: 'Overdrive Tailhousing' },
+    { target: 'slipYoke', x: 1020, y: 268, lx: 1045, ly: 148, fallbackCode: 'F-790', fallbackTitle: '1350 Output Slip Yoke' }
+  ];
+
+  return (
+    <svg
+      ref={svgRef}
+      viewBox="0 0 1180 620"
+      className="w-full h-auto block select-none"
+      role="img"
+      aria-label={`Dimensioned transmission schematic for ${transmission.name}`}
+    >
+      <defs>
+        <pattern id="transGridMinor" width="20" height="20" patternUnits="userSpaceOnUse">
+          <path d="M 20 0 L 0 0 0 20" fill="none" stroke={p.gridMinor} strokeWidth="0.7" />
+        </pattern>
+        <pattern id="transGridMajor" width="100" height="100" patternUnits="userSpaceOnUse">
+          <rect width="100" height="100" fill="url(#transGridMinor)" />
+          <path d="M 100 0 L 0 0 0 100" fill="none" stroke={p.gridMajor} strokeWidth="1.1" />
+        </pattern>
+        <pattern id="transHatch" width="8" height="8" patternTransform="rotate(45)" patternUnits="userSpaceOnUse">
+          <line x1="0" y1="0" x2="0" y2="8" stroke={p.hatch} strokeWidth="1.2" opacity="0.4" />
+        </pattern>
+        <marker id="tArrowBlue" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 10 5 L 0 8.5 z" fill={p.dimLine} />
+        </marker>
+      </defs>
+
+      <rect width="1180" height="620" fill={p.bg} />
+      <rect width="1180" height="620" fill="url(#transGridMajor)" />
+      <rect x="14" y="14" width="1152" height="592" fill="none" stroke={p.stroke} strokeWidth="1.6" />
+      <rect x="19" y="19" width="1142" height="582" fill="none" stroke={p.strokeMuted} strokeWidth="0.7" opacity="0.75" />
+
+      {/* Sheet Heading */}
+      <text x="34" y="42" fill={p.stroke} fontSize="13" fontWeight="700" fontFamily="JetBrains Mono, monospace">
+        EXPLODED &amp; SECTIONED DRIVELINE SCHEMATIC — {transmission.type.toUpperCase()} ({transmission.ratios.length}-SPEED)
+      </text>
+      <text x="1146" y="42" textAnchor="end" fill={p.dimLine} fontSize="11.5" fontWeight="700" fontFamily="JetBrains Mono, monospace">
+        PATTERN: {transmission.nativePattern} · OAL {transmission.lengthInches.toFixed(1)}"
+      </text>
+
+      {/* Main Driveline Centerline */}
+      <line x1="55" y1={clY} x2="1125" y2={clY} stroke={p.dimLine} strokeWidth="1.1" strokeDasharray="14 4 2 4" opacity="0.75" />
+      {/* Datum Flange -A- */}
+      <rect x="122" y="162" width="22" height="22" fill={p.bg} stroke={p.dimLine} strokeWidth="1.2" />
+      <text x="133" y="177" textAnchor="middle" fill={p.dimLine} fontSize="11" fontWeight="700" fontFamily="JetBrains Mono, monospace">
+        A
+      </text>
+
+      {/* 1. Bellhousing Flange */}
+      <path
+        d={`M 148 164 L 222 184 L 245 204 L 245 332 L 222 352 L 148 372 Z`}
+        fill="url(#transHatch)"
+        stroke={selectedTarget === 'bellhousing' ? p.accent : p.stroke}
+        strokeWidth={selectedTarget === 'bellhousing' ? 2.6 : 1.8}
+      />
+
+      {/* 2. Torque Converter OR Flywheel & Clutch */}
+      <rect
+        x="262"
+        y="196"
+        width="76"
+        height="144"
+        rx={isAuto ? '28' : '4'}
+        fill={p.fillDark}
+        stroke={selectedTarget === 'converter' ? p.accent : p.warn}
+        strokeWidth={selectedTarget === 'converter' ? 2.6 : 1.8}
+      />
+      <text x="300" y={clY + 4} textAnchor="middle" fill={p.stroke} fontSize="10" fontWeight="700" fontFamily="JetBrains Mono, monospace">
+        {isAuto ? `${transmission.defaultStall || 2400} STALL` : 'CLUTCH'}
+      </text>
+
+      {/* 3. Front Oil Pump / Bearing Retainer */}
+      <rect
+        x="388"
+        y="206"
+        width="64"
+        height="124"
+        rx="4"
+        fill={p.fillSubtle}
+        stroke={selectedTarget === 'frontPump' ? p.accent : p.dimLine}
+        strokeWidth={selectedTarget === 'frontPump' ? 2.6 : 1.6}
+      />
+      <rect x="350" y="252" width="38" height="32" fill={p.fillDark} stroke={p.stroke} strokeWidth="1.4" />
+
+      {/* 4. Multi-Disc Clutch Pack / Synchro Stack */}
+      <g>
+        {[0, 1, 2, 3, 4].map((idx) => (
+          <rect
+            key={idx}
+            x={488 + idx * 18}
+            y="214"
+            width="10"
+            height="108"
+            rx="2"
+            fill={idx % 2 === 0 ? p.accent : p.dimLine}
+            opacity="0.72"
+            stroke={selectedTarget === 'clutchPack' ? p.accent : p.stroke}
+            strokeWidth="1"
+          />
+        ))}
+      </g>
+
+      {/* 5. Ribbed Aluminum Main Case & Planetary / Helical Gearset */}
+      <rect
+        x="595"
+        y="188"
+        width="178"
+        height="160"
+        rx="6"
+        fill="url(#transHatch)"
+        stroke={selectedTarget === 'mainCase' ? p.accent : p.stroke}
+        strokeWidth={selectedTarget === 'mainCase' ? 2.6 : 1.8}
+      />
+      {/* Internal Stepped Gears */}
+      {[626, 668, 710, 744].map((gx, gi) => (
+        <rect
+          key={gx}
+          x={gx}
+          y={clY - (48 - gi * 8)}
+          width="24"
+          height={(48 - gi * 8) * 2}
+          rx="2"
+          fill={p.fillDark}
+          stroke={p.dimLine}
+          strokeWidth="1.4"
+        />
+      ))}
+      <rect x="580" y="257" width="210" height="22" fill={p.fillSubtle} stroke={p.stroke} strokeWidth="1.2" />
+
+      {/* 6. Valve Body / Filter (or Manual Countershaft) */}
+      <rect
+        x="568"
+        y="355"
+        width="186"
+        height="28"
+        rx="2"
+        fill={p.fillDark}
+        stroke={selectedTarget === 'valveBody' ? p.accent : p.dimLine}
+        strokeWidth={selectedTarget === 'valveBody' ? 2.4 : 1.5}
+      />
+      {/* 7. Deep Sump Pan */}
+      <path
+        d="M 556 392 L 766 392 L 752 422 L 570 422 Z"
+        fill={p.fillSubtle}
+        stroke={selectedTarget === 'pan' ? p.accent : p.stroke}
+        strokeWidth={selectedTarget === 'pan' ? 2.4 : 1.6}
+      />
+
+      {/* 8. Extension Tailhousing / Overdrive Unit */}
+      <path
+        d="M 792 204 L 936 238 L 936 298 L 792 332 Z"
+        fill="url(#transHatch)"
+        stroke={selectedTarget === 'tailhousing' ? p.accent : p.stroke}
+        strokeWidth={selectedTarget === 'tailhousing' ? 2.6 : 1.8}
+      />
+
+      {/* 9. Output Slip Yoke & 1350 U-Joint */}
+      <rect
+        x="964"
+        y="248"
+        width="76"
+        height="40"
+        rx="4"
+        fill={p.fillDark}
+        stroke={selectedTarget === 'slipYoke' ? p.accent : p.stroke}
+        strokeWidth={selectedTarget === 'slipYoke' ? 2.6 : 1.6}
+      />
+      <circle cx="1055" cy={clY} r="18" fill={p.fillSubtle} stroke={p.accent} strokeWidth="1.8" />
+
+      {/* Overall Length Dimension Line (Bellhousing Face -> Tailshaft Output) */}
+      <line x1="148" y1="376" x2="148" y2="512" stroke={p.dimLine} strokeWidth="0.9" />
+      <line x1="936" y1="302" x2="936" y2="512" stroke={p.dimLine} strokeWidth="0.9" />
+      <line x1="148" y1="500" x2="936" y2="500" stroke={p.dimLine} strokeWidth="1.5" markerStart="url(#tArrowBlue)" markerEnd="url(#tArrowBlue)" />
+      <rect x="444" y="490" width="196" height="20" fill={p.bg} />
+      <text x="542" y="504" textAnchor="middle" fill={p.dimLine} fontSize="11" fontWeight="700" fontFamily="JetBrains Mono, monospace">
+        OAL LENGTH: {transmission.lengthInches.toFixed(1)}"
+      </text>
+
+      {/* Ratio Schedule Box */}
+      <rect x="34" y="424" width="330" height="58" rx="4" fill={p.bg} stroke={p.dimLine} strokeWidth="1" />
+      <text x="46" y="442" fill={p.stroke} fontSize="10" fontWeight="700" fontFamily="JetBrains Mono, monospace">
+        GEAR RATIO SCHEDULE (REV {transmission.reverse.toFixed(2)}:1)
+      </text>
+      <text x="46" y="460" fill={p.dimLine} fontSize="10.5" fontWeight="700" fontFamily="JetBrains Mono, monospace">
+        {transmission.ratios.map((r, i) => `G${i + 1} ${r.toFixed(2)}`).join(' · ')}
+      </text>
+      <text x="46" y="475" fill={p.textMuted} fontSize="9.5" fontFamily="JetBrains Mono, monospace">
+        {transmission.clutch}
+      </text>
+
+      {/* Interactive Balloon Callouts */}
+      {balloons.map((b) => {
+        const callout = findCalloutForTarget(sheet, b.target);
+        const code = callout?.indexCode || b.fallbackCode;
+        const isSel = selectedTarget === b.target;
+        const handleClick = () => {
+          if (callout) {
+            onSelectCallout(callout);
+          } else {
+            onSelectCallout({
+              row: code.charAt(0) || 'A',
+              indexCode: code,
+              partName: b.fallbackTitle,
+              category: 'Transmission Assembly',
+              targetSubassembly: b.target
+            });
+          }
+        };
+        return (
+          <g key={b.target} onClick={handleClick} style={{ cursor: 'pointer' }}>
+            <line
+              x1={b.x}
+              y1={b.y}
+              x2={b.lx}
+              y2={b.ly}
+              stroke={isSel ? p.accent : p.strokeMuted}
+              strokeWidth={isSel ? 2 : 1.1}
+            />
+            <circle cx={b.x} cy={b.y} r="3.5" fill={isSel ? p.accent : p.dimLine} />
+            <rect
+              x={b.lx - 38}
+              y={b.ly - 12}
+              width="76"
+              height="24"
+              rx="12"
+              fill={isSel ? p.balloonActiveBg : p.balloonBg}
+              stroke={isSel ? p.accent : p.dimLine}
+              strokeWidth={isSel ? 2 : 1.3}
+            />
+            <text
+              x={b.lx}
+              y={b.ly + 4}
+              textAnchor="middle"
+              fill={isSel ? p.balloonActiveText : p.stroke}
+              fontSize="9.5"
+              fontWeight="700"
+              fontFamily="JetBrains Mono, monospace"
+            >
+              {code.slice(0, 10)}
+            </text>
+          </g>
+        );
+      })}
+
+      {/* ASME Technical Title Block */}
+      <rect x="19" y="545" width="1142" height="56" fill={p.fillSubtle} stroke={p.stroke} strokeWidth="1.4" />
+      <line x1="430" y1="545" x2="430" y2="601" stroke={p.stroke} strokeWidth="1.2" />
+      <line x1="805" y1="545" x2="805" y2="601" stroke={p.stroke} strokeWidth="1.2" />
+      <line x1="1005" y1="545" x2="1005" y2="601" stroke={p.stroke} strokeWidth="1.2" />
+
+      <text x="34" y="566" fill={p.textMuted} fontSize="9.5" fontFamily="JetBrains Mono, monospace">
+        TITLE / TRANSMISSION UNIT
+      </text>
+      <text x="34" y="587" fill={p.stroke} fontSize="11.5" fontWeight="700" fontFamily="Plus Jakarta Sans, sans-serif">
+        {sheet.title.slice(0, 48)}
+      </text>
+
+      <text x="446" y="566" fill={p.textMuted} fontSize="9.5" fontFamily="JetBrains Mono, monospace">
+        BELLHOUSING &amp; LENGTH SPEC
+      </text>
+      <text x="446" y="587" fill={p.dimLine} fontSize="11" fontWeight="700" fontFamily="JetBrains Mono, monospace">
+        {transmission.nativePattern} · {transmission.lengthInches.toFixed(1)}" OAL
+      </text>
+
+      <text x="820" y="566" fill={p.textMuted} fontSize="9.5" fontFamily="JetBrains Mono, monospace">
+        DRAWING NUMBER
+      </text>
+      <text x="820" y="587" fill={p.accent} fontSize="11" fontWeight="700" fontFamily="JetBrains Mono, monospace">
+        {sheet.drawingNumber.slice(0, 22)}
+      </text>
+
+      <text x="1020" y="566" fill={p.textMuted} fontSize="9.5" fontFamily="JetBrains Mono, monospace">
+        STANDARD
+      </text>
+      <text x="1020" y="587" fill={p.stroke} fontSize="11" fontWeight="700" fontFamily="JetBrains Mono, monospace">
+        SAE J617 / IN
+      </text>
+    </svg>
+  );
+};
+
+
+===== FILE: src/components/SpecialModControlsStrip.tsx (19393 bytes, md5 7cdc4fe94ba6b2466344a7dbcc1674db) =====
+
+/**
+ * @license
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+import React, { useState } from 'react';
+import {
+  CarbStyle,
+  CoordinatedSpecs,
+  EngineConfig,
+  ExhaustPortShape
+} from '../types/engine';
+import {
+  AIR_INDUCTION_PACKAGES,
+  CARB_STYLE_OPTIONS,
+  EXHAUST_PORT_PRESETS,
+  HEADER_PRIMARY_OPTIONS,
+  INTAKE_PORT_PRESETS
+} from '../data/engineData';
+import {
+  SlidersHorizontal,
+  Wind,
+  Flame,
+  Gauge,
+  ChevronDown,
+  ChevronUp,
+  RotateCcw
+} from 'lucide-react';
+
+interface SpecialModControlsStripProps {
+  config: EngineConfig;
+  specs: CoordinatedSpecs;
+  onUpdateConfig: (newConfig: Partial<EngineConfig>) => void;
+  variant?: 'compact' | 'full';
+  defaultExpanded?: boolean;
+  className?: string;
+}
+
+export const SpecialModControlsStrip: React.FC<SpecialModControlsStripProps> = ({
+  config,
+  specs,
+  onUpdateConfig,
+  variant = 'compact',
+  defaultExpanded = false,
+  className = ''
+}) => {
+  const [expanded, setExpanded] = useState<boolean>(variant === 'full' ? true : defaultExpanded);
+
+  const carbStyle = config.carbStyle || '4150_dp';
+  const venturiIn = config.carbVenturiIn ?? 1.375;
+  const airBonus = config.airFilterCfmBonus ?? 15;
+  const intakePortCc = config.intakePortCc ?? 185;
+  const intakeValveIn = config.intakeValveIn ?? 2.02;
+  const exhaustPortCc = config.exhaustPortCc ?? 68;
+  const exhaustPortShape = config.exhaustPortShape || 'd_port';
+  const exhaustValveIn = config.exhaustValveIn ?? 1.60;
+  const headerPrimaryIn = config.headerPrimaryIn ?? 1.625;
+
+  const isModified =
+    config.carbCfm !== 650 ||
+    carbStyle !== '4150_dp' ||
+    Math.abs(venturiIn - 1.375) > 0.002 ||
+    airBonus !== 15 ||
+    intakePortCc !== 185 ||
+    intakeValveIn !== 2.02 ||
+    exhaustPortCc !== 68 ||
+    exhaustPortShape !== 'd_port' ||
+    exhaustValveIn !== 1.60 ||
+    Math.abs(headerPrimaryIn - 1.625) > 0.002;
+
+  const handleResetMods = () => {
+    onUpdateConfig({
+      carbCfm: 650,
+      carbStyle: '4150_dp',
+      carbVenturiIn: 1.375,
+      airFilterCfmBonus: 15,
+      intakePortCc: 185,
+      intakeValveIn: 2.02,
+      exhaustPortCc: 68,
+      exhaustPortShape: 'd_port',
+      exhaustValveIn: 1.60,
+      headerPrimaryIn: 1.625
+    });
+  };
+
+  return (
+    <div
+      className={`bg-[#12161c] border border-slate-800 rounded-xl overflow-hidden text-xs text-slate-200 ${className}`}
+    >
+      {/* Top Compact Live Telemetry & Quick Adjust Strip */}
+      <div className="px-3.5 py-2.5 flex flex-wrap items-center justify-between gap-3 bg-[#151a22] border-b border-slate-800/80">
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="flex items-center gap-2">
+            <SlidersHorizontal className="w-4 h-4 text-orange-400 shrink-0" />
+            <span className="font-bold text-white uppercase tracking-wide text-[11px]">
+              Carb, Air &amp; Exhaust Port Tuning
+            </span>
+          </div>
+
+          <div className="hidden sm:flex items-center gap-3 font-mono text-[11px] tabular-nums text-slate-300 border-l border-slate-700 pl-3">
+            <span>
+              Carb:{' '}
+              <strong className="text-amber-400">
+                {config.carbCfm} CFM
+              </strong>{' '}
+              ({venturiIn.toFixed(3)}&quot;)
+            </span>
+            <span>
+              Int Port:{' '}
+              <strong className="text-cyan-300">
+                {intakePortCc} cc · {intakeValveIn.toFixed(2)}&quot;
+              </strong>
+            </span>
+            <span>
+              Exh Port:{' '}
+              <strong className="text-orange-300">
+                {exhaustPortCc} cc {exhaustPortShape.replace('_', '-').toUpperCase()} ·{' '}
+                {headerPrimaryIn.toFixed(3)}&quot;
+              </strong>
+            </span>
+            <span>
+              E/I:{' '}
+              <strong className="text-emerald-400">{specs.eiFlowRatioPct}%</strong>
+            </span>
+            <span className="text-white font-semibold">
+              {specs.peakHp} HP / {specs.peakTq} TQ
+              {(specs.portModHpDelta !== 0 || specs.portModTqDelta !== 0) && (
+                <span
+                  className={`ml-1 ${
+                    specs.portModHpDelta >= 0 ? 'text-emerald-400' : 'text-red-400'
+                  }`}
+                >
+                  ({specs.portModHpDelta >= 0 ? '+' : ''}
+                  {specs.portModHpDelta} HP)
+                </span>
+              )}
+            </span>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2">
+          {isModified && (
+            <button
+              type="button"
+              onClick={handleResetMods}
+              className="px-2.5 py-1 rounded border border-slate-700 bg-[#0d1014] hover:border-orange-500 text-slate-300 hover:text-orange-300 text-[11px] font-medium inline-flex items-center gap-1 transition whitespace-nowrap"
+              title="Reset Carburetor, Air Cleaner, and Head Port modifications to baseline"
+            >
+              <RotateCcw className="w-3 h-3" />
+              <span>Reset Mods</span>
+            </button>
+          )}
+          {variant === 'compact' && (
+            <button
+              type="button"
+              onClick={() => setExpanded((v) => !v)}
+              className={`px-2.5 py-1 rounded border text-[11px] font-semibold inline-flex items-center gap-1.5 transition whitespace-nowrap ${
+                expanded
+                  ? 'bg-orange-600 border-orange-400 text-white'
+                  : 'bg-[#0d1014] border-slate-700 text-cyan-300 hover:border-cyan-400'
+              }`}
+            >
+              <span>{expanded ? 'Hide Port / Carb Sliders' : 'Tune Carb, Air & Ports'}</span>
+              {expanded ? (
+                <ChevronUp className="w-3.5 h-3.5" />
+              ) : (
+                <ChevronDown className="w-3.5 h-3.5" />
+              )}
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Expandable 3-Column Modification Workbench */}
+      {expanded && (
+        <div className="p-4 grid grid-cols-1 lg:grid-cols-3 gap-4 bg-[#0f1319]">
+          {/* COLUMN 1: CARBURETOR SIZE, STYLE, VENTURI & AIR CLEANER */}
+          <div className="bg-[#12161c] border border-slate-800 rounded-lg p-3.5 space-y-3">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+              <div className="flex items-center gap-1.5 font-bold text-amber-400 uppercase text-[11px]">
+                <Gauge className="w-3.5 h-3.5" />
+                <span>1. Carburetor Size &amp; Air Supply</span>
+              </div>
+              <span className="font-mono text-[11px] font-bold text-white tabular-nums">
+                {specs.effectiveCarbCfm} Eff CFM
+              </span>
+            </div>
+
+            {/* Carb Style */}
+            <div className="space-y-1">
+              <label className="block text-[10px] font-semibold text-slate-400 uppercase">
+                Carburetor / Throttle Body Architecture
+              </label>
+              <select
+                value={carbStyle}
+                onChange={(e) => {
+                  const nextStyle = e.target.value as CarbStyle;
+                  const match = CARB_STYLE_OPTIONS.find((c) => c.id === nextStyle);
+                  onUpdateConfig({
+                    carbStyle: nextStyle,
+                    carbVenturiIn: match ? match.venturiIn : venturiIn,
+                    carbCfm: match ? match.defaultCfm : config.carbCfm
+                  });
+                }}
+                className="w-full bg-[#0d1014] border border-slate-700 focus:border-amber-400 rounded px-2.5 py-1.5 text-xs text-white outline-none"
+              >
+                {CARB_STYLE_OPTIONS.map((opt) => (
+                  <option key={opt.id} value={opt.id}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Carb CFM Slider + Presets */}
+            <div className="space-y-1.5">
+              <div className="flex justify-between items-center text-[11px]">
+                <span className="text-slate-300 font-medium">Carburetor CFM Rating</span>
+                <span className="font-mono font-bold text-amber-400 tabular-nums">
+                  {config.carbCfm} CFM (Demand {specs.peakCfmDemand})
+                </span>
+              </div>
+              <input
+                type="range"
+                min={350}
+                max={1250}
+                step={10}
+                value={config.carbCfm}
+                onChange={(e) => onUpdateConfig({ carbCfm: parseInt(e.target.value, 10) })}
+                className="w-full accent-amber-500 cursor-pointer h-1.5 bg-slate-800 rounded"
+              />
+              <div className="grid grid-cols-4 gap-1">
+                {[500, 650, 750, 850, 950, 1050].map((cfm) => (
+                  <button
+                    key={cfm}
+                    type="button"
+                    onClick={() => onUpdateConfig({ carbCfm: cfm })}
+                    className={`py-1 rounded text-[10px] font-mono border transition ${
+                      config.carbCfm === cfm
+                        ? 'bg-amber-500 text-slate-950 border-amber-400 font-bold'
+                        : 'bg-[#0d1014] border-slate-700 text-slate-300 hover:border-slate-500'
+                    }`}
+                  >
+                    {cfm}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Venturi Bore & Air Filter Scoop */}
+            <div className="grid grid-cols-2 gap-2.5">
+              <div className="space-y-1">
+                <div className="flex justify-between text-[10px] text-slate-400">
+                  <span>Venturi Bore</span>
+                  <span className="font-mono text-white font-bold">{venturiIn.toFixed(3)}&quot;</span>
+                </div>
+                <input
+                  type="range"
+                  min={1.20}
+                  max={1.75}
+                  step={0.0125}
+                  value={venturiIn}
+                  onChange={(e) => onUpdateConfig({ carbVenturiIn: parseFloat(e.target.value) })}
+                  className="w-full accent-orange-500 cursor-pointer h-1.5 bg-slate-800 rounded"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="block text-[10px] text-slate-400">Air Cleaner / Scoop</label>
+                <select
+                  value={airBonus}
+                  onChange={(e) =>
+                    onUpdateConfig({ airFilterCfmBonus: parseInt(e.target.value, 10) })
+                  }
+                  className="w-full bg-[#0d1014] border border-slate-700 rounded px-2 py-1 text-[11px] text-white outline-none"
+                >
+                  {AIR_INDUCTION_PACKAGES.map((pkg) => (
+                    <option key={pkg.id} value={pkg.bonusCfm}>
+                      {pkg.label} ({pkg.bonusCfm >= 0 ? '+' : ''}
+                      {pkg.bonusCfm})
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            <div className="text-[10px] font-mono text-slate-400 bg-[#0d1014] border border-slate-800 rounded px-2 py-1">
+              {specs.carbSizingStatus}
+            </div>
+          </div>
+
+          {/* COLUMN 2: AIR / INTAKE PORT RUNNER & VALVE MODIFICATIONS */}
+          <div className="bg-[#12161c] border border-slate-800 rounded-lg p-3.5 space-y-3">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+              <div className="flex items-center gap-1.5 font-bold text-cyan-400 uppercase text-[11px]">
+                <Wind className="w-3.5 h-3.5" />
+                <span>2. Air / Intake Port Modification</span>
+              </div>
+              <span className="font-mono text-[11px] font-bold text-white tabular-nums">
+                {specs.intakeFlowPeakCfm} CFM @ .600&quot;
+              </span>
+            </div>
+
+            <div className="space-y-1.5">
+              <div className="flex justify-between items-center text-[11px]">
+                <span className="text-slate-300 font-medium">CNC Intake Runner Volume</span>
+                <span className="font-mono font-bold text-cyan-300 tabular-nums">
+                  {intakePortCc} cc · {specs.intakeVelocityFps} ft/s
+                </span>
+              </div>
+              <input
+                type="range"
+                min={160}
+                max={245}
+                step={5}
+                value={intakePortCc}
+                onChange={(e) => onUpdateConfig({ intakePortCc: parseInt(e.target.value, 10) })}
+                className="w-full accent-cyan-400 cursor-pointer h-1.5 bg-slate-800 rounded"
+              />
+              <div className="grid grid-cols-2 gap-1.5">
+                {INTAKE_PORT_PRESETS.map((p) => (
+                  <button
+                    key={p.cc}
+                    type="button"
+                    onClick={() =>
+                      onUpdateConfig({ intakePortCc: p.cc, intakeValveIn: p.valveIn })
+                    }
+                    className={`px-2 py-1 rounded text-left border text-[10px] transition ${
+                      intakePortCc === p.cc && Math.abs(intakeValveIn - p.valveIn) < 0.02
+                        ? 'bg-cyan-500/20 border-cyan-400 text-white font-semibold'
+                        : 'bg-[#0d1014] border-slate-700 text-slate-300 hover:border-slate-500'
+                    }`}
+                  >
+                    <div className="font-mono font-bold">
+                      {p.cc} cc · {p.valveIn}&quot;
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="space-y-1">
+              <label className="block text-[10px] font-semibold text-slate-400 uppercase">
+                Intake Valve Head Diameter
+              </label>
+              <div className="grid grid-cols-4 gap-1.5">
+                {[1.94, 2.02, 2.08, 2.125].map((v) => (
+                  <button
+                    key={v}
+                    type="button"
+                    onClick={() => onUpdateConfig({ intakeValveIn: v })}
+                    className={`py-1 rounded font-mono text-[11px] border transition ${
+                      Math.abs(intakeValveIn - v) < 0.01
+                        ? 'bg-cyan-500 text-slate-950 border-cyan-400 font-bold'
+                        : 'bg-[#0d1014] border-slate-700 text-slate-300 hover:border-slate-500'
+                    }`}
+                  >
+                    {v}&quot;
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* COLUMN 3: EXHAUST PORT VOLUME, SHAPE & HEADER PRIMARY */}
+          <div className="bg-[#12161c] border border-slate-800 rounded-lg p-3.5 space-y-3">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+              <div className="flex items-center gap-1.5 font-bold text-orange-400 uppercase text-[11px]">
+                <Flame className="w-3.5 h-3.5" />
+                <span>3. Exhaust Port &amp; Header Mod</span>
+              </div>
+              <span className="font-mono text-[11px] font-bold text-white tabular-nums">
+                {specs.exhaustFlowPeakCfm} CFM ({specs.eiFlowRatioPct}% E/I)
+              </span>
+            </div>
+
+            <div className="space-y-1">
+              <label className="block text-[10px] font-semibold text-slate-400 uppercase">
+                Exhaust Port Shape Profile
+              </label>
+              <div className="grid grid-cols-2 gap-1.5">
+                {EXHAUST_PORT_PRESETS.map((ex) => (
+                  <button
+                    key={ex.shape}
+                    type="button"
+                    onClick={() =>
+                      onUpdateConfig({
+                        exhaustPortShape: ex.shape as ExhaustPortShape,
+                        exhaustPortCc: ex.cc,
+                        exhaustValveIn: ex.valveIn
+                      })
+                    }
+                    className={`px-2 py-1 rounded text-left border text-[10px] transition ${
+                      exhaustPortShape === ex.shape
+                        ? 'bg-orange-500/20 border-orange-400 text-white font-semibold'
+                        : 'bg-[#0d1014] border-slate-700 text-slate-300 hover:border-slate-500'
+                    }`}
+                  >
+                    <div className="font-semibold truncate">{ex.label}</div>
+                    <div className="font-mono text-[9px] text-slate-400">
+                      {ex.cc} cc · {ex.valveIn}&quot;
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="space-y-1">
+              <div className="flex justify-between text-[11px]">
+                <span className="text-slate-300">Exhaust Port Volume</span>
+                <span className="font-mono font-bold text-orange-300 tabular-nums">
+                  {exhaustPortCc} cc · {exhaustValveIn.toFixed(2)}&quot; Valve
+                </span>
+              </div>
+              <input
+                type="range"
+                min={58}
+                max={94}
+                step={2}
+                value={exhaustPortCc}
+                onChange={(e) => onUpdateConfig({ exhaustPortCc: parseInt(e.target.value, 10) })}
+                className="w-full accent-orange-500 cursor-pointer h-1.5 bg-slate-800 rounded"
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-2.5">
+              <div className="space-y-1">
+                <label className="block text-[10px] text-slate-400">Exhaust Valve</label>
+                <div className="grid grid-cols-3 gap-1">
+                  {[1.5, 1.6, 1.625].map((ev) => (
+                    <button
+                      key={ev}
+                      type="button"
+                      onClick={() => onUpdateConfig({ exhaustValveIn: ev })}
+                      className={`py-1 rounded font-mono text-[10px] border transition ${
+                        Math.abs(exhaustValveIn - ev) < 0.01
+                          ? 'bg-orange-500 text-slate-950 border-orange-400 font-bold'
+                          : 'bg-[#0d1014] border-slate-700 text-slate-300'
+                      }`}
+                    >
+                      {ev}&quot;
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <label className="block text-[10px] text-slate-400">Header Primary OD</label>
+                <select
+                  value={headerPrimaryIn}
+                  onChange={(e) =>
+                    onUpdateConfig({ headerPrimaryIn: parseFloat(e.target.value) })
+                  }
+                  className="w-full bg-[#0d1014] border border-slate-700 rounded px-2 py-1 font-mono text-[11px] text-white outline-none"
+                >
+                  {HEADER_PRIMARY_OPTIONS.map((h) => (
+                    <option key={h.id} value={h.id}>
+                      {h.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+
+===== FILE: src/components/StudioSidebar.tsx (8819 bytes, md5 48ffa448fd289763a8b41ff73ab16606) =====
+
+/**
+ * @license
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+import React from 'react';
+import { TabId, CoordinatedSpecs, EngineConfig } from '../types/engine';
+import {
+  Box,
+  Layers,
+  Wind,
+  Zap,
+  Flame,
+  Car,
+  Activity,
+  ClipboardList,
+  Store,
+  BookOpen,
+  Archive,
+  FileSpreadsheet,
+  Sliders,
+  Compass,
+  Grid2x2,
+  Cpu,
+  Wrench,
+  X
+} from 'lucide-react';
+
+interface StudioSidebarProps {
+  activeTab: TabId;
+  onSelectTab: (tab: TabId) => void;
+  specs: CoordinatedSpecs;
+  config: EngineConfig;
+  activeStoreLabel?: string | null;
+  archiveCount: number;
+  onOpenPartsStore: () => void;
+  onOpenKnowledge: () => void;
+  onOpenRegistry: () => void;
+  mobileOpen: boolean;
+  onCloseMobile: () => void;
+}
+
+export const StudioSidebar: React.FC<StudioSidebarProps> = ({
+  activeTab,
+  onSelectTab,
+  specs,
+  config,
+  activeStoreLabel,
+  archiveCount,
+  onOpenPartsStore,
+  onOpenKnowledge,
+  onOpenRegistry,
+  mobileOpen,
+  onCloseMobile
+}) => {
+  const workbenches: Array<{ id: TabId; index: string; label: string; icon: React.ReactNode }> = [
+    { id: 'designstudio', index: '00', label: 'CAD / CAM Design Studio', icon: <Cpu className="w-4 h-4" /> },
+    { id: 'block3d', index: '01', label: '3D Drafting & Rig', icon: <Box className="w-4 h-4" /> },
+    { id: 'rotating', index: '02', label: 'Engine & Rotating', icon: <Layers className="w-4 h-4" /> },
+    { id: 'valvetrain', index: '03', label: 'Valvetrain & Flow', icon: <Wind className="w-4 h-4" /> },
+    { id: 'induction', index: '04', label: 'Induction & Fuel', icon: <Zap className="w-4 h-4" /> },
+    { id: 'ignition', index: '05', label: 'Ignition & Timing', icon: <Flame className="w-4 h-4" /> },
+    { id: 'trans', index: '06', label: 'Driveline Matrix', icon: <Car className="w-4 h-4" /> },
+    { id: 'dyno', index: '07', label: 'Dyno & Curves', icon: <Activity className="w-4 h-4" /> },
+    { id: 'shop', index: '08', label: 'Machine Shop BOM', icon: <ClipboardList className="w-4 h-4" /> },
+    { id: 'drawings', index: '09', label: 'Tech Drawings', icon: <FileSpreadsheet className="w-4 h-4" /> },
+    { id: 'engconfig', index: '10', label: 'Engineering Config', icon: <Sliders className="w-4 h-4" /> },
+    { id: 'drawings2', index: '11', label: 'More Drawings', icon: <Compass className="w-4 h-4" /> },
+    { id: 'drawingmatrix', index: '12', label: 'Drawing & MFG Matrix', icon: <Grid2x2 className="w-4 h-4" /> },
+    { id: 'modstudio', index: '13', label: 'Modification Studio', icon: <Wrench className="w-4 h-4" /> }
+  ];
+
+  const vitalsRows = [
+    { label: 'Displacement', value: `${specs.displacementCi} CID`, tone: 'text-white' },
+    { label: 'Bore × Stroke', value: `${config.bore.toFixed(3)}" × ${config.stroke.toFixed(3)}"`, tone: 'text-slate-200' },
+    {
+      label: 'Quench Distance',
+      value: `${specs.quenchDistance}"`,
+      tone: specs.quenchDistance <= 0.055 && specs.quenchDistance >= 0.038 ? 'text-emerald-400' : 'text-amber-400'
+    },
+    { label: 'Static CR', value: `${specs.staticCR}:1`, tone: 'text-amber-400' },
+    { label: 'Dynamic CR', value: `${specs.dynamicCR}:1`, tone: 'text-cyan-400' },
+    { label: 'Rod / Stroke', value: `${specs.rodStrokeRatio}:1`, tone: 'text-slate-200' },
+    { label: 'Peak Output', value: `${specs.peakHp} HP / ${specs.peakTq} TQ`, tone: 'text-orange-400' }
+  ];
+
+  const railContent = (
+    <div className="h-full flex flex-col bg-[#11151b] border-r border-slate-800/90 w-64 select-none">
+      {/* Workbenches Navigation */}
+      <div className="p-3 border-b border-slate-800/90 space-y-1">
+        <div className="flex items-center justify-between px-2 pb-1.5">
+          <span className="text-[11px] font-semibold text-slate-400">
+            Engineering Workbenches
+          </span>
+          <button
+            onClick={onCloseMobile}
+            className="lg:hidden p-1 text-slate-400 hover:text-white"
+            aria-label="Close Sidebar"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        {workbenches.map((wb) => {
+          const isActive = activeTab === wb.id;
+          return (
+            <button
+              key={wb.id}
+              onClick={() => {
+                onSelectTab(wb.id);
+                onCloseMobile();
+              }}
+              className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-xs font-medium transition whitespace-nowrap ${
+                isActive
+                  ? 'bg-orange-600/15 text-white border border-orange-500/60 font-semibold'
+                  : 'text-slate-400 hover:text-white hover:bg-slate-800/50 border border-transparent'
+              }`}
+            >
+              <span className={`font-mono text-[11px] ${isActive ? 'text-orange-400' : 'text-slate-500'}`}>
+                {wb.index}
+              </span>
+              <span className={isActive ? 'text-orange-400' : 'text-slate-400'}>
+                {wb.icon}
+              </span>
+              <span className="truncate">{wb.label}</span>
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Live Engineering Spec Sheet */}
+      <div className="p-3 border-b border-slate-800/90 space-y-2">
+        <div className="px-1 text-[11px] font-semibold text-slate-400">
+          Live Engine Blueprint
+        </div>
+        <div className="bg-[#0d1014] border border-slate-800/80 rounded-lg divide-y divide-slate-800/70">
+          {vitalsRows.map((row) => (
+            <div
+              key={row.label}
+              className="px-2.5 py-1.5 flex items-center justify-between text-[11px] gap-2"
+            >
+              <span className="text-slate-400 truncate">{row.label}</span>
+              <span className={`font-mono font-semibold tabular-nums whitespace-nowrap ${row.tone}`}>
+                {row.value}
+              </span>
+            </div>
+          ))}
+        </div>
+        {activeStoreLabel && (
+          <div className="px-2.5 py-1.5 rounded-lg bg-[#0d1014] border border-slate-800 text-[11px] text-emerald-300 truncate">
+            Fitment: {activeStoreLabel}
+          </div>
+        )}
+      </div>
+
+      {/* Global Studio Libraries */}
+      <div className="p-3 space-y-1.5 mt-auto">
+        <div className="px-1 pb-1 text-[11px] font-semibold text-slate-400">
+          Global Knowledge &amp; Catalog
+        </div>
+
+        <button
+          onClick={() => {
+            onOpenPartsStore();
+            onCloseMobile();
+          }}
+          className="w-full flex items-center justify-between px-3 py-2 rounded-lg border border-slate-800 bg-[#0d1014] hover:border-emerald-500/60 text-xs font-medium text-slate-200 hover:text-emerald-300 transition whitespace-nowrap"
+        >
+          <span className="flex items-center gap-2">
+            <Store className="w-3.5 h-3.5 text-emerald-400" />
+            <span>Auto Parts Counter</span>
+          </span>
+          <span className="text-[10px] font-mono text-slate-500">1955–2026</span>
+        </button>
+
+        <button
+          onClick={() => {
+            onOpenKnowledge();
+            onCloseMobile();
+          }}
+          className="w-full flex items-center justify-between px-3 py-2 rounded-lg border border-slate-800 bg-[#0d1014] hover:border-amber-500/60 text-xs font-medium text-slate-200 hover:text-amber-300 transition whitespace-nowrap"
+        >
+          <span className="flex items-center gap-2">
+            <BookOpen className="w-3.5 h-3.5 text-amber-400" />
+            <span>Auto Tech Encyclopedia</span>
+          </span>
+          <span className="text-[10px] font-mono text-slate-500">8 Domains</span>
+        </button>
+
+        <button
+          onClick={() => {
+            onOpenRegistry();
+            onCloseMobile();
+          }}
+          className="w-full flex items-center justify-between px-3 py-2 rounded-lg border border-slate-800 bg-[#0d1014] hover:border-cyan-500/60 text-xs font-medium text-slate-200 hover:text-cyan-300 transition whitespace-nowrap"
+        >
+          <span className="flex items-center gap-2">
+            <Archive className="w-3.5 h-3.5 text-cyan-400" />
+            <span>Studio Archive</span>
+          </span>
+          <span className="text-[10px] font-mono text-slate-500">{archiveCount || 37}</span>
+        </button>
+      </div>
+    </div>
+  );
+
+  return (
+    <>
+      {/* Desktop Fixed Rail */}
+      <aside className="hidden lg:block shrink-0 h-full overflow-y-auto">
+        {railContent}
+      </aside>
+
+      {/* Mobile / Tablet Slide-Over Rail */}
+      {mobileOpen && (
+        <div className="fixed inset-0 z-40 lg:hidden flex">
+          <div className="relative z-10 h-full overflow-y-auto">{railContent}</div>
+          <div
+            className="flex-1 bg-black/70"
+            onClick={onCloseMobile}
+            aria-hidden="true"
+          />
+        </div>
+      )}
+    </>
+  );
+};
+
+
+===== FILE: src/components/TechDrawingSpecsDrawer.tsx (35025 bytes, md5 1fae91794cfe8011fe6cf237b9e497c5) =====
+
+/**
+ * @license
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+import React, { useState, useRef, useMemo, useEffect } from 'react';
+import { TechDrawingSheet, TechDrawingCallout } from '../types/engine';
+import { TRANSMISSIONS_DB } from '../data/engineData';
+import {
+  getTransmissionDrawingSheet,
+  A500_42RE_REFERENCE_IMAGE
+} from '../data/techDrawingsCatalog';
+import {
+  FileSpreadsheet,
+  Search,
+  Upload,
+  CheckCircle2,
+  ExternalLink,
+  X,
+  Loader2,
+  AlertTriangle,
+  Crosshair,
+  Image as ImageIcon,
+  RotateCcw,
+  Sparkles
+} from 'lucide-react';
+
+interface TechDrawingSpecsDrawerProps {
+  isOpen?: boolean;
+  onClose?: () => void;
+  domain: 'engine' | 'transmission';
+  activeSheet: TechDrawingSheet;
+  defaultQuery: string;
+  contextSpecs?: Record<string, unknown>;
+  onApplySheetTo3D: (sheet: TechDrawingSheet) => void;
+  onFocusCalloutIn3D: (callout: TechDrawingCallout, sheet: TechDrawingSheet) => void;
+  onResetCustomSheet?: () => void;
+  hasCustomApplied?: boolean;
+  inlinePanel?: boolean;
+}
+
+async function parseApiJson<T>(res: Response, endpointLabel: string): Promise<T> {
+  const rawText = await res.text();
+  const contentType = res.headers.get('content-type') || '';
+  const trimmed = rawText.trim();
+  const looksJson =
+    contentType.toLowerCase().includes('application/json') ||
+    trimmed.startsWith('{') ||
+    trimmed.startsWith('[');
+
+  if (!looksJson) {
+    throw new Error(
+      `Server-only feature (${endpointLabel}) is unavailable in this static build (HTTP ${res.status}). Built-in verified CAD & BOM sheets remain fully functional.`
+    );
+  }
+
+  let parsed: T & { error?: string };
+  try {
+    parsed = JSON.parse(rawText) as T & { error?: string };
+  } catch {
+    throw new Error(
+      `Invalid response from ${endpointLabel} (HTTP ${res.status}). Built-in CAD specs remain available.`
+    );
+  }
+
+  if (!res.ok) {
+    throw new Error(parsed.error || `${endpointLabel} failed (${res.status}).`);
+  }
+
+  return parsed;
+}
+
+export const TechDrawingSpecsDrawer: React.FC<TechDrawingSpecsDrawerProps> = ({
+  isOpen = true,
+  onClose,
+  domain,
+  activeSheet,
+  defaultQuery,
+  contextSpecs,
+  onApplySheetTo3D,
+  onFocusCalloutIn3D,
+  onResetCustomSheet,
+  hasCustomApplied = false,
+  inlinePanel = false
+}) => {
+  const [searchQuery, setSearchQuery] = useState<string>(defaultQuery);
+  const [rowFilter, setRowFilter] = useState<string>('ALL');
+  const [calloutFilter, setCalloutFilter] = useState<string>('');
+  const [stagedSheet, setStagedSheet] = useState<TechDrawingSheet | null>(null);
+  const [isLookingUp, setIsLookingUp] = useState<boolean>(false);
+  const [isParsingDiagram, setIsParsingDiagram] = useState<boolean>(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [statusNotice, setStatusNotice] = useState<string | null>(null);
+  const [previewLightboxUrl, setPreviewLightboxUrl] = useState<string | null>(null);
+  const [imageLoadFailed, setImageLoadFailed] = useState<boolean>(false);
+  const [selectedIndexCode, setSelectedIndexCode] = useState<string | null>(null);
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const prevDomainRef = useRef(domain);
+  const prevDrawingNumberRef = useRef(activeSheet.drawingNumber);
+  const justCommittedRef = useRef(false);
+
+  // Sync default search query when domain or unit context changes
+  useEffect(() => {
+    setSearchQuery(defaultQuery);
+  }, [defaultQuery]);
+
+  // Reset transient drawer state when switching domain or active sheet externally
+  useEffect(() => {
+    const domainChanged = prevDomainRef.current !== domain;
+    const sheetChanged = prevDrawingNumberRef.current !== activeSheet.drawingNumber;
+
+    if (domainChanged) {
+      setStagedSheet(null);
+      setRowFilter('ALL');
+      setCalloutFilter('');
+      setSelectedIndexCode(null);
+      setErrorMsg(null);
+      setStatusNotice(null);
+      setImageLoadFailed(false);
+    } else if (sheetChanged) {
+      setRowFilter('ALL');
+      setCalloutFilter('');
+      setSelectedIndexCode(null);
+      setImageLoadFailed(false);
+      if (justCommittedRef.current) {
+        justCommittedRef.current = false;
+      } else {
+        setStagedSheet(null);
+        setErrorMsg(null);
+        setStatusNotice(null);
+      }
+    } else {
+      justCommittedRef.current = false;
+    }
+
+    prevDomainRef.current = domain;
+    prevDrawingNumberRef.current = activeSheet.drawingNumber;
+  }, [domain, activeSheet.drawingNumber]);
+
+  // Close lightbox or overlay drawer on Escape key
+  useEffect(() => {
+    if (!inlinePanel && !isOpen && !previewLightboxUrl) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      if (previewLightboxUrl) {
+        setPreviewLightboxUrl(null);
+      } else if (!inlinePanel && isOpen && onClose) {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [inlinePanel, isOpen, onClose, previewLightboxUrl]);
+
+  const displayedSheet =
+    stagedSheet && stagedSheet.domain === domain ? stagedSheet : activeSheet;
+
+  useEffect(() => {
+    setImageLoadFailed(false);
+  }, [displayedSheet.referenceImageUrl]);
+
+  const rowsAvailable = useMemo(() => {
+    const set = new Set<string>();
+    displayedSheet.callouts.forEach((c) => {
+      if (c.row) set.add(c.row.toUpperCase());
+    });
+    return ['ALL', ...Array.from(set).sort()];
+  }, [displayedSheet]);
+
+  const effectiveRowFilter = rowsAvailable.includes(rowFilter) ? rowFilter : 'ALL';
+
+  const filteredCallouts = useMemo(() => {
+    const q = calloutFilter.trim().toLowerCase();
+    return displayedSheet.callouts.filter((c) => {
+      const matchesRow =
+        effectiveRowFilter === 'ALL' || (c.row || '').toUpperCase() === effectiveRowFilter;
+      if (!q) return matchesRow;
+      return (
+        matchesRow &&
+        (c.partName.toLowerCase().includes(q) ||
+          c.indexCode.toLowerCase().includes(q) ||
+          (c.partNumber || '').toLowerCase().includes(q) ||
+          (c.clearanceSpec || '').toLowerCase().includes(q) ||
+          (c.torqueSpec || '').toLowerCase().includes(q) ||
+          (c.material || '').toLowerCase().includes(q) ||
+          c.targetSubassembly.toLowerCase().includes(q))
+      );
+    });
+  }, [displayedSheet, effectiveRowFilter, calloutFilter]);
+
+  // Early return MUST appear after all React hooks so opening/closing the drawer never violates hook ordering
+  if (!inlinePanel && !isOpen) return null;
+
+  const handleOnlineLookup = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    const q = searchQuery.trim() || defaultQuery || displayedSheet.title;
+    if (!q) return;
+
+    setIsLookingUp(true);
+    setErrorMsg(null);
+    setStatusNotice(null);
+
+    try {
+      const res = await fetch('/api/specs/lookup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          domain,
+          query: q,
+          unitName: activeSheet.title,
+          contextSpecs
+        })
+      });
+
+      const payload = await parseApiJson<{ sheet?: TechDrawingSheet; error?: string }>(
+        res,
+        '/api/specs/lookup'
+      );
+
+      if (!payload.sheet || !Array.isArray(payload.sheet.callouts)) {
+        throw new Error(payload.error || `Lookup returned incomplete sheet data (${res.status}).`);
+      }
+
+      const normalizedSheet: TechDrawingSheet = {
+        ...payload.sheet,
+        domain: payload.sheet.domain || domain
+      };
+
+      setStagedSheet(normalizedSheet);
+      setRowFilter('ALL');
+      setSelectedIndexCode(null);
+      setStatusNotice(
+        `Pulled ${normalizedSheet.callouts.length} real-world callouts & specs from online sources. Click "Apply Pulled Specs to 3D Model" to push into the live 3D assembly.`
+      );
+    } catch (err: unknown) {
+      const msg =
+        err instanceof TypeError
+          ? 'Online spec lookup (/api/specs/lookup) could not reach the backend API server. Built-in verified CAD & BOM sheets remain fully functional.'
+          : err instanceof Error
+          ? err.message
+          : 'Unable to fetch online specifications.';
+      setErrorMsg(msg);
+    } finally {
+      setIsLookingUp(false);
+    }
+  };
+
+  const parseDiagramDataUrl = async (dataUrl: string, mimeType: string, label: string) => {
+    setIsParsingDiagram(true);
+    setErrorMsg(null);
+    setStatusNotice(null);
+
+    try {
+      const base64 = dataUrl.includes(',') ? dataUrl.split(',')[1] : dataUrl;
+      const res = await fetch('/api/specs/parse-diagram', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          domain,
+          imageBase64: base64,
+          mimeType,
+          unitHint: label
+        })
+      });
+
+      const payload = await parseApiJson<{ sheet?: TechDrawingSheet; error?: string }>(
+        res,
+        '/api/specs/parse-diagram'
+      );
+
+      if (!payload.sheet || !Array.isArray(payload.sheet.callouts)) {
+        throw new Error(payload.error || `Diagram extraction failed (${res.status}).`);
+      }
+
+      const sheetWithPreview: TechDrawingSheet = {
+        ...payload.sheet,
+        domain: payload.sheet.domain || domain,
+        referenceImageUrl: dataUrl
+      };
+      setStagedSheet(sheetWithPreview);
+      setRowFilter('ALL');
+      setSelectedIndexCode(null);
+      setImageLoadFailed(false);
+      setStatusNotice(
+        `Extracted ${sheetWithPreview.callouts.length} exploded BOM items from "${label}". Click "Apply Pulled Specs to 3D Model" to bind them to the 3D scene.`
+      );
+    } catch (err: unknown) {
+      // Static-site graceful fallback: preserve uploaded visual diagram locally while clearly explaining server-only AI extraction
+      const baseForPreview = displayedSheet;
+      const localPreviewSheet: TechDrawingSheet = {
+        ...baseForPreview,
+        domain,
+        referenceImageUrl: dataUrl,
+        sourceLabel: `${baseForPreview.sourceLabel} · Uploaded Image (${label})`
+      };
+      setStagedSheet(localPreviewSheet);
+      setRowFilter('ALL');
+      setImageLoadFailed(false);
+      const reason =
+        err instanceof TypeError
+          ? 'Server-only AI diagram parsing (/api/specs/parse-diagram) could not reach the backend server.'
+          : err instanceof Error
+          ? err.message
+          : 'Failed to parse uploaded technical drawing.';
+      setErrorMsg(
+        `${reason} Your uploaded image "${label}" is attached locally for visual inspection alongside existing BOM callouts.`
+      );
+    } finally {
+      setIsParsingDiagram(false);
+    }
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      setErrorMsg('Please select a valid image file (PNG, JPG, WebP, or GIF) to attach a technical drawing.');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === 'string') {
+        void parseDiagramDataUrl(reader.result, file.type || 'image/jpeg', file.name);
+      }
+    };
+    reader.onerror = () => {
+      setErrorMsg(`Unable to read "${file.name}". Please verify the image file and try again.`);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleLoadA500Sample = async () => {
+    setIsParsingDiagram(true);
+    setErrorMsg(null);
+    setStatusNotice(null);
+
+    const a500Trans = TRANSMISSIONS_DB.mopar_a500_42re;
+    const builtInA500Sheet: TechDrawingSheet = a500Trans
+      ? {
+          ...getTransmissionDrawingSheet(a500Trans),
+          referenceImageUrl:
+            getTransmissionDrawingSheet(a500Trans).referenceImageUrl || A500_42RE_REFERENCE_IMAGE
+        }
+      : {
+          ...activeSheet,
+          domain: 'transmission',
+          drawingNumber: 'CHRYSLER-A500-42RE',
+          title: 'Chrysler 40RH / 42RH / 42RE / 44RE (A500)',
+          referenceImageUrl: A500_42RE_REFERENCE_IMAGE
+        };
+
+    try {
+      const resp = await fetch(A500_42RE_REFERENCE_IMAGE);
+      if (!resp.ok) {
+        throw new Error(`Reference blueprint fetch returned HTTP ${resp.status}.`);
+      }
+      const blob = await resp.blob();
+      const dataUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result));
+        reader.onerror = () => reject(new Error('Failed to read sample blueprint image.'));
+        reader.readAsDataURL(blob);
+      });
+
+      const base64 = dataUrl.includes(',') ? dataUrl.split(',')[1] : dataUrl;
+      const apiRes = await fetch('/api/specs/parse-diagram', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          domain: 'transmission',
+          imageBase64: base64,
+          mimeType: blob.type || 'image/jpeg',
+          unitHint: 'Chrysler 40RH/42RH/42RE/44RE (A500)'
+        })
+      });
+
+      const payload = await parseApiJson<{ sheet?: TechDrawingSheet; error?: string }>(
+        apiRes,
+        '/api/specs/parse-diagram'
+      );
+
+      if (!payload.sheet || !Array.isArray(payload.sheet.callouts)) {
+        throw new Error(payload.error || 'A500 diagram extraction returned incomplete data.');
+      }
+
+      setStagedSheet({
+        ...payload.sheet,
+        domain: 'transmission',
+        referenceImageUrl: dataUrl
+      });
+      setRowFilter('ALL');
+      setSelectedIndexCode(null);
+      setImageLoadFailed(false);
+      setStatusNotice(
+        `Scanned ${payload.sheet.callouts.length} callouts from the Chrysler A500 / 42RE Reference Sheet. Click "Apply Pulled Specs to 3D Model" to commit.`
+      );
+    } catch {
+      // Fall back cleanly to the built-in verified A500 / 42RE sheet & diagram on static hosting
+      setStagedSheet(builtInA500Sheet);
+      setRowFilter('ALL');
+      setSelectedIndexCode(null);
+      setImageLoadFailed(false);
+      setStatusNotice(
+        `Loaded built-in Chrysler A500 / 42RE Reference Sheet & ${builtInA500Sheet.callouts.length} verified BOM callouts (static mode — live server OCR unavailable). Click "Apply Pulled Specs to 3D Model" or zoom the blueprint below.`
+      );
+    } finally {
+      setIsParsingDiagram(false);
+    }
+  };
+
+  const handleCommitTo3D = () => {
+    const wasStaged = Boolean(stagedSheet && stagedSheet.domain === domain);
+    justCommittedRef.current = true;
+    onApplySheetTo3D(displayedSheet);
+    setStagedSheet(null);
+    setStatusNotice(
+      wasStaged
+        ? `Applied "${displayedSheet.title}" (${displayedSheet.callouts.length} callouts) directly onto the 3D ${domain} assembly.`
+        : `Synced "${displayedSheet.title}" (${displayedSheet.callouts.length} callouts) with the live 3D ${domain} assembly.`
+    );
+  };
+
+  const handleDiscardStaged = () => {
+    setStagedSheet(null);
+    setRowFilter('ALL');
+    setCalloutFilter('');
+    setSelectedIndexCode(null);
+    setErrorMsg(null);
+    setStatusNotice('Discarded staged changes and restored the active drawing sheet.');
+  };
+
+  const containerClasses = inlinePanel
+    ? 'bg-[#12161c] border border-slate-800 rounded-xl overflow-hidden text-xs text-slate-200 font-mono'
+    : 'absolute top-3 bottom-3 left-3 z-40 w-[min(94vw,620px)] bg-[#12161c] border border-cyan-500/50 rounded-xl shadow-2xl flex flex-col overflow-hidden text-xs text-slate-200 font-mono';
+
+  const isStagedActive = Boolean(stagedSheet && stagedSheet.domain === domain);
+
+  return (
+    <>
+      <div className={containerClasses}>
+        {/* Header */}
+        <div className="px-4 py-2.5 bg-[#0d1014] border-b border-slate-800 flex items-center justify-between gap-2 shrink-0">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              <FileSpreadsheet className="w-4 h-4 text-cyan-400 shrink-0" />
+              <span className="font-bold text-white font-sans truncate">
+                Technical Drawing &amp; Real-World Spec Sheet
+              </span>
+              <span className="px-1.5 py-0.5 rounded bg-cyan-500/15 border border-cyan-500/40 text-cyan-300 text-[10px] font-bold">
+                {displayedSheet.drawingNumber}
+              </span>
+              {isStagedActive && (
+                <span className="px-1.5 py-0.5 rounded bg-amber-500/20 border border-amber-500/50 text-amber-300 text-[10px] font-bold">
+                  STAGED FOR 3D
+                </span>
+              )}
+              {!isStagedActive && hasCustomApplied && (
+                <span className="px-1.5 py-0.5 rounded bg-emerald-500/20 border border-emerald-500/50 text-emerald-300 text-[10px] font-bold">
+                  APPLIED TO 3D
+                </span>
+              )}
+            </div>
+            <p className="text-[11px] text-slate-400 truncate font-sans mt-0.5">
+              {displayedSheet.title} — {displayedSheet.subtitle}
+            </p>
+          </div>
+
+          <div className="flex items-center gap-1.5 shrink-0">
+            {isStagedActive && (
+              <button
+                type="button"
+                onClick={handleDiscardStaged}
+                className="px-2 py-1 rounded border border-amber-500/40 text-amber-300 hover:text-white hover:border-amber-400 text-[10px] flex items-center gap-1"
+                title="Discard staged preview sheet"
+              >
+                <X className="w-3 h-3" />
+                <span>Discard</span>
+              </button>
+            )}
+            {hasCustomApplied && onResetCustomSheet && (
+              <button
+                type="button"
+                onClick={() => {
+                  setStagedSheet(null);
+                  setErrorMsg(null);
+                  setStatusNotice('Restored built-in baseline drawing sheet.');
+                  onResetCustomSheet();
+                }}
+                className="px-2 py-1 rounded border border-slate-700 text-slate-300 hover:text-white hover:border-slate-500 text-[10px] flex items-center gap-1"
+                title="Restore built-in baseline drawing sheet"
+              >
+                <RotateCcw className="w-3 h-3" />
+                <span>Reset</span>
+              </button>
+            )}
+            {onClose && (
+              <button
+                type="button"
+                onClick={onClose}
+                className="p-1 rounded hover:bg-slate-800 text-slate-400 hover:text-white transition"
+                title="Close Technical Drawing Sheet"
+                aria-label="Close Technical Drawing Sheet"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Online Spec Search & Diagram Upload Controls */}
+        <div className="p-3 bg-[#151a22] border-b border-slate-800 space-y-2.5 shrink-0">
+          <form onSubmit={handleOnlineLookup} className="flex flex-wrap sm:flex-nowrap gap-2">
+            <div className="relative flex-1 min-w-[200px]">
+              <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder={
+                  domain === 'transmission'
+                    ? 'Pull online specs (e.g. Chrysler A500 42RE, TH400, Tremec T56)...'
+                    : 'Pull online specs (e.g. 1996 Chevy 350 L31, LS3, AFR 195 heads)...'
+                }
+                className="w-full bg-[#0d1014] border border-slate-700 focus:border-cyan-400 rounded-md pl-8 pr-3 py-1.5 text-[11px] text-white outline-none font-sans"
+              />
+            </div>
+            <button
+              type="submit"
+              disabled={isLookingUp || isParsingDiagram}
+              className="px-3 py-1.5 rounded-md bg-cyan-500 hover:bg-cyan-400 disabled:opacity-50 text-slate-950 font-bold text-[11px] flex items-center gap-1.5 transition whitespace-nowrap"
+            >
+              {isLookingUp ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              ) : (
+                <Sparkles className="w-3.5 h-3.5" />
+              )}
+              <span>{isLookingUp ? 'Pulling Specs...' : 'Pull Online Specs'}</span>
+            </button>
+          </form>
+
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex flex-wrap items-center gap-1.5">
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                onChange={handleFileChange}
+                className="hidden"
+              />
+              <button
+                type="button"
+                disabled={isLookingUp || isParsingDiagram}
+                onClick={() => fileInputRef.current?.click()}
+                className="px-2.5 py-1.5 rounded-md bg-[#0d1014] border border-slate-700 hover:border-orange-400 disabled:opacity-50 text-slate-200 hover:text-white text-[11px] font-medium flex items-center gap-1.5 transition"
+              >
+                {isParsingDiagram ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin text-orange-400" />
+                ) : (
+                  <Upload className="w-3.5 h-3.5 text-orange-400" />
+                )}
+                <span>{isParsingDiagram ? 'Extracting Diagram...' : 'Upload Drawing Image to 3D'}</span>
+              </button>
+
+              {domain === 'transmission' && (
+                <button
+                  type="button"
+                  disabled={isLookingUp || isParsingDiagram}
+                  onClick={handleLoadA500Sample}
+                  className="px-2.5 py-1.5 rounded-md bg-[#0d1014] border border-slate-700 hover:border-cyan-400 disabled:opacity-50 text-cyan-300 text-[11px] font-medium flex items-center gap-1.5 transition"
+                >
+                  <ImageIcon className="w-3.5 h-3.5" />
+                  <span>Scan A500 / 42RE Reference Sheet</span>
+                </button>
+              )}
+            </div>
+
+            <button
+              type="button"
+              onClick={handleCommitTo3D}
+              className={`px-3 py-1.5 rounded-md font-bold text-[11px] flex items-center gap-1.5 transition ${
+                isStagedActive
+                  ? 'bg-emerald-500 hover:bg-emerald-400 text-slate-950 shadow-lg'
+                  : 'bg-orange-600 hover:bg-orange-500 text-white'
+              }`}
+            >
+              <CheckCircle2 className="w-3.5 h-3.5" />
+              <span>{isStagedActive ? 'Apply Pulled Specs to 3D Model' : 'Sync Sheet to 3D Model'}</span>
+            </button>
+          </div>
+
+          {errorMsg && (
+            <div className="p-2 rounded-md bg-red-950/60 border border-red-500/50 text-red-200 text-[11px] flex items-start gap-2 font-sans">
+              <AlertTriangle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
+              <span>{errorMsg}</span>
+            </div>
+          )}
+
+          {statusNotice && (
+            <div className="p-2 rounded-md bg-emerald-950/50 border border-emerald-500/40 text-emerald-200 text-[11px] font-sans">
+              {statusNotice}
+            </div>
+          )}
+        </div>
+
+        {/* Summary, Reference Blueprint Image & Online Grounded Citations */}
+        <div className="flex-1 overflow-y-auto p-3 space-y-3">
+          <div className="bg-[#0d1014] border border-slate-800 rounded-lg p-3 flex flex-col sm:flex-row gap-3 items-start">
+            {displayedSheet.referenceImageUrl && (
+              imageLoadFailed ? (
+                <div className="shrink-0 w-full sm:w-40 rounded-md border border-slate-700 bg-[#12161c] p-2 text-center space-y-1.5">
+                  <ImageIcon className="w-5 h-5 text-slate-500 mx-auto" />
+                  <p className="text-[10px] text-slate-400 font-sans">Preview unavailable</p>
+                  <button
+                    type="button"
+                    onClick={() => setImageLoadFailed(false)}
+                    className="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-[10px] text-cyan-300"
+                  >
+                    Retry
+                  </button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setPreviewLightboxUrl(displayedSheet.referenceImageUrl || null)}
+                  className="shrink-0 w-full sm:w-40 rounded-md overflow-hidden border border-slate-700 hover:border-cyan-400 transition group relative bg-white"
+                  title="Click to enlarge technical drawing blueprint"
+                >
+                  <img
+                    src={displayedSheet.referenceImageUrl}
+                    alt={displayedSheet.title}
+                    referrerPolicy="no-referrer"
+                    onError={() => setImageLoadFailed(true)}
+                    className="w-full h-24 object-contain bg-white"
+                  />
+                  <span className="block bg-black/85 text-[9px] text-cyan-300 py-0.5 text-center font-bold">
+                    Click to Zoom Diagram
+                  </span>
+                </button>
+              )
+            )}
+
+            <div className="flex-1 min-w-0 space-y-1.5">
+              <div className="flex flex-wrap items-center gap-2 text-[10px] text-slate-400">
+                <span className="text-amber-400 font-bold uppercase">{displayedSheet.sourceLabel}</span>
+                {displayedSheet.dimensions && (
+                  <span className="text-emerald-400 font-semibold">
+                    {displayedSheet.domain === 'transmission' && displayedSheet.dimensions.ratios
+                      ? `Ratios: ${displayedSheet.dimensions.ratios.join(' / ')} · ${displayedSheet.dimensions.lengthInches || '—'}" OAL`
+                      : displayedSheet.dimensions.bore
+                      ? `${displayedSheet.dimensions.bore}" Bore × ${displayedSheet.dimensions.stroke}" Stroke · ${displayedSheet.dimensions.chamberCc ?? '—'}cc`
+                      : ''}
+                  </span>
+                )}
+              </div>
+              <p className="text-[11px] text-slate-300 leading-relaxed font-sans">
+                {displayedSheet.unitSummary}
+              </p>
+
+              {displayedSheet.sourceUrls && displayedSheet.sourceUrls.length > 0 && (
+                <div className="pt-1 flex flex-wrap gap-1.5">
+                  {displayedSheet.sourceUrls.slice(0, 4).map((src) => (
+                    <a
+                      key={src.uri}
+                      href={src.uri}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="px-2 py-0.5 rounded bg-sky-950/70 border border-sky-700/50 text-sky-300 hover:text-white text-[10px] flex items-center gap-1 max-w-[230px]"
+                    >
+                      <ExternalLink className="w-2.5 h-2.5 shrink-0" />
+                      <span className="truncate">{src.title}</span>
+                    </a>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Row A-F Filter Bar */}
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex flex-wrap items-center gap-1">
+              <span className="text-[10px] text-slate-400 uppercase font-bold mr-1">Rows:</span>
+              {rowsAvailable.map((r) => (
+                <button
+                  key={r}
+                  type="button"
+                  onClick={() => setRowFilter(r)}
+                  className={`px-2 py-0.5 rounded text-[10px] font-bold transition ${
+                    effectiveRowFilter === r
+                      ? 'bg-orange-600 text-white'
+                      : 'bg-[#0d1014] border border-slate-800 text-slate-400 hover:text-white'
+                  }`}
+                >
+                  {r === 'ALL' ? 'All Rows' : `Row ${r}`}
+                </button>
+              ))}
+              <span className="text-[10px] text-slate-500 ml-1.5 font-sans">
+                ({filteredCallouts.length}/{displayedSheet.callouts.length})
+              </span>
+            </div>
+
+            <input
+              type="text"
+              value={calloutFilter}
+              onChange={(e) => setCalloutFilter(e.target.value)}
+              placeholder="Filter part #, spec, component..."
+              className="bg-[#0d1014] border border-slate-800 focus:border-cyan-400 rounded px-2.5 py-1 text-[11px] text-white outline-none font-sans w-48"
+            />
+          </div>
+
+          {/* Exploded Callout BOM Table */}
+          <div className="border border-slate-800 rounded-lg overflow-hidden bg-[#0d1014]">
+            <div className="overflow-x-auto max-h-[340px]">
+              <table className="w-full text-left text-[11px] border-collapse">
+                <thead className="bg-[#181e26] text-slate-400 border-b border-slate-800 sticky top-0 z-10">
+                  <tr>
+                    <th className="py-1.5 px-2">IDX</th>
+                    <th className="py-1.5 px-2">COMPONENT &amp; PART #</th>
+                    <th className="py-1.5 px-2">CLEARANCE / SPEC</th>
+                    <th className="py-1.5 px-2">TORQUE</th>
+                    <th className="py-1.5 px-2 text-right">3D TARGET</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-800/80">
+                  {filteredCallouts.length === 0 ? (
+                    <tr>
+                      <td colSpan={5} className="py-6 px-3 text-center text-slate-400 font-sans">
+                        <p>No BOM callouts match the active row or text filter.</p>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setRowFilter('ALL');
+                            setCalloutFilter('');
+                          }}
+                          className="mt-2 px-2.5 py-1 rounded bg-slate-800 hover:bg-slate-700 text-cyan-300 text-[10px] font-semibold"
+                        >
+                          Clear Filters
+                        </button>
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredCallouts.map((c, idx) => {
+                      const rowKey = `${c.indexCode}_${idx}`;
+                      const isFocused = selectedIndexCode === rowKey;
+                      const focusRow = () => {
+                        setSelectedIndexCode(rowKey);
+                        onFocusCalloutIn3D(c, displayedSheet);
+                      };
+                      return (
+                        <tr
+                          key={rowKey}
+                          tabIndex={0}
+                          onClick={focusRow}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' || e.key === ' ') {
+                              e.preventDefault();
+                              focusRow();
+                            }
+                          }}
+                          className={`cursor-pointer transition outline-none focus-visible:ring-1 focus-visible:ring-cyan-400 ${
+                            isFocused
+                              ? 'bg-orange-950/50 text-white'
+                              : 'hover:bg-slate-800/60 text-slate-300'
+                          }`}
+                          title="Click to highlight & inspect this component inside the 3D CAD viewport"
+                        >
+                          <td className="py-2 px-2 align-top whitespace-nowrap">
+                            <span className="px-1.5 py-0.5 rounded bg-cyan-500/15 border border-cyan-500/30 text-cyan-300 font-bold text-[10px]">
+                              {c.indexCode}
+                            </span>
+                          </td>
+                          <td className="py-2 px-2 align-top">
+                            <div className="font-semibold text-white font-sans">{c.partName}</div>
+                            <div className="flex flex-wrap items-center gap-2 mt-0.5 text-[10px] text-slate-400">
+                              {c.partNumber && (
+                                <span className="text-amber-300 font-semibold">{c.partNumber}</span>
+                              )}
+                              {c.material && <span>{c.material}</span>}
+                            </div>
+                            {c.notes && (
+                              <p className="text-[10px] text-slate-400 font-sans mt-0.5">{c.notes}</p>
+                            )}
+                          </td>
+                          <td className="py-2 px-2 align-top text-emerald-300 text-[10px] font-sans">
+                            {c.clearanceSpec || 'OEM Std'}
+                          </td>
+                          <td className="py-2 px-2 align-top text-amber-300 text-[10px] font-sans">
+                            {c.torqueSpec || 'Factory Spec'}
+                          </td>
+                          <td className="py-2 px-2 align-top text-right whitespace-nowrap">
+                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700 text-[10px] text-cyan-300">
+                              <Crosshair className="w-2.5 h-2.5" />
+                              {c.targetSubassembly}
+                            </span>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Reference Blueprint Zoom Lightbox */}
+      {previewLightboxUrl && (
+        <div
+          className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4"
+          onClick={() => setPreviewLightboxUrl(null)}
+        >
+          <div
+            className="relative max-w-5xl w-full bg-[#12161c] border border-slate-700 rounded-xl p-3 space-y-2"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between text-xs text-white">
+              <span className="font-bold font-sans">{displayedSheet.title} — Technical Blueprint</span>
+              <button
+                type="button"
+                onClick={() => setPreviewLightboxUrl(null)}
+                className="p-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-200"
+                aria-label="Close Lightbox"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <img
+              src={previewLightboxUrl}
+              alt={displayedSheet.title}
+              referrerPolicy="no-referrer"
+              className="w-full max-h-[78vh] object-contain bg-white rounded-lg"
+            />
+          </div>
+        </div>
+      )}
+    </>
+  );
+};

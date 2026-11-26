@@ -5,7 +5,8 @@
 
 import React from 'react';
 import { EngineConfig, CoordinatedSpecs } from '../types/engine';
-import { Flame, AlertTriangle, ShieldCheck, Zap, Activity, Layers } from 'lucide-react';
+import { SpecialModControlsStrip } from './SpecialModControlsStrip';
+import { Flame, AlertTriangle, ShieldCheck, Zap, Activity } from 'lucide-react';
 
 interface TabIgnitionProps {
   config: EngineConfig;
@@ -18,7 +19,6 @@ export const TabIgnition: React.FC<TabIgnitionProps> = ({
   specs,
   onUpdateConfig
 }) => {
-  const isMpfi = config.inductionDress === 'mpfi_cnp';
   const firingOrder = [1, 8, 4, 3, 6, 5, 7, 2];
 
   return (
@@ -31,9 +31,7 @@ export const TabIgnition: React.FC<TabIgnitionProps> = ({
             IGNITION TIMING, SPARK ADVANCE &amp; DETONATION ENVELOPE
           </h2>
           <p className="text-xs text-gray-400 mt-0.5 font-sans">
-            {isMpfi
-              ? 'Multi-coil Coil-Near-Plug (CNP) digital ignition advance, 60-2 trigger map & detonation envelope.'
-              : 'HEI distributor mechanical advance curve, spark plug gaps, and live detonation risk audit.'}
+            HEI distributor advance curve, spark plug gaps, and live detonation risk audit.
           </p>
         </div>
 
@@ -43,39 +41,17 @@ export const TabIgnition: React.FC<TabIgnitionProps> = ({
             ? 'bg-red-950/60 border-red-500 text-red-400'
             : 'bg-emerald-950/50 border-emerald-500/50 text-emerald-300'
         }`}>
-          {specs.knockRisk ? (
-            <AlertTriangle className="w-4 h-4 text-red-400" />
-          ) : (
-            <ShieldCheck className="w-4 h-4 text-emerald-400" />
-          )}
-          <span>
-            {specs.knockRisk
-              ? 'DETONATION / KNOCK RISK (OVER-ADVANCE)'
-              : isMpfi
-              ? 'DIGITAL CNP TIMING WINDOW (34° - 36°)'
-              : 'OPTIMAL HEI TIMING WINDOW (34° - 36°)'}
-          </span>
+          {specs.knockRisk ? <AlertTriangle className="w-4 h-4 text-red-400" /> : <ShieldCheck className="w-4 h-4 text-emerald-400" />}
+          <span>{specs.knockRisk ? 'DETONATION / KNOCK RISK (OVER-ADVANCE)' : 'OPTIMAL TIMING WINDOW (34° - 36°)'}</span>
         </div>
       </div>
 
-      {/* Active System Notification */}
-      <div className={`p-3 rounded-xl border flex flex-wrap items-center justify-between gap-2 ${
-        isMpfi
-          ? 'bg-cyan-950/30 border-cyan-500/50 text-cyan-200'
-          : 'bg-orange-950/30 border-orange-500/50 text-orange-200'
-      }`}>
-        <div className="flex items-center gap-2">
-          <Layers className="w-4 h-4 shrink-0 text-current" />
-          <span className="font-sans font-bold text-xs">
-            {isMpfi
-              ? 'Active Ignition: Coil-Near-Plug (CNP) Multi-Coil Electronic Ignition (60-2 Crank Trigger)'
-              : 'Active Ignition: MSD Pro-Billet Ready-to-Run HEI Distributor (Ray\'s Confirmed Spec)'}
-          </span>
-        </div>
-        <div className="text-[11px] font-mono">
-          {isMpfi ? 'Individual Cylinder Dwell Control' : 'Centrifugal + Vacuum Mechanical HEI'}
-        </div>
-      </div>
+      <SpecialModControlsStrip
+        config={config}
+        specs={specs}
+        onUpdateConfig={onUpdateConfig}
+        variant="compact"
+      />
 
       {/* Total Ignition Timing Slider */}
       <div className="bg-[#181e24] p-5 rounded-xl border border-gray-800 space-y-3">
@@ -91,7 +67,7 @@ export const TabIgnition: React.FC<TabIgnitionProps> = ({
           max="44"
           step="1"
           value={config.ignitionTiming}
-          onChange={(e) => onUpdateConfig({ ignitionTiming: parseInt(e.target.value, 10) })}
+          onChange={(e) => onUpdateConfig({ ignitionTiming: parseInt(e.target.value) })}
           className="w-full accent-amber-500 cursor-pointer h-2.5 bg-gray-800 rounded-lg"
         />
         <div className="flex justify-between text-[11px] text-gray-400 font-sans">
@@ -104,21 +80,15 @@ export const TabIgnition: React.FC<TabIgnitionProps> = ({
         {/* Timing Breakdown */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-2">
           <div className="bg-black/50 p-2.5 rounded border border-gray-800">
-            <span className="text-[10px] text-gray-400 block">
-              {isMpfi ? 'ECU DIGITAL BASE TIMING (@ IDLE):' : 'INITIAL BASE TIMING (@ IDLE):'}
-            </span>
+            <span className="text-[10px] text-gray-400 block">INITIAL BASE TIMING (@ IDLE):</span>
             <span className="text-white font-bold text-sm">12° BTDC @ 850 RPM</span>
           </div>
           <div className="bg-black/50 p-2.5 rounded border border-gray-800">
-            <span className="text-[10px] text-gray-400 block">
-              {isMpfi ? 'CRANK TRIGGER ADVANCE MAP:' : 'CENTRIFUGAL MECHANICAL ADVANCE:'}
-            </span>
+            <span className="text-[10px] text-gray-400 block">CENTRIFUGAL MECHANICAL ADVANCE:</span>
             <span className="text-amber-400 font-bold text-sm">24° Advance (All In by 3,000 RPM)</span>
           </div>
           <div className="bg-black/50 p-2.5 rounded border border-gray-800">
-            <span className="text-[10px] text-gray-400 block">
-              {isMpfi ? 'MAP SENSOR LOAD COMPENSATION:' : 'VACUUM ADVANCE (PART-THROTTLE):'}
-            </span>
+            <span className="text-[10px] text-gray-400 block">VACUUM ADVANCE (PART-THROTTLE):</span>
             <span className="text-cyan-400 font-bold text-sm">+10° to 12° at 15 inHg Vacuum</span>
           </div>
         </div>
@@ -144,16 +114,12 @@ export const TabIgnition: React.FC<TabIgnitionProps> = ({
                 }`}
               >
                 <div className="text-xs">{gap.toFixed(3)}"</div>
-                <div className="text-[9px] text-gray-400">
-                  {gap === 0.040 ? "Ray's HEI Spec" : gap === 0.035 ? "Points / Turbo" : "High-Energy Box"}
-                </div>
+                <div className="text-[9px] text-gray-400">{gap === 0.040 ? "Ray's HEI Spec" : gap === 0.035 ? "Points / Turbo" : "CDI Box"}</div>
               </button>
             ))}
           </div>
           <p className="text-[11px] text-gray-300 leading-relaxed font-sans">
-            {isMpfi
-              ? 'Multi-coil CNP delivers independent inductive charging per cylinder. The 0.040" gap produces a thick, sustained arc capable of lighting lean cruise mixtures cleanly under all engine loads.'
-              : 'High-Energy Ignition (HEI) delivers up to 50,000 Volts. The 0.040" gap produces a fat, hot spark kernel that lights lean 12.9:1 AFR mixtures cleanly.'}
+            High-Energy Ignition (HEI) delivers up to 50,000 Volts. The 0.040" gap produces a fat, hot spark kernel that lights lean 12.9:1 AFR mixtures cleanly.
           </p>
         </div>
 

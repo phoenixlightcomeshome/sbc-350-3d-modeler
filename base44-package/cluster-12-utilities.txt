@@ -1,0 +1,1714 @@
+# cluster-12-utilities.txt — SBC 350 v16 utilities, cluster 12 of 12
+# Source: goal hidden_files, verified on disk Nov 26, 2026 (md5-matched copies home). Paste ONE cluster per builder message, in order, AFTER clusters 01-08.
+# Files in this cluster: 4
+
+===== FILE: src/utils/imageTo3d.ts (22640 bytes, md5 dca02e77bb26869efc97bfae9fce2c8b) =====
+
+/**
+ * @license
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+export type TraceEngine = 'vtracer' | 'opencv' | 'manual_contour';
+
+export type TargetManufacturingProcess =
+  | 'cnc_5_axis'
+  | 'lpbf_slm_dmls'
+  | 'ded_am'
+  | 'superplastic_forming'
+  | 'near_net_forging';
+
+export type ManufacturabilityStatus = 'PASS' | 'WARN_ESTIMATE' | 'FLAG_INFEASIBLE';
+
+export interface Point2D {
+  x: number;
+  y: number;
+}
+
+export interface CalibratedScalePlane {
+  planeId: string;
+  referencePixels: number;
+  referenceInches: number;
+  inchesPerPixel: number;
+  mmPerInch: number;
+  calibrationNote: string;
+  needsPhysicalVerification: boolean;
+  sourceRef: string;
+}
+
+export interface TracedContourInput {
+  contourId: string;
+  partName: string;
+  traceEngine: TraceEngine;
+  /** Contour vertices in pixel coordinates on the calibrated scale plane */
+  pixelPoints: Point2D[];
+  /** Extrusion / feature depth in inches */
+  extrudeDepthIn: number;
+  /** Draft angle in degrees (0 if none specified) */
+  draftAngleDeg?: number;
+  /** Minimum wall or feature thickness in inches if known; if omitted, derived from bounding contour */
+  minFeatureSizeIn?: number;
+  /** Whether part/feature involves an internal/solid-state join rather than an extruded contour */
+  isInternalOrSolidStateJoin?: boolean;
+  /** Optional density in g/cm^3 from a verified/curated source (e.g. 2.70 or 4.43); never invented */
+  densityGCm3?: number;
+  sourceRef: string;
+}
+
+export interface ProcessManufacturabilityRule {
+  process: TargetManufacturingProcess;
+  label: string;
+  /** Minimum wall/feature size in inches; null when no single published limit exists in chat sources */
+  minFeatureSizeIn: number | null;
+  /** Maximum recommended extrusion/feature depth in inches; null when unverified in chat sources */
+  maxExtrudeDepthIn: number | null;
+  /** Minimum draft angle in degrees if required/flagged; null when unverified in chat sources */
+  minDraftAngleDeg: number | null;
+  /** Whether internal/solid-state join features cannot be represented as a simple extruded contour */
+  rejectsExtrudedContour: boolean;
+  ruleSummary: string;
+  sourceRef: string;
+}
+
+export interface ManufacturabilityFinding {
+  code:
+    | 'BELOW_MIN_FEATURE_SIZE'
+    | 'UNVERIFIED_FEATURE_SIZE'
+    | 'EXCEEDS_MAX_DEPTH'
+    | 'UNVERIFIED_DEPTH'
+    | 'INSUFFICIENT_DRAFT'
+    | 'UNVERIFIED_DRAFT'
+    | 'INCOMPATIBLE_CONTOUR_TOPOLOGY'
+    | 'VENDOR_OR_ESTIMATE_LIMIT'
+    | 'NEEDS_RAY_MEASUREMENT';
+  severity: 'INFO' | 'WARN' | 'BLOCK';
+  message: string;
+  sourceRef: string;
+}
+
+export interface EvaluatedPartGeometry {
+  contourId: string;
+  partName: string;
+  process: TargetManufacturingProcess;
+  status: ManufacturabilityStatus;
+  scalePlane: CalibratedScalePlane;
+  /** Converted vertices in inches */
+  pointsIn: Point2D[];
+  /** Converted vertices in millimeters */
+  pointsMm: Point2D[];
+  widthIn: number;
+  heightIn: number;
+  extrudeDepthIn: number;
+  extrudeDepthMm: number;
+  draftAngleDeg: number;
+  /** 2D area in square inches (from planar polygon shoelace formula) */
+  areaIn2: number;
+  /** Extruded volume in cubic inches (`areaIn2 * extrudeDepthIn`) */
+  volumeIn3: number;
+  /** Extruded volume in cubic centimeters (`volumeIn3 * 16.387064`) */
+  volumeCm3: number;
+  /** Mass in grams only when `densityGCm3` is supplied; otherwise null */
+  estimatedMassGrams: number | null;
+  findings: ManufacturabilityFinding[];
+  browserPreviewSpec: {
+    renderer: 'three.js (MIT) ExtrudeGeometry + STLExporter';
+    clientSideOnly: boolean;
+    note: string;
+  };
+  serverStepExportSpec: {
+    engine: 'build123d (Apache-2.0) on OpenCASCADE / OCCT (LGPL-2.1)';
+    format: 'STEP AP242 (ISO 10303-242 MBD)';
+    endpointHint: string;
+    note: string;
+  };
+}
+
+export const CALIBRATED_TRUE_SCALE_PLANE: CalibratedScalePlane = {
+  planeId: 'ray_true_scale_138px_4p400in',
+  referencePixels: 138,
+  referenceInches: 4.4,
+  inchesPerPixel: 4.4 / 138,
+  mmPerInch: 25.4,
+  calibrationNote:
+    'Calibrated true-scale plane: 138 px = 4.400 in (~0.031884058 in/px). Re-verify scale reference on physical print/part before final machining [NEEDS RAY\'S MEASUREMENT].',
+  needsPhysicalVerification: true,
+  sourceRef: 'Ray calibrated scale spec (138 px = 4.400 in); ISO 2768-1 / ASME Y14.5-2018 units'
+};
+
+/**
+ * Process capability limits derived strictly from the SOTA manufacturing & aerospace data in this chat.
+ * Any unverified or single-source figure is flagged explicitly; nothing is silently passed or invented.
+ */
+export const PROCESS_CAPABILITY_RULES: Record<TargetManufacturingProcess, ProcessManufacturabilityRule> = {
+  cnc_5_axis: {
+    process: 'cnc_5_axis',
+    label: '5-Axis CNC Machining',
+    minFeatureSizeIn: 0.002, // ±0.002 in (0.05 mm) standard CNC reference in manufacturingMatrix/report
+    maxExtrudeDepthIn: null, // No universal single max pocket/extrude depth published in chat sources
+    minDraftAngleDeg: null, // Not a universal draft-only rule like casting; tool reach/geometry governs
+    rejectsExtrudedContour: false,
+    ruleSummary:
+      'Standard 5-axis CNC tolerance ~±0.05 mm (±0.002 in), Ra 0.8–1.6 µm standard (0.2–0.8 µm fine/fatigue fillets; ±0.005 mm single-shop vendor claim). Deeper pockets/undercuts depend on tool reach & setup [ESTIMATE / VENDOR_CLAIM / NEEDS RAY\'S MEASUREMENT].',
+    sourceRef: 'manufacturingMatrix.ts; aerospace-matrix-research-20261126.txt §2 & §5'
+  },
+  lpbf_slm_dmls: {
+    process: 'lpbf_slm_dmls',
+    label: 'Laser Powder Bed Fusion (LPBF / SLM / DMLS)',
+    minFeatureSizeIn: 0.004, // ~0.10 mm (100 µm) practical thin-feature check vs 20–60 µm layer & ±0.05–0.20 mm build variation
+    maxExtrudeDepthIn: null, // No single universal max depth published in chat sources; build envelope & overhang/support rules apply
+    minDraftAngleDeg: null, // Down-facing/overhang roughness rises (15–35 µm Ra) and supports/HIP shifts require post-machining on critical faces
+    rejectsExtrudedContour: false,
+    ruleSummary:
+      'LPBF/DMLS (ISO/ASTM 52900 / NASA-STD-6030 / AMS 7003): 20–60 µm layers, ~±0.05–0.10 mm XY / ±0.10–0.20 mm Z as-built, Ra 6–15 µm up / 15–35 µm down; HIP can shift dimensions and critical faces need CNC post-machining [ESTIMATE / VENDOR_CLAIM].',
+    sourceRef: 'manufacturingMatrix.ts; aerospace-matrix-research-20261126.txt §2 & §3'
+  },
+  ded_am: {
+    process: 'ded_am',
+    label: 'Directed Energy Deposition (DED — Powder or Wire)',
+    minFeatureSizeIn: 0.03937, // ~1.0 mm (0.03937 in) wall noted in NASA LP-DED/LW-DED reference; coarser than LPBF
+    maxExtrudeDepthIn: null, // No single universal max depth published in chat sources
+    minDraftAngleDeg: null, // No single universal draft angle published in chat sources
+    rejectsExtrudedContour: false,
+    ruleSummary:
+      'DED (ISO/ASTM 52900 / NASA-STD-6030): coarser than LPBF with higher heat input/residual stress and heavier machining stock allowance (~1 mm wall noted in NASA source); exact tolerance/Ra not published as a single value [ESTIMATE / NEEDS RAY\'S MEASUREMENT].',
+    sourceRef: 'aerospace-matrix-research-20261126.txt §2 & §3'
+  },
+  superplastic_forming: {
+    process: 'superplastic_forming',
+    label: 'Superplastic Forming (SPF)',
+    minFeatureSizeIn: null, // Sheet/die forming; no single universal min feature size published in chat sources
+    maxExtrudeDepthIn: null, // Die/strain-limited; no single universal depth published in chat sources
+    minDraftAngleDeg: null, // Unconstrained inner sheets can show large variance; no single universal angle published
+    rejectsExtrudedContour: false,
+    ruleSummary:
+      'SPF: elevates sheet to superplastic strain at temperature with low residual stress and die-conforming geometry, but unconstrained inner sheets can show large variance and no single universal tolerance/Ra is published [ESTIMATE / NEEDS RAY\'S MEASUREMENT].',
+    sourceRef: 'aerospace-matrix-research-20261126.txt §2'
+  },
+  near_net_forging: {
+    process: 'near_net_forging',
+    label: 'Precision / Near-Net-Shape (NNS) Forging',
+    minFeatureSizeIn: 0.03937, // ~1.0 mm lower bound of vendor-reported NNS machining allowance (1.0–3.0 mm/face; 2–5 mm in one source)
+    maxExtrudeDepthIn: null, // No single universal depth published in chat sources
+    minDraftAngleDeg: 1, // Flag if explicit 0° draft is passed on a forged contour without machining allowance note [ESTIMATE]
+    rejectsExtrudedContour: false,
+    ruleSummary:
+      'NNS Forging: provides directional grain flow/fatigue strength and requires machining stock allowance (1.0–3.0 mm/face or 2–5 mm in one report vs 10–15 mm conventional; buy-to-fly 3.5:1–4.2:1 vendor-claimed) prior to finish machining [VENDOR_CLAIM / NEEDS RAY\'S MEASUREMENT].',
+    sourceRef: 'aerospace-matrix-research-20261126.txt §2 & §5'
+  }
+};
+
+function computePolygonAreaIn2(points: Point2D[]): number {
+  if (points.length < 3) return 0;
+  let twiceArea = 0;
+  for (let i = 0; i < points.length; i++) {
+    const p1 = points[i];
+    const p2 = points[(i + 1) % points.length];
+    twiceArea += p1.x * p2.y - p2.x * p1.y;
+  }
+  return Math.abs(twiceArea) * 0.5;
+}
+
+function estimateMinimumSpanIn(pointsIn: Point2D[]): number {
+  if (pointsIn.length < 2) return 0;
+  let minSpan = Infinity;
+  for (let i = 0; i < pointsIn.length; i++) {
+    const p1 = pointsIn[i];
+    const p2 = pointsIn[(i + 1) % pointsIn.length];
+    const dist = Math.hypot(p2.x - p1.x, p2.y - p1.y);
+    if (dist > 0 && dist < minSpan) {
+      minSpan = dist;
+    }
+  }
+  return Number.isFinite(minSpan) ? minSpan : 0;
+}
+
+/**
+ * Evaluates a traced 2D contour + extrusion depth against the calibrated scale plane
+ * and target manufacturing process rules, flagging infeasible or unverified features
+ * instead of silently fabricating specs.
+ */
+export function evaluateTracedPart(
+  input: TracedContourInput,
+  process: TargetManufacturingProcess,
+  scalePlane: CalibratedScalePlane = CALIBRATED_TRUE_SCALE_PLANE
+): EvaluatedPartGeometry {
+  const rule = PROCESS_CAPABILITY_RULES[process];
+  const pointsIn: Point2D[] = input.pixelPoints.map((pt) => ({
+    x: Number((pt.x * scalePlane.inchesPerPixel).toFixed(5)),
+    y: Number((pt.y * scalePlane.inchesPerPixel).toFixed(5))
+  }));
+  const pointsMm: Point2D[] = pointsIn.map((pt) => ({
+    x: Number((pt.x * scalePlane.mmPerInch).toFixed(4)),
+    y: Number((pt.y * scalePlane.mmPerInch).toFixed(4))
+  }));
+
+  const xs = pointsIn.map((p) => p.x);
+  const ys = pointsIn.map((p) => p.y);
+  const widthIn = xs.length > 0 ? Number((Math.max(...xs) - Math.min(...xs)).toFixed(5)) : 0;
+  const heightIn = ys.length > 0 ? Number((Math.max(...ys) - Math.min(...ys)).toFixed(5)) : 0;
+
+  const extrudeDepthIn = Number(input.extrudeDepthIn.toFixed(5));
+  const extrudeDepthMm = Number((extrudeDepthIn * scalePlane.mmPerInch).toFixed(4));
+  const draftAngleDeg = input.draftAngleDeg ?? 0;
+
+  const areaIn2 = Number(computePolygonAreaIn2(pointsIn).toFixed(6));
+  const volumeIn3 = Number((areaIn2 * extrudeDepthIn).toFixed(6));
+  const volumeCm3 = Number((volumeIn3 * 16.387064).toFixed(6));
+
+  const estimatedMassGrams =
+    typeof input.densityGCm3 === 'number' && Number.isFinite(input.densityGCm3)
+      ? Number((volumeCm3 * input.densityGCm3).toFixed(4))
+      : null;
+
+  const findings: ManufacturabilityFinding[] = [
+    {
+      code: 'NEEDS_RAY_MEASUREMENT',
+      severity: 'WARN',
+      message: `Scale plane (${scalePlane.referencePixels} px = ${scalePlane.referenceInches.toFixed(3)} in) and final part dimensions/tolerances require physical verification [NEEDS RAY'S MEASUREMENT].`,
+      sourceRef: scalePlane.sourceRef
+    }
+  ];
+
+  let hasBlock = false;
+  let hasWarn = false;
+
+  if (input.pixelPoints.length < 3 || areaIn2 <= 0) {
+    hasBlock = true;
+    findings.push({
+      code: 'INCOMPATIBLE_CONTOUR_TOPOLOGY',
+      severity: 'BLOCK',
+      message: 'Contour has fewer than 3 non-collinear points or zero enclosed area; cannot extrude a valid closed part.',
+      sourceRef: input.sourceRef
+    });
+  }
+
+  if (input.isInternalOrSolidStateJoin || rule.rejectsExtrudedContour) {
+    hasBlock = true;
+    findings.push({
+      code: 'INCOMPATIBLE_CONTOUR_TOPOLOGY',
+      severity: 'BLOCK',
+      message: `Feature/process (${rule.label}) is not valid as a standalone 2D extruded contour; flag for dedicated solid/process modeling.`,
+      sourceRef: rule.sourceRef
+    });
+  }
+
+  if (extrudeDepthIn <= 0) {
+    hasBlock = true;
+    findings.push({
+      code: 'EXCEEDS_MAX_DEPTH',
+      severity: 'BLOCK',
+      message: `Extrusion depth (${extrudeDepthIn.toFixed(4)} in) must be greater than zero to form a 3D part.`,
+      sourceRef: input.sourceRef
+    });
+  }
+
+  const effectiveFeatureIn =
+    typeof input.minFeatureSizeIn === 'number'
+      ? input.minFeatureSizeIn
+      : estimateMinimumSpanIn(pointsIn);
+
+  if (typeof input.minFeatureSizeIn !== 'number') {
+    hasWarn = true;
+    findings.push({
+      code: 'UNVERIFIED_FEATURE_SIZE',
+      severity: 'WARN',
+      message: `Explicit minFeatureSizeIn not provided; using smallest contour segment (${effectiveFeatureIn.toFixed(4)} in) as proxy — verify actual wall/boss thickness.`,
+      sourceRef: input.sourceRef
+    });
+  }
+
+  if (rule.minFeatureSizeIn !== null && effectiveFeatureIn > 0 && effectiveFeatureIn < rule.minFeatureSizeIn) {
+    hasBlock = true;
+    findings.push({
+      code: 'BELOW_MIN_FEATURE_SIZE',
+      severity: 'BLOCK',
+      message: `Feature size (${effectiveFeatureIn.toFixed(4)} in / ${(effectiveFeatureIn * 25.4).toFixed(2)} mm) is below ${rule.label} reference threshold (${rule.minFeatureSizeIn.toFixed(4)} in / ${(rule.minFeatureSizeIn * 25.4).toFixed(2)} mm).`,
+      sourceRef: rule.sourceRef
+    });
+  }
+
+  if (rule.minDraftAngleDeg !== null && draftAngleDeg < rule.minDraftAngleDeg) {
+    hasWarn = true;
+    findings.push({
+      code: 'INSUFFICIENT_DRAFT',
+      severity: 'WARN',
+      message: `Draft angle (${draftAngleDeg}°) is below ${rule.label} reference minimum (${rule.minDraftAngleDeg}°) or lacks explicit machining stock allowance.`,
+      sourceRef: rule.sourceRef
+    });
+  }
+
+  if (rule.maxExtrudeDepthIn !== null && extrudeDepthIn > rule.maxExtrudeDepthIn) {
+    hasBlock = true;
+    findings.push({
+      code: 'EXCEEDS_MAX_DEPTH',
+      severity: 'BLOCK',
+      message: `Extrusion depth (${extrudeDepthIn.toFixed(4)} in) exceeds ${rule.label} limit (${rule.maxExtrudeDepthIn.toFixed(4)} in).`,
+      sourceRef: rule.sourceRef
+    });
+  } else if (rule.maxExtrudeDepthIn === null) {
+    hasWarn = true;
+    findings.push({
+      code: 'UNVERIFIED_DEPTH',
+      severity: 'WARN',
+      message: `No universal max depth published for ${rule.label} in chat sources; check aspect ratio, tool reach, overhang/support, or die limits [ESTIMATE].`,
+      sourceRef: rule.sourceRef
+    });
+  }
+
+  if (rule.minDraftAngleDeg === null && input.draftAngleDeg === undefined) {
+    hasWarn = true;
+    findings.push({
+      code: 'UNVERIFIED_DRAFT',
+      severity: 'WARN',
+      message: `No draft angle specified and no universal draft rule published for ${rule.label}; verify process/tooling requirements [ESTIMATE].`,
+      sourceRef: rule.sourceRef
+    });
+  }
+
+  findings.push({
+    code: 'VENDOR_OR_ESTIMATE_LIMIT',
+    severity: 'INFO',
+    message: rule.ruleSummary,
+    sourceRef: rule.sourceRef
+  });
+
+  const status: ManufacturabilityStatus = hasBlock
+    ? 'FLAG_INFEASIBLE'
+    : hasWarn
+      ? 'WARN_ESTIMATE'
+      : 'PASS';
+
+  return {
+    contourId: input.contourId,
+    partName: input.partName,
+    process,
+    status,
+    scalePlane,
+    pointsIn,
+    pointsMm,
+    widthIn,
+    heightIn,
+    extrudeDepthIn,
+    extrudeDepthMm,
+    draftAngleDeg,
+    areaIn2,
+    volumeIn3,
+    volumeCm3,
+    estimatedMassGrams,
+    findings,
+    browserPreviewSpec: {
+      renderer: 'three.js (MIT) ExtrudeGeometry + STLExporter',
+      clientSideOnly: true,
+      note: 'Client-side preview and mesh export only (after vtracer MIT/WASM or OpenCV.js Apache-2.0 contour trace). Use server build123d/OpenCASCADE for real STEP AP242 solids.'
+    },
+    serverStepExportSpec: {
+      engine: 'build123d (Apache-2.0) on OpenCASCADE / OCCT (LGPL-2.1)',
+      format: 'STEP AP242 (ISO 10303-242 MBD)',
+      endpointHint: '/api/extrude-step',
+      note: 'Send calibrated inch/mm points and depth to server build123d/OCCT script to generate a true B-rep STEP AP242 file.'
+    }
+  };
+}
+
+/**
+ * Generates an ASCII/text STL (in inches) from the extruded top/bottom/side triangles
+ * when `allowFlaggedExport` is true; blocks silently exporting infeasible parts unless explicitly overridden.
+ */
+export function exportPartToStlInches(
+  evaluated: EvaluatedPartGeometry,
+  options: { allowFlaggedExport?: boolean } = {}
+): { ok: boolean; reason?: string; content?: string } {
+  if (evaluated.status === 'FLAG_INFEASIBLE' && !options.allowFlaggedExport) {
+    return {
+      ok: false,
+      reason: `Export blocked: part ${evaluated.partName} is flagged INFEASIBLE for ${evaluated.process}. Resolve findings or pass allowFlaggedExport: true.`
+    };
+  }
+
+  const pts = evaluated.pointsIn;
+  if (pts.length < 3 || evaluated.extrudeDepthIn <= 0) {
+    return { ok: false, reason: 'Invalid polygon or non-positive extrusion depth in inches.' };
+  }
+
+  const z0 = 0;
+  const z1 = evaluated.extrudeDepthIn;
+  const triangles: Array<[Point2D & { z: number }, Point2D & { z: number }, Point2D & { z: number }]> = [];
+
+  // Fan triangulation across XY contour for bottom and top caps
+  for (let i = 1; i < pts.length - 1; i++) {
+    triangles.push([
+      { x: pts[0].x, y: pts[0].y, z: z0 },
+      { x: pts[i + 1].x, y: pts[i + 1].y, z: z0 },
+      { x: pts[i].x, y: pts[i].y, z: z0 }
+    ]);
+    triangles.push([
+      { x: pts[0].x, y: pts[0].y, z: z1 },
+      { x: pts[i].x, y: pts[i].y, z: z1 },
+      { x: pts[i + 1].x, y: pts[i + 1].y, z: z1 }
+    ]);
+  }
+
+  // Side quads split into two triangles per edge
+  for (let i = 0; i < pts.length; i++) {
+    const a = pts[i];
+    const b = pts[(i + 1) % pts.length];
+    const b0 = { x: a.x, y: a.y, z: z0 };
+    const b1 = { x: b.x, y: b.y, z: z0 };
+    const t1 = { x: b.x, y: b.y, z: z1 };
+    const t0 = { x: a.x, y: a.y, z: z1 };
+    triangles.push([b0, b1, t1]);
+    triangles.push([b0, t1, t0]);
+  }
+
+  const lines: string[] = [`solid ${evaluated.contourId}_inches`];
+  for (const [v1, v2, v3] of triangles) {
+    const ux = v2.x - v1.x;
+    const uy = v2.y - v1.y;
+    const uz = v2.z - v1.z;
+    const vx = v3.x - v1.x;
+    const vy = v3.y - v1.y;
+    const vz = v3.z - v1.z;
+    let nx = uy * vz - uz * vy;
+    let ny = uz * vx - ux * vz;
+    let nz = ux * vy - uy * vx;
+    const len = Math.hypot(nx, ny, nz) || 1;
+    nx /= len;
+    ny /= len;
+    nz /= len;
+
+    lines.push(`  facet normal ${nx.toExponential(6)} ${ny.toExponential(6)} ${nz.toExponential(6)}`);
+    lines.push('    outer loop');
+    lines.push(`      vertex ${v1.x.toExponential(6)} ${v1.y.toExponential(6)} ${v1.z.toExponential(6)}`);
+    lines.push(`      vertex ${v2.x.toExponential(6)} ${v2.y.toExponential(6)} ${v2.z.toExponential(6)}`);
+    lines.push(`      vertex ${v3.x.toExponential(6)} ${v3.y.toExponential(6)} ${v3.z.toExponential(6)}`);
+    lines.push('    endloop');
+    lines.push('  endfacet');
+  }
+  lines.push(`endsolid ${evaluated.contourId}_inches`);
+
+  return { ok: true, content: lines.join('\n') };
+}
+
+/**
+ * Exports the 2D calibrated contour (and optional extrusion depth note) as an inch-unit DXF R12-style LWPOLYLINE/LINE exchange text.
+ */
+export function exportContourToDxfInches(
+  evaluated: EvaluatedPartGeometry,
+  options: { allowFlaggedExport?: boolean } = {}
+): { ok: boolean; reason?: string; content?: string } {
+  if (evaluated.status === 'FLAG_INFEASIBLE' && !options.allowFlaggedExport) {
+    return {
+      ok: false,
+      reason: `DXF export blocked: part ${evaluated.partName} is flagged INFEASIBLE for ${evaluated.process}.`
+    };
+  }
+
+  const pts = evaluated.pointsIn;
+  if (pts.length < 2) {
+    return { ok: false, reason: 'At least 2 points are required for DXF export.' };
+  }
+
+  // $MEASUREMENT = 0 (Imperial / Inches)
+  const dxf: string[] = [
+    '0', 'SECTION',
+    '2', 'HEADER',
+    '9', '$MEASUREMENT',
+    '70', '0',
+    '0', 'ENDSEC',
+    '0', 'SECTION',
+    '2', 'ENTITIES'
+  ];
+
+  for (let i = 0; i < pts.length; i++) {
+    const p1 = pts[i];
+    const p2 = pts[(i + 1) % pts.length];
+    dxf.push(
+      '0', 'LINE',
+      '8', `CONTOUR_IN_${evaluated.process.toUpperCase()}`,
+      '10', p1.x.toFixed(6),
+      '20', p1.y.toFixed(6),
+      '30', '0.000000',
+      '11', p2.x.toFixed(6),
+      '21', p2.y.toFixed(6),
+      '31', '0.000000'
+    );
+  }
+
+  dxf.push('0', 'ENDSEC', '0', 'EOF');
+  return { ok: true, content: dxf.join('\n') };
+}
+
+/**
+ * Exports the extruded part as a Wavefront OBJ mesh in inches (1 unit = 1 inch).
+ */
+export function exportPartToObjInches(
+  evaluated: EvaluatedPartGeometry,
+  options: { allowFlaggedExport?: boolean } = {}
+): { ok: boolean; reason?: string; content?: string } {
+  if (evaluated.status === 'FLAG_INFEASIBLE' && !options.allowFlaggedExport) {
+    return {
+      ok: false,
+      reason: `OBJ export blocked: part ${evaluated.partName} is flagged INFEASIBLE for ${evaluated.process}.`
+    };
+  }
+
+  const pts = evaluated.pointsIn;
+  if (pts.length < 3 || evaluated.extrudeDepthIn <= 0) {
+    return { ok: false, reason: 'Invalid polygon or non-positive extrusion depth in inches.' };
+  }
+
+  const z0 = 0;
+  const z1 = evaluated.extrudeDepthIn;
+  const n = pts.length;
+  const lines: string[] = [
+    `# Unit: inches (1 OBJ unit = 1 in); calibrated scale: ${evaluated.scalePlane.referencePixels} px = ${evaluated.scalePlane.referenceInches.toFixed(3)} in`,
+    `# Process: ${evaluated.process} | Status: ${evaluated.status}`,
+    `o ${evaluated.contourId}_in`
+  ];
+
+  // Bottom vertices 1..n, top vertices (n+1)..(2n)
+  for (const p of pts) {
+    lines.push(`v ${p.x.toFixed(6)} ${p.y.toFixed(6)} ${z0.toFixed(6)}`);
+  }
+  for (const p of pts) {
+    lines.push(`v ${p.x.toFixed(6)} ${p.y.toFixed(6)} ${z1.toFixed(6)}`);
+  }
+
+  // Bottom cap
+  const botIndices = Array.from({ length: n }, (_, idx) => n - idx).join(' ');
+  lines.push(`f ${botIndices}`);
+
+  // Top cap
+  const topIndices = Array.from({ length: n }, (_, idx) => n + 1 + idx).join(' ');
+  lines.push(`f ${topIndices}`);
+
+  // Side faces
+  for (let i = 0; i < n; i++) {
+    const next = (i + 1) % n;
+    const b1 = i + 1;
+    const b2 = next + 1;
+    const t2 = n + next + 1;
+    const t1 = n + i + 1;
+    lines.push(`f ${b1} ${b2} ${t2} ${t1}`);
+  }
+
+  return { ok: true, content: lines.join('\n') };
+}
+
+===== FILE: src/services/materialsProjectFetcher.ts (17137 bytes, md5 61b4617ae8b6b21eb9d91260ed81eeaf) =====
+
+/**
+ * @license
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { dirname } from 'node:path';
+
+export type ScreeningConfidence = 'ESTIMATE';
+
+export interface DerivedElasticity {
+  bulkModulusGpa: number | null;
+  shearModulusGpa: number | null;
+  poissonsRatio: number | null;
+  poissonsRatioDerived: boolean;
+  youngsModulusGpa: number | null;
+  youngsModulusDerived: boolean;
+  derivationNote: string;
+}
+
+export interface ScreenedMaterialRecord {
+  material_id: string;
+  formulaPretty: string | null;
+  densityGCm3: number | null;
+  elasticity: DerivedElasticity;
+  confidence: ScreeningConfidence;
+  screeningDisclaimer: string;
+  source: string;
+  retrievedAt: string;
+}
+
+export interface MaterialsProjectFetcherOptions {
+  /** Environment variable name holding the key from the Secure Vault (default: MATERIALS_PROJECT_API_KEY) */
+  apiKeyEnvVar?: string;
+  /** Endpoint URL for batch summary queries (default: https://api.materialsproject.org/materials/summary/) */
+  endpointUrl?: string;
+  /** Maximum material IDs per batch request (default: 50) */
+  batchSize?: number;
+  /** Cache time-to-live in milliseconds (default: 24 hours) */
+  cacheTtlMs?: number;
+  /** Optional local JSON file path for persistent server-side caching */
+  cacheFilePath?: string;
+  /** Optional custom fetch implementation for server/test environments */
+  fetchFn?: typeof fetch;
+}
+
+export interface FetchMaterialsResult {
+  records: ScreenedMaterialRecord[];
+  servedFromCache: boolean;
+  staleCacheUsed: boolean;
+  warnings: string[];
+}
+
+interface CacheEntry {
+  record: ScreenedMaterialRecord;
+  cachedAtMs: number;
+}
+
+export class VaultKeyMissingError extends Error {
+  constructor(envVar: string) {
+    super(
+      `Missing Secure Vault API key in environment variable "${envVar}". ` +
+        'Load the key via the Secure Vault into the server environment; never hardcode or expose it to the browser.'
+    );
+    this.name = 'VaultKeyMissingError';
+  }
+}
+
+export class BrowserExecutionForbiddenError extends Error {
+  constructor() {
+    super(
+      'materialsProjectFetcher.ts is server-side only and cannot execute in a browser context where window/document exist or API keys could be exposed.'
+    );
+    this.name = 'BrowserExecutionForbiddenError';
+  }
+}
+
+export class MaterialsProjectAuthError extends Error {
+  readonly status: 401 | 403;
+  constructor(status: 401 | 403, message: string) {
+    super(message);
+    this.name = 'MaterialsProjectAuthError';
+    this.status = status;
+  }
+}
+
+export class MaterialsProjectRateLimitError extends Error {
+  readonly retryAfterSeconds: number | null;
+  readonly retryAfterGuidance: string;
+
+  constructor(retryAfterSeconds: number | null, detail: string) {
+    const guidance =
+      retryAfterSeconds !== null
+        ? `Rate limited (HTTP 429). Wait at least ${retryAfterSeconds}s per Retry-After header before retrying, batch IDs, and serve cached data.`
+        : 'Rate limited (HTTP 429). Back off with exponential delay, batch IDs, and serve cached data; no cached entry was available.';
+    super(`${detail} ${guidance}`);
+    this.name = 'MaterialsProjectRateLimitError';
+    this.retryAfterSeconds = retryAfterSeconds;
+    this.retryAfterGuidance = guidance;
+  }
+}
+
+export class MaterialsProjectNetworkError extends Error {
+  readonly causeDetail: string;
+  constructor(causeDetail: string) {
+    super(`Network or transport error while querying Materials Project API: ${causeDetail}`);
+    this.name = 'MaterialsProjectNetworkError';
+    this.causeDetail = causeDetail;
+  }
+}
+
+const DEFAULT_ENDPOINT = 'https://api.materialsproject.org/materials/summary/';
+const DEFAULT_ENV_VAR = 'MATERIALS_PROJECT_API_KEY';
+const DEFAULT_BATCH_SIZE = 50;
+const DEFAULT_TTL_MS = 24 * 60 * 60 * 1000;
+const SCREENING_DISCLAIMER =
+  '[ESTIMATE] Computed/DFT screening data from Materials Project — NOT a certified aerospace or automotive design allowable. Verify against controlled physical test data, AMS/ASTM/SAE standards, and MMPDS.';
+
+function assertServerOnlyRuntime(): void {
+  const hasWindow = typeof (globalThis as { window?: unknown }).window !== 'undefined';
+  const hasDocument = typeof (globalThis as { document?: unknown }).document !== 'undefined';
+  if (hasWindow || hasDocument) {
+    throw new BrowserExecutionForbiddenError();
+  }
+}
+
+function parseRetryAfterSeconds(headerVal: string | null): number | null {
+  if (!headerVal) return null;
+  const trimmed = headerVal.trim();
+  if (/^\d+$/.test(trimmed)) {
+    return Number(trimmed);
+  }
+  const parsedDateMs = Date.parse(trimmed);
+  if (!Number.isNaN(parsedDateMs)) {
+    const deltaSec = Math.ceil((parsedDateMs - Date.now()) / 1000);
+    return Math.max(0, deltaSec);
+  }
+  return null;
+}
+
+function isFinitePositiveNumber(val: unknown): val is number {
+  return typeof val === 'number' && Number.isFinite(val) && val > 0;
+}
+
+function isFiniteNumber(val: unknown): val is number {
+  return typeof val === 'number' && Number.isFinite(val);
+}
+
+/**
+ * Derives Young's modulus E and (when absent) Poisson's ratio nu from bulk (K) and shear (G) moduli.
+ * Formulas:
+ *   nu = (3K - 2G) / (2(3K + G))
+ *   E  = 9KG / (3K + G)
+ * Note: Materials Project summary elasticity fields contain VRH bulk/shear moduli (such as k_vrh / g_vrh);
+ * k_vrh is bulk modulus, NOT Young's modulus. Exact schema field names should be confirmed against
+ * https://docs.materialsproject.org/ when integrating.
+ */
+export function deriveElasticityFromBulkAndShear(
+  bulkModulusGpa: number | null,
+  shearModulusGpa: number | null,
+  suppliedPoissonsRatio: number | null
+): DerivedElasticity {
+  const kValid = isFinitePositiveNumber(bulkModulusGpa);
+  const gValid = isFinitePositiveNumber(shearModulusGpa);
+
+  if (!kValid || !gValid) {
+    return {
+      bulkModulusGpa: kValid ? bulkModulusGpa : null,
+      shearModulusGpa: gValid ? shearModulusGpa : null,
+      poissonsRatio: isFiniteNumber(suppliedPoissonsRatio) ? suppliedPoissonsRatio : null,
+      poissonsRatioDerived: false,
+      youngsModulusGpa: null,
+      youngsModulusDerived: false,
+      derivationNote:
+        'Young\'s modulus not derived: valid positive bulk (K) and shear (G) moduli were not both available in response [ESTIMATE screening only; verify against https://docs.materialsproject.org/].'
+    };
+  }
+
+  const denom = 3 * bulkModulusGpa + shearModulusGpa;
+  const derivedNu = (3 * bulkModulusGpa - 2 * shearModulusGpa) / (2 * denom);
+  const hasSuppliedNu = isFiniteNumber(suppliedPoissonsRatio);
+  const effectiveNu = hasSuppliedNu ? suppliedPoissonsRatio : derivedNu;
+  const youngsModulusGpa = (9 * bulkModulusGpa * shearModulusGpa) / denom;
+
+  return {
+    bulkModulusGpa,
+    shearModulusGpa,
+    poissonsRatio: isFiniteNumber(effectiveNu) ? Number(effectiveNu.toFixed(6)) : null,
+    poissonsRatioDerived: !hasSuppliedNu && isFiniteNumber(derivedNu),
+    youngsModulusGpa: Number(youngsModulusGpa.toFixed(4)),
+    youngsModulusDerived: true,
+    derivationNote: hasSuppliedNu
+      ? 'Young\'s modulus E derived from K and G via E = 9KG / (3K + G) using supplied Poisson\'s ratio [ESTIMATE screening only; k_vrh is bulk modulus, not Young\'s modulus].'
+      : 'Young\'s modulus E = 9KG / (3K + G) and Poisson\'s ratio nu = (3K - 2G) / (2(3K + G)) derived from K and G [ESTIMATE screening only; verify exact schema on https://docs.materialsproject.org/].'
+  };
+}
+
+function extractNumber(obj: Record<string, unknown> | undefined, keys: string[]): number | null {
+  if (!obj) return null;
+  for (const key of keys) {
+    const val = obj[key];
+    if (isFiniteNumber(val)) return val;
+  }
+  return null;
+}
+
+function normalizeSummaryDoc(raw: unknown, retrievedAt: string): ScreenedMaterialRecord | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const doc = raw as Record<string, unknown>;
+  const materialId = typeof doc.material_id === 'string' ? doc.material_id : null;
+  if (!materialId) return null;
+
+  const formulaPretty = typeof doc.formula_pretty === 'string' ? doc.formula_pretty : null;
+  const densityGCm3 = isFiniteNumber(doc.density) ? doc.density : null;
+
+  // Defensive extraction across possible elasticity sub-object shapes; confirm exact schema in MP docs.
+  const elasticityObj =
+    doc.elasticity && typeof doc.elasticity === 'object'
+      ? (doc.elasticity as Record<string, unknown>)
+      : undefined;
+  const kVrhObj =
+    elasticityObj?.k_vrh && typeof elasticityObj.k_vrh === 'object'
+      ? (elasticityObj.k_vrh as Record<string, unknown>)
+      : undefined;
+  const gVrhObj =
+    elasticityObj?.g_vrh && typeof elasticityObj.g_vrh === 'object'
+      ? (elasticityObj.g_vrh as Record<string, unknown>)
+      : undefined;
+
+  const bulkK =
+    extractNumber(kVrhObj, ['value', 'mean', 'k_vrh']) ??
+    extractNumber(elasticityObj, ['k_vrh', 'bulk_modulus']);
+  const shearG =
+    extractNumber(gVrhObj, ['value', 'mean', 'g_vrh']) ??
+    extractNumber(elasticityObj, ['g_vrh', 'shear_modulus']);
+  const suppliedNu = extractNumber(elasticityObj, [
+    'homogeneous_poisson',
+    'poisson_ratio',
+    'nu'
+  ]);
+
+  return {
+    material_id: materialId,
+    formulaPretty,
+    densityGCm3,
+    elasticity: deriveElasticityFromBulkAndShear(bulkK, shearG, suppliedNu),
+    confidence: 'ESTIMATE',
+    screeningDisclaimer: SCREENING_DISCLAIMER,
+    source: 'Materials Project API (/materials/summary/ — computed/DFT screening data; https://docs.materialsproject.org/)',
+    retrievedAt
+  };
+}
+
+export class MaterialsProjectFetcher {
+  private readonly apiKeyEnvVar: string;
+  private readonly endpointUrl: string;
+  private readonly batchSize: number;
+  private readonly cacheTtlMs: number;
+  private readonly cacheFilePath: string | undefined;
+  private readonly fetchFn: typeof fetch;
+  private readonly memoryCache = new Map<string, CacheEntry>();
+
+  constructor(options: MaterialsProjectFetcherOptions = {}) {
+    assertServerOnlyRuntime();
+
+    this.apiKeyEnvVar = options.apiKeyEnvVar ?? DEFAULT_ENV_VAR;
+    this.endpointUrl = options.endpointUrl ?? DEFAULT_ENDPOINT;
+    this.batchSize = Math.max(1, options.batchSize ?? DEFAULT_BATCH_SIZE);
+    this.cacheTtlMs = Math.max(0, options.cacheTtlMs ?? DEFAULT_TTL_MS);
+    this.cacheFilePath = options.cacheFilePath;
+    this.fetchFn = options.fetchFn ?? fetch;
+
+    if (this.cacheFilePath) {
+      this.loadDiskCacheIntoMemory();
+    }
+  }
+
+  private getVaultApiKey(): string {
+    assertServerOnlyRuntime();
+    const envMap = typeof process !== 'undefined' ? process.env : undefined;
+    const key = envMap ? envMap[this.apiKeyEnvVar] : undefined;
+    if (!key || key.trim().length === 0) {
+      throw new VaultKeyMissingError(this.apiKeyEnvVar);
+    }
+    return key.trim();
+  }
+
+  private loadDiskCacheIntoMemory(): void {
+    if (!this.cacheFilePath || !existsSync(this.cacheFilePath)) return;
+    try {
+      const raw = readFileSync(this.cacheFilePath, 'utf8');
+      const parsed = JSON.parse(raw) as Record<string, CacheEntry>;
+      for (const [matId, entry] of Object.entries(parsed)) {
+        if (entry && entry.record && typeof entry.cachedAtMs === 'number') {
+          this.memoryCache.set(matId, entry);
+        }
+      }
+    } catch {
+      // Ignore unreadable/corrupt cache file and rebuild cleanly on subsequent writes
+    }
+  }
+
+  private persistMemoryCacheToDisk(): void {
+    if (!this.cacheFilePath) return;
+    const dir = dirname(this.cacheFilePath);
+    if (dir && dir !== '.' && !existsSync(dir)) {
+      mkdirSync(dir, { recursive: true });
+    }
+    const obj: Record<string, CacheEntry> = {};
+    for (const [matId, entry] of this.memoryCache.entries()) {
+      obj[matId] = entry;
+    }
+    writeFileSync(this.cacheFilePath, JSON.stringify(obj, null, 2), 'utf8');
+  }
+
+  private isFresh(entry: CacheEntry, nowMs: number): boolean {
+    return nowMs - entry.cachedAtMs <= this.cacheTtlMs;
+  }
+
+  private chunkIds(ids: string[]): string[][] {
+    const chunks: string[][] = [];
+    for (let i = 0; i < ids.length; i += this.batchSize) {
+      chunks.push(ids.slice(i, i + this.batchSize));
+    }
+    return chunks;
+  }
+
+  private async fetchBatchPost(batchIds: string[], apiKey: string): Promise<ScreenedMaterialRecord[]> {
+    let response: Response;
+    try {
+      // Batches material_ids in one POST request; verify exact POST body schema against https://docs.materialsproject.org/
+      response = await this.fetchFn(this.endpointUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+          'X-API-KEY': apiKey
+        },
+        body: JSON.stringify({
+          material_ids: batchIds,
+          fields: ['material_id', 'formula_pretty', 'density', 'elasticity']
+        })
+      });
+    } catch (err) {
+      const detail = err instanceof Error ? err.message : String(err);
+      throw new MaterialsProjectNetworkError(detail);
+    }
+
+    if (response.status === 401 || response.status === 403) {
+      throw new MaterialsProjectAuthError(
+        response.status,
+        `Materials Project authentication/authorization failed (HTTP ${response.status}). Verify the key stored in "${this.apiKeyEnvVar}" in the Secure Vault.`
+      );
+    }
+
+    if (response.status === 429) {
+      const retryAfterSec = parseRetryAfterSeconds(response.headers.get('Retry-After'));
+      throw new MaterialsProjectRateLimitError(
+        retryAfterSec,
+        'Materials Project API rate limit exceeded.'
+      );
+    }
+
+    if (!response.ok) {
+      throw new MaterialsProjectNetworkError(
+        `Unexpected HTTP ${response.status} (${response.statusText}) from Materials Project API.`
+      );
+    }
+
+    let payload: unknown;
+    try {
+      payload = await response.json();
+    } catch (err) {
+      const detail = err instanceof Error ? err.message : String(err);
+      throw new MaterialsProjectNetworkError(`Invalid JSON in Materials Project response: ${detail}`);
+    }
+
+    const docs =
+      payload && typeof payload === 'object' && Array.isArray((payload as { data?: unknown }).data)
+        ? (payload as { data: unknown[] }).data
+        : [];
+
+    const retrievedAt = new Date().toISOString();
+    const normalized: ScreenedMaterialRecord[] = [];
+    for (const doc of docs) {
+      const rec = normalizeSummaryDoc(doc, retrievedAt);
+      if (rec) normalized.push(rec);
+    }
+    return normalized;
+  }
+
+  /**
+   * Retrieves screening records for requested material IDs using cache-first logic,
+   * batching missing/expired IDs into POST /materials/summary requests.
+   * On HTTP 429, serves cached entries (even if stale) whenever available; otherwise throws
+   * MaterialsProjectRateLimitError with Retry-After guidance.
+   */
+  async getMaterials(materialIds: string[]): Promise<FetchMaterialsResult> {
+    assertServerOnlyRuntime();
+
+    const uniqueIds = Array.from(
+      new Set(materialIds.map((id) => id.trim()).filter((id) => id.length > 0))
+    );
+    if (uniqueIds.length === 0) {
+      return {
+        records: [],
+        servedFromCache: false,
+        staleCacheUsed: false,
+        warnings: []
+      };
+    }
+
+    const nowMs = Date.now();
+    const cachedRecords = new Map<string, ScreenedMaterialRecord>();
+    const idsToFetch: string[] = [];
+    let staleCacheUsed = false;
+
+    for (const id of uniqueIds) {
+      const existing = this.memoryCache.get(id);
+      if (existing && this.isFresh(existing, nowMs)) {
+        cachedRecords.set(id, existing.record);
+      } else {
+        idsToFetch.push(id);
+      }
+    }
+
+    const warnings: string[] = [];
+
+    if (idsToFetch.length > 0) {
+      const apiKey = this.getVaultApiKey();
+      const batches = this.chunkIds(idsToFetch);
+
+      for (const batch of batches) {
+        try {
+          const fetched = await this.fetchBatchPost(batch, apiKey);
+          const fetchTimeMs = Date.now();
+          for (const rec of fetched) {
+            this.memoryCache.set(rec.material_id, { record: rec, cachedAtMs: fetchTimeMs });
+            cachedRecords.set(rec.material_id, rec);
+          }
+          this.persistMemoryCacheToDisk();
+        } catch (err) {
+          if (err instanceof MaterialsProjectRateLimitError) {
+            const fallbackAvailable = batch.some((id) => this.memoryCache.has(id));
+            if (fallbackAvailable) {
+              staleCacheUsed = true;
+              warnings.push(`${err.message} Serving cached entries for available IDs.`);
+              for (const id of batch) {
+                const fallbackEntry = this.memoryCache.get(id);
+                if (fallbackEntry && !cachedRecords.has(id)) {
+                  cachedRecords.set(id, fallbackEntry.record);
+                }
+              }
+              continue;
+            }
+            throw err;
+          }
+          throw err;
+        }
+      }
+    }
+
+    const orderedRecords: ScreenedMaterialRecord[] = [];
+    for (const id of uniqueIds) {
+      const rec = cachedRecords.get(id);
+      if (rec) orderedRecords.push(rec);
+    }
+
+    return {
+      records: orderedRecords,
+      servedFromCache: idsToFetch.length === 0 || staleCacheUsed,
+      staleCacheUsed,
+      warnings
+    };
+  }
+}
+
+===== FILE: src/utils/dataValidation.ts (18721 bytes, md5 13e5b577b2d3e70bed30b8014cf90445) =====
+
+/**
+ * @license
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+export type ValidationSeverity = 'FAIL' | 'DISCREPANCY';
+
+export interface ValidationIssue {
+  table: string;
+  field: string;
+  expected: string;
+  actual: string;
+  severity: ValidationSeverity;
+  message: string;
+  requiresRayRuling?: boolean;
+}
+
+export interface DisplacementCheckResult {
+  boreIn: number | null;
+  strokeIn: number | null;
+  cylinders: number | null;
+  recomputedCid: number | null;
+  reportedCid: number | null;
+  toleranceCid: number;
+  withinTolerance: boolean;
+}
+
+export interface BaseTqDiscrepancyRecord {
+  table: string;
+  field: string;
+  valueFound: number;
+  referenceValue: number;
+  note: string;
+}
+
+export interface ValidationReport {
+  passed: boolean;
+  totalIssues: number;
+  failureCount: number;
+  discrepancyCount: number;
+  displacement: DisplacementCheckResult;
+  baseTqDiscrepancies: BaseTqDiscrepancyRecord[];
+  issues: ValidationIssue[];
+}
+
+export interface SourcedRecordLike {
+  id?: string;
+  label?: string;
+  source?: string;
+  sourceRef?: string;
+  confidence?: string;
+  statusFlag?: string;
+  notes?: string;
+  additionalNotes?: string;
+  isEstimate?: boolean;
+  needsMeasurement?: boolean;
+  values?: Record<string, unknown>;
+}
+
+export interface EngineDataTableInput {
+  tableName?: string;
+  boreIn?: number;
+  strokeIn?: number;
+  cylinders?: number;
+  displacementCid?: number;
+  carbHp?: number;
+  carbTq?: number;
+  baseTq?: number;
+  mpfiHp?: number;
+  mpfiTq?: number;
+  source?: string;
+  sourceRef?: string;
+  records?: SourcedRecordLike[];
+}
+
+export interface ManufacturingMatrixTableInput {
+  tableName?: string;
+  source?: string;
+  sourceRef?: string;
+  baseTq?: number;
+  carbHp?: number;
+  carbTq?: number;
+  mpfiHp?: number;
+  mpfiTq?: number;
+  rows?: SourcedRecordLike[];
+}
+
+export interface TechDrawingsCatalogTableInput {
+  tableName?: string;
+  source?: string;
+  sourceRef?: string;
+  baseTq?: number;
+  carbHp?: number;
+  carbTq?: number;
+  mpfiHp?: number;
+  mpfiTq?: number;
+  sheets?: SourcedRecordLike[];
+  callouts?: SourcedRecordLike[];
+}
+
+export interface AerospaceMatrixTableInput {
+  tableName?: string;
+  source?: string;
+  sourceRef?: string;
+  materials?: SourcedRecordLike[];
+  processes?: SourcedRecordLike[];
+  standards?: SourcedRecordLike[];
+  flags?: SourcedRecordLike[];
+}
+
+export interface ValidationTablesInput {
+  displacementToleranceCid?: number;
+  engineData?: EngineDataTableInput;
+  manufacturingMatrix?: ManufacturingMatrixTableInput;
+  techDrawingsCatalog?: TechDrawingsCatalogTableInput;
+  aerospaceMatrix?: AerospaceMatrixTableInput;
+}
+
+export const BASELINE_CONSTANTS = {
+  expectedBoreIn: 4.0,
+  expectedStrokeIn: 3.48,
+  expectedCylinders: 8,
+  expectedDisplacementCid: 349.85,
+  defaultDisplacementToleranceCid: 0.05,
+  expectedCarbHp: 385,
+  expectedCarbTq: 414,
+  expectedMpfiHp: 408,
+  expectedMpfiTq: 431
+} as const;
+
+const FLAG_PATTERNS: RegExp[] = [
+  /\[ESTIMATE\]/i,
+  /\[EST\]/i,
+  /\bESTIMATE\b/i,
+  /NEEDS\s+RAY'?S?\s+MEASUREMENT/i,
+  /\[NEEDS_MEASUREMENT\]/i,
+  /\[VENDOR_CLAIM\]/i,
+  /\bVENDOR_CLAIM\b/i
+];
+
+function hasNonEmptyCitation(rec: { source?: unknown; sourceRef?: unknown }): boolean {
+  const s1 = typeof rec.source === 'string' ? rec.source.trim() : '';
+  const s2 = typeof rec.sourceRef === 'string' ? rec.sourceRef.trim() : '';
+  return s1.length > 0 || s2.length > 0;
+}
+
+function textContainsAccuracyFlag(text: string): boolean {
+  return FLAG_PATTERNS.some((re) => re.test(text));
+}
+
+function collectTextBlob(rec: SourcedRecordLike): string {
+  const parts: string[] = [];
+  if (typeof rec.confidence === 'string') parts.push(rec.confidence);
+  if (typeof rec.statusFlag === 'string') parts.push(rec.statusFlag);
+  if (typeof rec.notes === 'string') parts.push(rec.notes);
+  if (typeof rec.additionalNotes === 'string') parts.push(rec.additionalNotes);
+  if (rec.values && typeof rec.values === 'object') {
+    for (const v of Object.values(rec.values)) {
+      if (v !== undefined && v !== null) parts.push(String(v));
+    }
+  }
+  return parts.join(' | ');
+}
+
+function checkRecordCitationsAndFlags(
+  table: string,
+  records: SourcedRecordLike[] | undefined,
+  prefix: string,
+  issues: ValidationIssue[]
+): void {
+  if (!Array.isArray(records)) return;
+  records.forEach((rec, idx) => {
+    const recId = rec.id ?? rec.label ?? `${prefix}[${idx}]`;
+    if (!hasNonEmptyCitation(rec)) {
+      issues.push({
+        table,
+        field: `${recId}.sourceRef`,
+        expected: 'Non-empty source or sourceRef citation',
+        actual: 'Missing or blank citation',
+        severity: 'FAIL',
+        message: `Record "${recId}" in ${table} lacks a source/sourceRef citation.`
+      });
+    }
+
+    const blob = collectTextBlob(rec);
+    const explicitlyMarkedEstimate =
+      rec.isEstimate === true ||
+      rec.needsMeasurement === true ||
+      /\b(est|estimate|estimated|vendor|claim|approx|typical|unverified)\b/i.test(blob);
+
+    if (explicitlyMarkedEstimate && !textContainsAccuracyFlag(blob)) {
+      issues.push({
+        table,
+        field: `${recId}.flag`,
+        expected: '[ESTIMATE], [VENDOR_CLAIM], or NEEDING RAY\'S MEASUREMENT flag',
+        actual: blob || 'Unflagged estimate/unverified value',
+        severity: 'FAIL',
+        message: `Record "${recId}" in ${table} contains estimate/unverified language without an explicit [ESTIMATE], [VENDOR_CLAIM], or NEEDING RAY'S MEASUREMENT flag.`
+      });
+    }
+  });
+}
+
+function checkBaselineHpTqAndBaseTq(
+  table: string,
+  obj:
+    | {
+        carbHp?: number;
+        carbTq?: number;
+        baseTq?: number;
+        mpfiHp?: number;
+        mpfiTq?: number;
+      }
+    | undefined,
+  issues: ValidationIssue[],
+  baseTqDiscrepancies: BaseTqDiscrepancyRecord[]
+): void {
+  if (!obj) return;
+
+  if (obj.carbHp !== undefined) {
+    if (obj.carbHp !== BASELINE_CONSTANTS.expectedCarbHp) {
+      issues.push({
+        table,
+        field: 'carbHp',
+        expected: String(BASELINE_CONSTANTS.expectedCarbHp),
+        actual: String(obj.carbHp),
+        severity: 'FAIL',
+        message: `${table} carbHp is ${obj.carbHp}; expected baseline ${BASELINE_CONSTANTS.expectedCarbHp} HP.`
+      });
+    }
+  }
+
+  if (obj.carbTq !== undefined) {
+    if (obj.carbTq === 415) {
+      const note =
+        'baseTq/carbTq value is 415 vs baseline 414; recorded as a DISCREPANCY for Ray to rule — value was NOT altered.';
+      baseTqDiscrepancies.push({
+        table,
+        field: 'carbTq',
+        valueFound: 415,
+        referenceValue: BASELINE_CONSTANTS.expectedCarbTq,
+        note
+      });
+      issues.push({
+        table,
+        field: 'carbTq',
+        expected: String(BASELINE_CONSTANTS.expectedCarbTq),
+        actual: '415',
+        severity: 'DISCREPANCY',
+        requiresRayRuling: true,
+        message: `${table}.carbTq has 415 vs baseline 414 — flagged for Ray's ruling without silent correction.`
+      });
+    } else if (obj.carbTq !== BASELINE_CONSTANTS.expectedCarbTq) {
+      issues.push({
+        table,
+        field: 'carbTq',
+        expected: String(BASELINE_CONSTANTS.expectedCarbTq),
+        actual: String(obj.carbTq),
+        severity: 'FAIL',
+        message: `${table} carbTq is ${obj.carbTq}; expected baseline ${BASELINE_CONSTANTS.expectedCarbTq} TQ.`
+      });
+    }
+  }
+
+  if (obj.baseTq !== undefined) {
+    if (obj.baseTq === 415) {
+      const note =
+        'baseTq is 415 vs baseline 414; recorded as a DISCREPANCY for Ray to rule — value was NOT altered.';
+      baseTqDiscrepancies.push({
+        table,
+        field: 'baseTq',
+        valueFound: 415,
+        referenceValue: BASELINE_CONSTANTS.expectedCarbTq,
+        note
+      });
+      issues.push({
+        table,
+        field: 'baseTq',
+        expected: String(BASELINE_CONSTANTS.expectedCarbTq),
+        actual: '415',
+        severity: 'DISCREPANCY',
+        requiresRayRuling: true,
+        message: `${table}.baseTq is 415 vs baseline 414 — flagged for Ray's ruling without silent correction.`
+      });
+    } else if (obj.baseTq !== BASELINE_CONSTANTS.expectedCarbTq) {
+      issues.push({
+        table,
+        field: 'baseTq',
+        expected: String(BASELINE_CONSTANTS.expectedCarbTq),
+        actual: String(obj.baseTq),
+        severity: 'FAIL',
+        message: `${table} baseTq is ${obj.baseTq}; expected ${BASELINE_CONSTANTS.expectedCarbTq}.`
+      });
+    }
+  }
+
+  if (obj.mpfiHp !== undefined && obj.mpfiHp !== BASELINE_CONSTANTS.expectedMpfiHp) {
+    issues.push({
+      table,
+      field: 'mpfiHp',
+      expected: String(BASELINE_CONSTANTS.expectedMpfiHp),
+      actual: String(obj.mpfiHp),
+      severity: 'FAIL',
+      message: `${table} mpfiHp is ${obj.mpfiHp}; expected baseline ${BASELINE_CONSTANTS.expectedMpfiHp} HP.`
+    });
+  }
+
+  if (obj.mpfiTq !== undefined && obj.mpfiTq !== BASELINE_CONSTANTS.expectedMpfiTq) {
+    issues.push({
+      table,
+      field: 'mpfiTq',
+      expected: String(BASELINE_CONSTANTS.expectedMpfiTq),
+      actual: String(obj.mpfiTq),
+      severity: 'FAIL',
+      message: `${table} mpfiTq is ${obj.mpfiTq}; expected baseline ${BASELINE_CONSTANTS.expectedMpfiTq} TQ.`
+    });
+  }
+}
+
+export function computeDisplacementCid(
+  boreIn: number,
+  strokeIn: number,
+  cylinders: number
+): number {
+  const raw = (Math.PI / 4) * boreIn * boreIn * strokeIn * cylinders;
+  return Number(raw.toFixed(2));
+}
+
+export function validateEngineData(
+  engineData: EngineDataTableInput | undefined,
+  toleranceCid: number = BASELINE_CONSTANTS.defaultDisplacementToleranceCid
+): {
+  issues: ValidationIssue[];
+  displacement: DisplacementCheckResult;
+  baseTqDiscrepancies: BaseTqDiscrepancyRecord[];
+} {
+  const table = engineData?.tableName ?? 'engineData';
+  const issues: ValidationIssue[] = [];
+  const baseTqDiscrepancies: BaseTqDiscrepancyRecord[] = [];
+
+  if (!engineData) {
+    issues.push({
+      table,
+      field: 'engineData',
+      expected: 'Present engineData table',
+      actual: 'Missing',
+      severity: 'FAIL',
+      message: 'engineData table is missing; no default values invented.'
+    });
+    return {
+      issues,
+      displacement: {
+        boreIn: null,
+        strokeIn: null,
+        cylinders: null,
+        recomputedCid: null,
+        reportedCid: null,
+        toleranceCid,
+        withinTolerance: false
+      },
+      baseTqDiscrepancies
+    };
+  }
+
+  if (!hasNonEmptyCitation(engineData)) {
+    issues.push({
+      table,
+      field: 'sourceRef',
+      expected: 'Non-empty table source or sourceRef',
+      actual: 'Missing',
+      severity: 'FAIL',
+      message: `${table} is missing a top-level source/sourceRef citation.`
+    });
+  }
+
+  const boreIn = typeof engineData.boreIn === 'number' ? engineData.boreIn : null;
+  const strokeIn = typeof engineData.strokeIn === 'number' ? engineData.strokeIn : null;
+  const cylinders = typeof engineData.cylinders === 'number' ? engineData.cylinders : null;
+  const reportedCid =
+    typeof engineData.displacementCid === 'number' ? engineData.displacementCid : null;
+
+  let recomputedCid: number | null = null;
+  let withinTolerance = false;
+
+  if (boreIn === null || strokeIn === null || cylinders === null) {
+    issues.push({
+      table,
+      field: 'displacementInputs',
+      expected: `boreIn (${BASELINE_CONSTANTS.expectedBoreIn}), strokeIn (${BASELINE_CONSTANTS.expectedStrokeIn}), cylinders (${BASELINE_CONSTANTS.expectedCylinders})`,
+      actual: `boreIn=${boreIn}, strokeIn=${strokeIn}, cylinders=${cylinders}`,
+      severity: 'FAIL',
+      message: `${table} is missing bore, stroke, or cylinder count required to recompute CID.`
+    });
+  } else {
+    recomputedCid = computeDisplacementCid(boreIn, strokeIn, cylinders);
+    if (reportedCid === null) {
+      issues.push({
+        table,
+        field: 'displacementCid',
+        expected: `${recomputedCid.toFixed(2)} CID`,
+        actual: 'Missing',
+        severity: 'FAIL',
+        message: `${table} is missing reported displacementCid (recomputed: ${recomputedCid.toFixed(2)} CID).`
+      });
+    } else {
+      const diff = Math.abs(recomputedCid - reportedCid);
+      withinTolerance = diff <= toleranceCid;
+      if (!withinTolerance) {
+        issues.push({
+          table,
+          field: 'displacementCid',
+          expected: `${recomputedCid.toFixed(2)} CID (±${toleranceCid} CID tolerance; reference ${BASELINE_CONSTANTS.expectedDisplacementCid.toFixed(2)} CID)`,
+          actual: `${reportedCid.toFixed(2)} CID (diff ${diff.toFixed(4)} CID)`,
+          severity: 'FAIL',
+          message: `${table} displacementCid ${reportedCid} differs from recomputed ${recomputedCid.toFixed(2)} CID beyond ${toleranceCid} CID tolerance.`
+        });
+      }
+    }
+  }
+
+  checkBaselineHpTqAndBaseTq(table, engineData, issues, baseTqDiscrepancies);
+  checkRecordCitationsAndFlags(table, engineData.records, 'record', issues);
+
+  return {
+    issues,
+    displacement: {
+      boreIn,
+      strokeIn,
+      cylinders,
+      recomputedCid,
+      reportedCid,
+      toleranceCid,
+      withinTolerance
+    },
+    baseTqDiscrepancies
+  };
+}
+
+export function validateManufacturingMatrix(
+  matrix: ManufacturingMatrixTableInput | undefined,
+  issuesOut: ValidationIssue[],
+  discrepanciesOut: BaseTqDiscrepancyRecord[]
+): void {
+  const table = matrix?.tableName ?? 'manufacturingMatrix';
+  if (!matrix) {
+    issuesOut.push({
+      table,
+      field: 'manufacturingMatrix',
+      expected: 'Present manufacturingMatrix table',
+      actual: 'Missing',
+      severity: 'FAIL',
+      message: 'manufacturingMatrix table is missing; no default values invented.'
+    });
+    return;
+  }
+
+  if (!hasNonEmptyCitation(matrix)) {
+    issuesOut.push({
+      table,
+      field: 'sourceRef',
+      expected: 'Non-empty table source or sourceRef',
+      actual: 'Missing',
+      severity: 'FAIL',
+      message: `${table} is missing a top-level source/sourceRef citation.`
+    });
+  }
+
+  checkBaselineHpTqAndBaseTq(table, matrix, issuesOut, discrepanciesOut);
+  checkRecordCitationsAndFlags(table, matrix.rows, 'row', issuesOut);
+}
+
+export function validateTechDrawingsCatalog(
+  catalog: TechDrawingsCatalogTableInput | undefined,
+  issuesOut: ValidationIssue[],
+  discrepanciesOut: BaseTqDiscrepancyRecord[]
+): void {
+  const table = catalog?.tableName ?? 'techDrawingsCatalog';
+  if (!catalog) {
+    issuesOut.push({
+      table,
+      field: 'techDrawingsCatalog',
+      expected: 'Present techDrawingsCatalog table',
+      actual: 'Missing',
+      severity: 'FAIL',
+      message: 'techDrawingsCatalog table is missing; no default values invented.'
+    });
+    return;
+  }
+
+  if (!hasNonEmptyCitation(catalog)) {
+    issuesOut.push({
+      table,
+      field: 'sourceRef',
+      expected: 'Non-empty table source or sourceRef',
+      actual: 'Missing',
+      severity: 'FAIL',
+      message: `${table} is missing a top-level source/sourceRef citation.`
+    });
+  }
+
+  checkBaselineHpTqAndBaseTq(table, catalog, issuesOut, discrepanciesOut);
+  checkRecordCitationsAndFlags(table, catalog.sheets, 'sheet', issuesOut);
+  checkRecordCitationsAndFlags(table, catalog.callouts, 'callout', issuesOut);
+}
+
+export function validateAerospaceMatrix(
+  aero: AerospaceMatrixTableInput | undefined,
+  issuesOut: ValidationIssue[]
+): void {
+  const table = aero?.tableName ?? 'aerospaceMatrix';
+  if (!aero) {
+    issuesOut.push({
+      table,
+      field: 'aerospaceMatrix',
+      expected: 'Present aerospaceMatrix table',
+      actual: 'Missing',
+      severity: 'FAIL',
+      message: 'aerospaceMatrix table is missing; no default values invented.'
+    });
+    return;
+  }
+
+  if (!hasNonEmptyCitation(aero)) {
+    issuesOut.push({
+      table,
+      field: 'sourceRef',
+      expected: 'Non-empty table source or sourceRef',
+      actual: 'Missing',
+      severity: 'FAIL',
+      message: `${table} is missing a top-level source/sourceRef citation.`
+    });
+  }
+
+  checkRecordCitationsAndFlags(table, aero.materials, 'material', issuesOut);
+  checkRecordCitationsAndFlags(table, aero.processes, 'process', issuesOut);
+  checkRecordCitationsAndFlags(table, aero.standards, 'standard', issuesOut);
+  checkRecordCitationsAndFlags(table, aero.flags, 'flag', issuesOut);
+}
+
+export function validateAll(tables: ValidationTablesInput): ValidationReport {
+  const toleranceCid =
+    typeof tables.displacementToleranceCid === 'number' &&
+    Number.isFinite(tables.displacementToleranceCid) &&
+    tables.displacementToleranceCid >= 0
+      ? tables.displacementToleranceCid
+      : BASELINE_CONSTANTS.defaultDisplacementToleranceCid;
+
+  const issues: ValidationIssue[] = [];
+  const baseTqDiscrepancies: BaseTqDiscrepancyRecord[] = [];
+
+  const engineResult = validateEngineData(tables.engineData, toleranceCid);
+  issues.push(...engineResult.issues);
+  baseTqDiscrepancies.push(...engineResult.baseTqDiscrepancies);
+
+  validateManufacturingMatrix(tables.manufacturingMatrix, issues, baseTqDiscrepancies);
+  validateTechDrawingsCatalog(tables.techDrawingsCatalog, issues, baseTqDiscrepancies);
+  validateAerospaceMatrix(tables.aerospaceMatrix, issues);
+
+  const failureCount = issues.filter((i) => i.severity === 'FAIL').length;
+  const discrepancyCount = issues.filter((i) => i.severity === 'DISCREPANCY').length;
+
+  return {
+    passed: failureCount === 0 && discrepancyCount === 0,
+    totalIssues: issues.length,
+    failureCount,
+    discrepancyCount,
+    displacement: engineResult.displacement,
+    baseTqDiscrepancies,
+    issues
+  };
+}
+
+export function formatValidationReport(report: ValidationReport): string {
+  const lines: string[] = [
+    `Status: ${report.passed ? 'PASS' : 'FAIL / ACTION REQUIRED'}`,
+    `Summary: totalIssues=${report.totalIssues}, failures=${report.failureCount}, discrepancies=${report.discrepancyCount}`,
+    `Displacement: recomputed=${report.displacement.recomputedCid ?? 'N/A'} CID, reported=${report.displacement.reportedCid ?? 'N/A'} CID, tolerance=±${report.displacement.toleranceCid} CID, withinTolerance=${report.displacement.withinTolerance}`
+  ];
+
+  if (report.baseTqDiscrepancies.length > 0) {
+    lines.push('BaseTq Discrepancies (Ray ruling required — values not altered):');
+    for (const d of report.baseTqDiscrepancies) {
+      lines.push(
+        `  - [${d.table}.${d.field}] found=${d.valueFound} vs reference=${d.referenceValue} — ${d.note}`
+      );
+    }
+  }
+
+  if (report.issues.length > 0) {
+    lines.push('Issues:');
+    for (const item of report.issues) {
+      const rulingTag = item.requiresRayRuling ? ' [RAY RULING REQUIRED]' : '';
+      lines.push(
+        `  - [${item.severity}]${rulingTag} ${item.table}.${item.field}: expected="${item.expected}", actual="${item.actual}" — ${item.message}`
+      );
+    }
+  } else {
+    lines.push('Issues: none');
+  }
+
+  return lines.join('\n');
+}
+
+===== FILE: docs/TOLERANCE-RULE.md (1821 bytes, md5 ee1092d2743a8f3e7250f43c4a68f6ad) =====
+
+# Manufacturing tolerance + design capability rule (Ray's word, Nov 26, 2026)
+
+All elements and codes in the app follow industry manufacturing tolerances
+and design capabilities — from the image-to-3D function outward.
+
+## What it means in code
+- Every dimension, tolerance, and capability value comes from an industry
+  standard (ISO 2768, ASME Y14.5, ISO 8062, ISO 21940-11, STEP AP242) or is
+  flagged NEEDING RAY'S MEASUREMENT. Nothing is invented.
+- Image-to-3D geometry respects process limits: minimum wall, minimum
+  feature size, draft, depth. See src/utils/imageTo3d.ts — it returns
+  PASS / WARN / FLAG_INFEASIBLE and FLAGS anything a process cannot make
+  instead of silently building it. Calibrated true scale: 138 px = 4.400 in.
+- src/utils/dataValidation.ts enforces the accuracy rules across the data
+  tables: every value carries a source citation; estimates are flagged;
+  displacement recomputes to 349.85 CID (bore 4.000 in, stroke 3.480 in,
+  8 cylinders); baselines 385 HP / 414 TQ carb and 408 HP / 431 TQ MPFI hold;
+  any baseTq 415 vs 414 mismatch is reported as a DISCREPANCY for Ray's
+  ruling, never silently corrected.
+
+## Materials Project fetcher (src/services/materialsProjectFetcher.ts)
+- The API key comes ONLY from the Secure Vault through an environment
+  variable. NEVER put a real key in code or in a chat message.
+- Batched material_ids, local cache with TTL, 429 serves the cache.
+- elasticity.k_vrh / g_vrh are VRH bulk/shear moduli — NOT Young's modulus.
+  E is derived as E = 9KG / (3K + G) and marked plainly as derived.
+- The exact Materials Project elasticity field naming/nesting and POST body
+  shape must be verified against the current REST API / mp-api schema at
+  integration time. Every fetched value is [ESTIMATE] screening data, never
+  a certified allowable.
+

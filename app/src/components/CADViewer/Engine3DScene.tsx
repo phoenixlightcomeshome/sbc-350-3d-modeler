@@ -3,11 +3,15 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import { RectAreaLightUniformsLib } from 'three/examples/jsm/lights/RectAreaLightUniformsLib.js';
+import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
+import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 import {
   EngineConfig,
   CoordinatedSpecs,
@@ -16,7 +20,10 @@ import {
   InspectionData,
   MeasurementState,
   TechDrawingSheet,
-  InductionDressMode
+  CinematicLightingPreset,
+  DynamicKinematicTelemetry,
+  HoverProbeData,
+  MountedStudioDesign
 } from '../../types/engine';
 import {
   createProceduralTextureSet,
@@ -37,14 +44,32 @@ import {
   createStudGirdleBarGroup,
   createHolley4150CarburetorGroup,
   createEngineTestStandGroup,
+  createDetailedPistonAssembly,
+  createSplineShaftGeometry,
   applyTechnicalEdges
 } from './mechanicalGeometry';
 
 import { AnalysisMode } from './SpecificationTreeDrawer';
+import { exportObject3DToSTL } from '../../utils/cadExporters';
 
-export type EngineViewMode = 'realistic' | 'dark' | 'ghost' | 'wireframe' | 'drawing';
-export type CameraPresetId = 'iso' | 'front' | 'right' | 'top' | 'rear';
-export type { InductionDressMode };
+export type EngineViewMode =
+  | 'cinematic'
+  | 'iso_paper'
+  | 'realistic'
+  | 'dark'
+  | 'ghost'
+  | 'wireframe'
+  | 'drawing';
+export type CameraPresetId =
+  | 'iso'
+  | 'hero'
+  | 'cutaway_detail'
+  | 'valvetrain_macro'
+  | 'front'
+  | 'right'
+  | 'top'
+  | 'rear';
+export type InductionDressMode = 'carb_hei' | 'mpfi_cnp';
 export type SupportMode = 'shop_stand' | 'hotrod_chassis';
 
 interface Engine3DSceneProps {
@@ -55,11 +80,14 @@ interface Engine3DSceneProps {
   explodedAmount: number;
   sectionOffset?: number;
   cameraPreset?: { id: CameraPresetId; nonce: number } | null;
+  projectionMode?: 'perspective' | 'orthographic';
   analysisMode?: AnalysisMode;
   inductionDress?: InductionDressMode;
   supportMode?: SupportMode;
+  cinematicPreset?: CinematicLightingPreset;
   hiddenParts?: Record<string, boolean>;
   onRegisterCapture?: (fn: (() => void) | null) => void;
+  onRegisterStlExport?: (fn: (() => void) | null) => void;
   rpm: number;
   isRunning: boolean;
   viewMode: EngineViewMode;
@@ -69,9 +97,26 @@ interface Engine3DSceneProps {
   measurementState: MeasurementState;
   onUpdateMeasurement: (state: MeasurementState) => void;
   techDrawing?: TechDrawingSheet | null;
+  mountedDesign?: MountedStudioDesign | null;
   focusPartRequest?: { key: string; nonce: number } | null;
+  onOpenDrawingsTab?: () => void;
+  onTelemetryUpdate?: (telemetry: DynamicKinematicTelemetry) => void;
+  onHoverProbe?: (probe: HoverProbeData | null) => void;
 }
 
+function detectSoftwareRenderer(gl: WebGLRenderingContext | WebGL2RenderingContext | null): boolean {
+  if (!gl) return true;
+  try {
+    const ext = gl.getExtension('WEBGL_debug_renderer_info');
+    const param = ext ? ext.UNMASKED_RENDERER_WEBGL : gl.RENDERER;
+    const gpu = String(gl.getParameter(param) || '');
+    return /SwiftShader|llvmpipe|softpipe|Software|Basic Render/i.test(gpu);
+  } catch {
+    return false;
+  }
+}
+
+// Module-level reusable math helpers (zero GC inside animation loop)
 const _rayMouse = new THREE.Vector2();
 const _ptA = new THREE.Vector3();
 const _camGoalPos = new THREE.Vector3();
@@ -81,6 +126,9 @@ const _engineFocusCenter = new THREE.Vector3();
 
 const CAMERA_PRESET_COORDS: Record<CameraPresetId, [number, number, number]> = {
   iso: [17.5, 12.0, 21.0],
+  hero: [14.8, 7.2, 16.8],
+  cutaway_detail: [9.8, 3.6, 10.6],
+  valvetrain_macro: [6.8, 7.4, 7.2],
   front: [0, 1.8, 25.0],
   right: [24.0, 2.5, 0],
   top: [0, 26.5, 0.05],
@@ -95,11 +143,14 @@ export const Engine3DScene: React.FC<Engine3DSceneProps> = ({
   explodedAmount,
   sectionOffset = 0,
   cameraPreset = null,
+  projectionMode = 'perspective',
   analysisMode = 'none',
   inductionDress = 'carb_hei',
   supportMode = 'shop_stand',
+  cinematicPreset = 'dyno_cell',
   hiddenParts = {},
   onRegisterCapture,
+  onRegisterStlExport,
   rpm,
   isRunning,
   viewMode,
@@ -108,9 +159,15 @@ export const Engine3DScene: React.FC<Engine3DSceneProps> = ({
   measurementState,
   onUpdateMeasurement,
   techDrawing = null,
-  focusPartRequest = null
+  focusPartRequest = null,
+  onOpenDrawingsTab,
+  onTelemetryUpdate,
+  onHoverProbe
 }) => {
   const mountRef = useRef<HTMLDivElement>(null);
+  const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
+  const [webglError, setWebglError] = useState<string | null>(null);
+  const [retryNonce, setRetryNonce] = useState<number>(0);
   const isRunningRef = useRef(isRunning);
   const rpmRef = useRef(rpm);
   const explodedRef = useRef(explodedAmount);
@@ -121,10 +178,15 @@ export const Engine3DScene: React.FC<Engine3DSceneProps> = ({
   const onSelectPartRef = useRef(onSelectPart);
   const onUpdateMeasurementRef = useRef(onUpdateMeasurement);
   const onRegisterCaptureRef = useRef(onRegisterCapture);
+  const onRegisterStlExportRef = useRef(onRegisterStlExport);
+  const onTelemetryUpdateRef = useRef(onTelemetryUpdate);
+  const onHoverProbeRef = useRef(onHoverProbe);
+  const specsRef = useRef(specs);
+  const configRef = useRef(config);
   const enginePartsRef = useRef<Record<string, THREE.Object3D>>({});
   const engineReticleStateRef = useRef<{
     reticle: THREE.Mesh;
-    camera: THREE.PerspectiveCamera;
+    camera: THREE.Camera;
   } | null>(null);
   const camTransitionRef = useRef<{ active: boolean; pos: THREE.Vector3 }>({
     active: false,
@@ -141,6 +203,11 @@ export const Engine3DScene: React.FC<Engine3DSceneProps> = ({
   useEffect(() => { onSelectPartRef.current = onSelectPart; }, [onSelectPart]);
   useEffect(() => { onUpdateMeasurementRef.current = onUpdateMeasurement; }, [onUpdateMeasurement]);
   useEffect(() => { onRegisterCaptureRef.current = onRegisterCapture; }, [onRegisterCapture]);
+  useEffect(() => { onRegisterStlExportRef.current = onRegisterStlExport; }, [onRegisterStlExport]);
+  useEffect(() => { onTelemetryUpdateRef.current = onTelemetryUpdate; }, [onTelemetryUpdate]);
+  useEffect(() => { onHoverProbeRef.current = onHoverProbe; }, [onHoverProbe]);
+  useEffect(() => { specsRef.current = specs; }, [specs]);
+  useEffect(() => { configRef.current = config; }, [config]);
   useEffect(() => {
     if (!cameraPreset) return;
     const coords = CAMERA_PRESET_COORDS[cameraPreset.id];
@@ -149,91 +216,155 @@ export const Engine3DScene: React.FC<Engine3DSceneProps> = ({
   }, [cameraPreset]);
 
   useEffect(() => {
+    return () => {
+      if (rendererRef.current) {
+        rendererRef.current.dispose();
+        rendererRef.current = null;
+      }
+    };
+  }, []);
+
+  useEffect(() => {
     const container = mountRef.current;
     if (!container) return;
 
     const width = container.clientWidth || window.innerWidth;
     const height = container.clientHeight || 560;
 
-    const isSoftwareGl = (() => {
-      try {
-        const gl = document.createElement('canvas').getContext('webgl2');
-        if (!gl) return true;
-        const ext = gl.getExtension('WEBGL_debug_renderer_info');
-        const param = ext ? ext.UNMASKED_RENDERER_WEBGL : gl.RENDERER;
-        const gpu = String(gl.getParameter(param));
-        gl.getExtension('WEBGL_lose_context')?.loseContext();
-        return /SwiftShader|llvmpipe|softpipe|Software|Basic Render/i.test(gpu);
-      } catch {
-        return false;
-      }
-    })();
-
     const isDrawing = viewMode === 'drawing';
+    const isIsoPaper = viewMode === 'iso_paper';
     const isWire = viewMode === 'wireframe';
     const isGhost = viewMode === 'ghost';
     const isStudio = viewMode === 'realistic';
+    const isCinematic = viewMode === 'cinematic';
 
+    let candidateRenderer = rendererRef.current;
+    if (!candidateRenderer) {
+      try {
+        candidateRenderer = new THREE.WebGLRenderer({
+          antialias: true,
+          powerPreference: 'default',
+          preserveDrawingBuffer: true
+        });
+        rendererRef.current = candidateRenderer;
+      } catch (err) {
+        setWebglError(
+          err instanceof Error
+            ? err.message
+            : 'WebGL 3D context could not be initialized by your browser.'
+        );
+        return;
+      }
+    }
+    const renderer: THREE.WebGLRenderer = candidateRenderer;
+    const initialGl = renderer.getContext();
+    if (!initialGl) {
+      setWebglError('WebGL rendering context is unavailable or was lost.');
+      return;
+    }
+    setWebglError(null);
+
+    const isSoftwareGl = detectSoftwareRenderer(initialGl);
+
+    // 2. Scene, Fog & Renderer Setup
     const scene = new THREE.Scene();
-    const bgHex = isDrawing
+    const cinematicBg =
+      cinematicPreset === 'showroom'
+        ? 0x05070b
+        : cinematicPreset === 'machine_shop'
+        ? 0x0a0d12
+        : 0x06080d;
+    const bgHex = isCinematic
+      ? cinematicBg
+      : isIsoPaper
+      ? 0xf5f6f8
+      : isDrawing
       ? 0x091628
       : isWire
       ? 0x07111a
       : isStudio
       ? 0xdce1e7
-      : isGhost
-      ? 0x050d18
       : 0x101419;
     scene.background = new THREE.Color(bgHex);
-    scene.fog = new THREE.FogExp2(bgHex, isStudio ? 0.004 : isGhost ? 0.008 : 0.011);
+    scene.fog = new THREE.FogExp2(
+      bgHex,
+      isCinematic ? 0.013 : isIsoPaper ? 0.0022 : isStudio ? 0.004 : 0.011
+    );
 
-    const renderer = new THREE.WebGLRenderer({
-      antialias: !isSoftwareGl,
-      powerPreference: 'high-performance'
-    });
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = isStudio ? 1.08 : isGhost ? 1.25 : 1.16;
+    renderer.toneMappingExposure = isCinematic ? 1.18 : isIsoPaper ? 1.14 : isStudio ? 1.08 : 1.16;
     renderer.localClippingEnabled = true;
     renderer.setSize(width, height);
     renderer.setPixelRatio(isSoftwareGl ? 1 : Math.min(window.devicePixelRatio || 1, 2));
     renderer.shadowMap.enabled = !isSoftwareGl;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
-    container.innerHTML = '';
-    container.appendChild(renderer.domElement);
+    if (renderer.domElement.parentNode !== container) {
+      container.innerHTML = '';
+      container.appendChild(renderer.domElement);
+    }
 
-    const camera = new THREE.PerspectiveCamera(40, width / height, 0.1, 400);
+    // 3. Camera & OrbitControls (Perspective or True CAD Orthographic)
+    const aspect = width / height;
+    const orthoHalf = 9.5;
+    const camera: THREE.PerspectiveCamera | THREE.OrthographicCamera =
+      projectionMode === 'orthographic'
+        ? new THREE.OrthographicCamera(
+            -orthoHalf * aspect,
+            orthoHalf * aspect,
+            orthoHalf,
+            -orthoHalf,
+            -120,
+            400
+          )
+        : new THREE.PerspectiveCamera(isCinematic ? 36 : 40, aspect, 0.1, 400);
     camera.position.set(17.5, 11.5, 20.5);
     camera.lookAt(0, 1.0, 0);
 
     const controls = new OrbitControls(camera, renderer.domElement);
     controls.enableDamping = !isSoftwareGl;
     controls.dampingFactor = 0.06;
-    controls.minDistance = 7;
+    controls.minDistance = 6.5;
     controls.maxDistance = 48;
     controls.target.set(0, 1.0, 0);
     controls.addEventListener('start', () => {
       camTransitionRef.current.active = false;
     });
 
+    // 4. Studio Environment Map (RoomEnvironment) + 3-Point Warm/Cool Lighting + Softboxes
     const pmremGenerator = new THREE.PMREMGenerator(renderer);
     scene.environment = pmremGenerator.fromScene(new RoomEnvironment(), 0.04).texture;
     pmremGenerator.dispose();
 
     const hemiLight = new THREE.HemisphereLight(
-      isStudio ? 0xffffff : isGhost ? 0x7dd3fc : 0xcbe4ff,
-      isStudio ? 0x64748b : isGhost ? 0x082f49 : 0x2a1f18,
-      isStudio ? 1.05 : isGhost ? 0.95 : 0.72
+      isCinematic
+        ? cinematicPreset === 'machine_shop'
+          ? 0xfef3c7
+          : 0xbae6fd
+        : isIsoPaper || isStudio
+        ? 0xffffff
+        : 0xcbe4ff,
+      isCinematic ? 0x1e293b : isIsoPaper ? 0x94a3b8 : isStudio ? 0x64748b : 0x2a1f18,
+      isCinematic ? 0.85 : isIsoPaper ? 1.25 : isStudio ? 1.05 : 0.72
     );
     scene.add(hemiLight);
 
-    const keyLight = new THREE.DirectionalLight(0xfff7ed, isStudio ? 1.85 : 1.65);
+    const keyColor =
+      isCinematic && cinematicPreset === 'machine_shop'
+        ? 0xffedd5
+        : isCinematic && cinematicPreset === 'showroom'
+        ? 0xf8fafc
+        : 0xfff7ed;
+    const keyLight = new THREE.DirectionalLight(
+      keyColor,
+      isCinematic ? 2.25 : isIsoPaper ? 1.95 : isStudio ? 1.85 : 1.65
+    );
     keyLight.position.set(18, 25, 18);
     if (!isSoftwareGl) {
       keyLight.castShadow = true;
-      keyLight.shadow.mapSize.width = 1024;
-      keyLight.shadow.mapSize.height = 1024;
+      keyLight.shadow.mapSize.width = isCinematic ? 2048 : 1024;
+      keyLight.shadow.mapSize.height = isCinematic ? 2048 : 1024;
       keyLight.shadow.camera.near = 2;
       keyLight.shadow.camera.far = 65;
       keyLight.shadow.camera.left = -14;
@@ -245,51 +376,82 @@ export const Engine3DScene: React.FC<Engine3DSceneProps> = ({
     }
     scene.add(keyLight);
 
-    const rimLight = new THREE.DirectionalLight(isStudio ? 0xe0f2fe : 0x7cc4ff, isStudio ? 0.95 : 0.9);
+    const rimLight = new THREE.DirectionalLight(
+      isCinematic
+        ? cinematicPreset === 'machine_shop'
+          ? 0x38bdf8
+          : 0x67e8f9
+        : isIsoPaper || isStudio
+        ? 0xe0f2fe
+        : 0x7cc4ff,
+      isCinematic ? 1.45 : isIsoPaper || isStudio ? 0.95 : 0.9
+    );
     rimLight.position.set(-18, 14, -18);
     scene.add(rimLight);
 
-    const underLight = new THREE.DirectionalLight(0xffcf99, isStudio ? 0.55 : 0.45);
+    const underLight = new THREE.DirectionalLight(
+      isCinematic ? 0xfb923c : 0xffcf99,
+      isCinematic ? 0.65 : isStudio ? 0.55 : 0.45
+    );
     underLight.position.set(2, -12, 8);
     scene.add(underLight);
 
     if (!isSoftwareGl) {
       RectAreaLightUniformsLib.init();
-      const softboxTop = new THREE.RectAreaLight(0xffffff, isStudio ? 3.2 : 2.4, 14, 7);
+      const softboxTop = new THREE.RectAreaLight(
+        0xffffff,
+        isCinematic ? 4.4 : isIsoPaper || isStudio ? 3.2 : 2.4,
+        16,
+        7
+      );
       softboxTop.position.set(0, 14, 4);
       softboxTop.lookAt(0, 1, 0);
       scene.add(softboxTop);
+
+      if (isCinematic) {
+        const softboxSide = new THREE.RectAreaLight(0x38bdf8, 2.8, 12, 5);
+        softboxSide.position.set(-14, 4, -8);
+        softboxSide.lookAt(0, 0.5, 0);
+        scene.add(softboxSide);
+      }
     }
 
-    const maxAniso = Math.min(8, renderer.capabilities.getMaxAnisotropy());
+    // 5. Procedural CAD Textures & Stage Grounding
+    const maxAniso = isSoftwareGl ? 1 : Math.min(8, renderer.capabilities.getMaxAnisotropy());
     const textures = createProceduralTextureSet(maxAniso);
 
     const stagePlane = new THREE.Mesh(
-      new THREE.PlaneGeometry(30, 30),
-      new THREE.MeshBasicMaterial({
-        map: isStudio ? textures.studioFloorShadowMap : textures.blueprintScaleMap,
+      new THREE.PlaneGeometry(34, 34),
+      new THREE.MeshStandardMaterial({
+        map: isIsoPaper || isStudio ? textures.studioFloorShadowMap : textures.blueprintScaleMap,
+        color: isCinematic ? 0x0b1017 : 0xffffff,
+        roughness: isCinematic ? 0.28 : 0.9,
+        metalness: isCinematic ? 0.35 : 0.0,
         transparent: true,
-        opacity: isStudio ? 0.92 : isGhost ? 0.65 : 0.85,
-        depthWrite: false
+        opacity: isCinematic ? 0.92 : isIsoPaper ? 0.42 : isStudio ? 0.92 : 0.85,
+        depthWrite: isCinematic
       })
     );
     stagePlane.rotation.x = -Math.PI / 2;
     stagePlane.position.y = -5.78;
+    stagePlane.receiveShadow = !isSoftwareGl;
     scene.add(stagePlane);
 
     const grid = new THREE.GridHelper(
       34,
       34,
-      isGhost ? 0x00f0ff : isDrawing ? 0x38bdf8 : isStudio ? 0x94a3b8 : 0x0ea5e9,
-      isGhost ? 0x092b45 : isDrawing ? 0x16324f : isStudio ? 0xc5cdd8 : 0x1c2833
+      isCinematic ? 0x1e293b : isIsoPaper ? 0xcbd5e1 : isDrawing ? 0x38bdf8 : isStudio ? 0x94a3b8 : 0x0ea5e9,
+      isCinematic ? 0x0f172a : isIsoPaper ? 0xe2e8f0 : isDrawing ? 0x16324f : isStudio ? 0xc5cdd8 : 0x1c2833
     );
     grid.position.y = -5.80;
     scene.add(grid);
 
-    // Section Clipping Planes Calibration
+    // 6. Cutaway Clipping Planes & Isolation Helpers
     let activeClippingPlanes: THREE.Plane[] = [];
     let baseClipConstant = 0;
     if (cutawayMode === 'rightBank') {
+      // Diagonal front-right museum cutaway: preserves rear half & left bank while slicing open
+      // front-right valve cover, cylinder head, block bores, and timing cover.
       baseClipConstant = 2.15;
       activeClippingPlanes = [
         new THREE.Plane(new THREE.Vector3(-0.68, -0.38, -0.62).normalize(), baseClipConstant)
@@ -298,7 +460,7 @@ export const Engine3DScene: React.FC<Engine3DSceneProps> = ({
       baseClipConstant = 0.15;
       activeClippingPlanes = [new THREE.Plane(new THREE.Vector3(-1, 0, 0), baseClipConstant)];
     } else if (cutawayMode === 'valvetrain') {
-      baseClipConstant = 2.45;
+      baseClipConstant = 3.75;
       activeClippingPlanes = [new THREE.Plane(new THREE.Vector3(0, -1, 0), baseClipConstant)];
     }
 
@@ -306,13 +468,14 @@ export const Engine3DScene: React.FC<Engine3DSceneProps> = ({
       subsystemIsolation === 'all' || subsystemIsolation === sub;
     const getAlpha = (sub: SubsystemIsolation) => (isIsolated(sub) ? 1.0 : 0.11);
 
+    // 7. Performance PBR Materials Library (with SIMULIA FEA Stress / Thermal / Clearance mapping)
     const isStress = analysisMode === 'stress';
     const isThermal = analysisMode === 'thermal';
     const isClearance = analysisMode === 'clearance';
     const quenchPass = specs.quenchDistance >= 0.038 && specs.quenchDistance <= 0.062;
 
     const mats = {
-      chevyBlock: new THREE.MeshStandardMaterial({
+      chevyBlock: new THREE.MeshPhysicalMaterial({
         color: isStress
           ? 0x1d4ed8
           : isThermal
@@ -320,423 +483,375 @@ export const Engine3DScene: React.FC<Engine3DSceneProps> = ({
           : isClearance
           ? 0x334155
           : isDrawing
-          ? 0x102540
-          : isGhost
-          ? 0x38bdf8
+          ? 0x162a45
+          : isIsoPaper
+          ? 0x94a3b8
           : 0xd83b01,
-        roughness: isGhost ? 0.15 : isDrawing ? 0.85 : 0.74,
-        metalness: isGhost ? 0.85 : isDrawing ? 0.1 : 0.22,
-        bumpMap: isDrawing || isGhost || analysisMode !== 'none' ? null : textures.castIronBump,
-        bumpScale: 0.035,
+        roughness: isDrawing ? 0.85 : isIsoPaper ? 0.48 : 0.72,
+        metalness: isDrawing ? 0.1 : isIsoPaper ? 0.48 : 0.24,
+        bumpMap: isDrawing || isIsoPaper || analysisMode !== 'none' ? null : textures.castIronBump,
+        bumpScale: 0.032,
+        normalMap: isDrawing || isIsoPaper || analysisMode !== 'none' ? null : textures.castIronNormal,
+        normalScale: new THREE.Vector2(0.72, 0.72),
+        clearcoat: isDrawing || analysisMode !== 'none' ? 0 : 0.08,
         wireframe: isWire,
         transparent: isGhost || !isIsolated('all'),
-        opacity: isGhost ? 0.18 : getAlpha('all'),
-        depthWrite: !isGhost,
+        opacity: isGhost ? 0.30 : getAlpha('all'),
         clippingPlanes: activeClippingPlanes
       }),
       machinedDeck: new THREE.MeshPhysicalMaterial({
-        color: isStress ? 0x06b6d4 : isThermal ? 0x38bdf8 : isClearance ? 0x22d3ee : isDrawing ? 0x1c3f6b : isGhost ? 0x0ea5e9 : 0xdde3ea,
-        map: isDrawing || isGhost || analysisMode !== 'none' ? null : textures.machinedSwirl,
-        roughness: isGhost ? 0.15 : 0.22,
-        metalness: isGhost ? 0.85 : 0.88,
-        anisotropy: 0.6,
+        color: isStress ? 0x06b6d4 : isThermal ? 0x38bdf8 : isClearance ? 0x22d3ee : isDrawing ? 0x1f3b5c : 0xdde3ea,
+        map: isDrawing || analysisMode !== 'none' ? null : textures.machinedSwirl,
+        normalMap: isDrawing || analysisMode !== 'none' ? null : textures.machinedNormal,
+        normalScale: new THREE.Vector2(0.42, 0.42),
+        roughness: 0.20,
+        metalness: 0.90,
+        anisotropy: 0.65,
         wireframe: isWire,
-        transparent: isGhost || (!isIsolated('all') && !isIsolated('rotating')),
-        opacity: isGhost ? 0.18 : isIsolated('all') ? 1.0 : Math.max(getAlpha('all'), getAlpha('rotating')),
-        depthWrite: !isGhost,
+        transparent: !isIsolated('all') && !isIsolated('rotating'),
+        opacity: isIsolated('all') ? 1.0 : Math.max(getAlpha('all'), getAlpha('rotating')),
         clippingPlanes: activeClippingPlanes
       }),
       machinedInternal: new THREE.MeshPhysicalMaterial({
-        color: isStress ? 0x06b6d4 : isThermal ? 0x38bdf8 : isClearance ? 0x22d3ee : isDrawing ? 0x1f3b5c : isGhost ? 0x7dd3fc : 0xdde3ea,
-        map: isDrawing || isGhost || analysisMode !== 'none' ? null : textures.machinedSwirl,
-        roughness: isGhost ? 0.16 : 0.20,
-        metalness: isGhost ? 0.94 : 0.90,
-        anisotropy: 0.65,
+        color: isStress ? 0x06b6d4 : isThermal ? 0x38bdf8 : isClearance ? 0x22d3ee : isDrawing ? 0x1f3b5c : 0xdde3ea,
+        map: isDrawing || analysisMode !== 'none' ? null : textures.machinedSwirl,
+        normalMap: isDrawing || analysisMode !== 'none' ? null : textures.machinedNormal,
+        normalScale: new THREE.Vector2(0.40, 0.40),
+        roughness: 0.18,
+        metalness: 0.92,
+        anisotropy: 0.68,
         wireframe: isWire,
-        transparent: !isGhost && !isIsolated('rotating') && !isIsolated('valvetrain'),
-        opacity: isGhost ? 1.0 : isIsolated('all') ? 1.0 : Math.max(getAlpha('rotating'), getAlpha('valvetrain')),
-        depthWrite: true
+        transparent: !isIsolated('rotating') && !isIsolated('valvetrain'),
+        opacity: isIsolated('all') ? 1.0 : Math.max(getAlpha('rotating'), getAlpha('valvetrain'))
       }),
       sleeveBore: new THREE.MeshStandardMaterial({
-        color: isStress ? 0x22c55e : isThermal ? 0xf59e0b : isClearance ? (quenchPass ? 0x10b981 : 0xef4444) : isGhost ? 0x0284c7 : 0x94a3b8,
-        map: analysisMode === 'none' && !isGhost ? textures.crosshatchHone : null,
-        roughness: isGhost ? 0.15 : 0.20,
-        metalness: isGhost ? 0.85 : 0.86,
+        color: isStress ? 0x22c55e : isThermal ? 0xf59e0b : isClearance ? (quenchPass ? 0x10b981 : 0xef4444) : 0x94a3b8,
+        map: analysisMode === 'none' ? textures.crosshatchHone : null,
+        roughness: 0.18,
+        metalness: 0.88,
         side: THREE.DoubleSide,
         wireframe: isWire,
-        transparent: isGhost || !isIsolated('all'),
-        opacity: isGhost ? 0.15 : getAlpha('all'),
-        depthWrite: !isGhost,
+        transparent: !isIsolated('all'),
+        opacity: getAlpha('all'),
         clippingPlanes: activeClippingPlanes
       }),
       crankForged: new THREE.MeshPhysicalMaterial({
-        color: isStress ? 0xf97316 : isThermal ? 0x22c55e : isClearance ? 0x38bdf8 : isDrawing ? 0x224a7a : isGhost ? 0x00f0ff : 0xe2e8f0,
-        roughness: isGhost ? 0.12 : 0.14,
-        metalness: isGhost ? 0.98 : 0.96,
-        anisotropy: 0.75,
+        color: isStress ? 0xf97316 : isThermal ? 0x22c55e : isClearance ? 0x38bdf8 : isDrawing ? 0x2b4f75 : 0xe2e8f0,
+        normalMap: isDrawing || analysisMode !== 'none' ? null : textures.machinedNormal,
+        normalScale: new THREE.Vector2(0.28, 0.28),
+        roughness: 0.13,
+        metalness: 0.96,
+        anisotropy: 0.78,
         wireframe: isWire,
-        transparent: !isGhost && !isIsolated('rotating'),
-        opacity: isGhost ? 1.0 : getAlpha('rotating'),
-        depthWrite: true
+        transparent: !isIsolated('rotating'),
+        opacity: getAlpha('rotating')
       }),
       rods4340: new THREE.MeshPhysicalMaterial({
-        color: isStress ? 0xef4444 : isThermal ? 0x10b981 : isClearance ? (specs.rodStrokeRatio >= 1.6 ? 0x10b981 : 0xf59e0b) : isDrawing ? 0x1c3f6b : isGhost ? 0xffffff : 0x64748b,
-        roughness: isGhost ? 0.18 : 0.32,
-        metalness: isGhost ? 0.94 : 0.86,
-        anisotropy: 0.5,
+        color: isStress ? 0xef4444 : isThermal ? 0x10b981 : isClearance ? (specs.rodStrokeRatio >= 1.6 ? 0x10b981 : 0xf59e0b) : isDrawing ? 0x213d5c : 0x64748b,
+        normalMap: isDrawing || analysisMode !== 'none' ? null : textures.castIronNormal,
+        normalScale: new THREE.Vector2(0.32, 0.32),
+        roughness: 0.30,
+        metalness: 0.88,
+        anisotropy: 0.55,
         wireframe: isWire,
-        transparent: !isGhost && !isIsolated('rotating'),
-        opacity: isGhost ? 1.0 : getAlpha('rotating'),
-        depthWrite: true
+        transparent: !isIsolated('rotating'),
+        opacity: getAlpha('rotating')
       }),
       pistonsAlloy: new THREE.MeshPhysicalMaterial({
-        color: isStress ? 0xfacc15 : isThermal ? 0xf97316 : isClearance ? (quenchPass ? 0x10b981 : 0xef4444) : isDrawing ? 0x265287 : isGhost ? 0xe0f2fe : 0xd8dee6,
-        roughness: isGhost ? 0.14 : 0.18,
-        metalness: isGhost ? 0.92 : 0.85,
+        color: isStress ? 0xfacc15 : isThermal ? 0xf97316 : isClearance ? (quenchPass ? 0x10b981 : 0xef4444) : isDrawing ? 0x335e8c : 0xe2e8f0,
+        map: isDrawing || analysisMode !== 'none' ? null : textures.pistonSkirtMoly,
+        normalMap: isDrawing || analysisMode !== 'none' ? null : textures.machinedNormal,
+        normalScale: new THREE.Vector2(0.35, 0.35),
+        roughness: 0.17,
+        metalness: 0.86,
         anisotropy: 0.65,
         wireframe: isWire,
-        transparent: !isGhost && !isIsolated('rotating'),
-        opacity: isGhost ? 1.0 : getAlpha('rotating'),
-        depthWrite: true
+        transparent: !isIsolated('rotating'),
+        opacity: getAlpha('rotating')
       }),
       wristPins: new THREE.MeshStandardMaterial({
-        color: isStress ? 0xef4444 : isThermal ? 0xf59e0b : isGhost ? 0x38bdf8 : 0xf8fafc,
+        color: isStress ? 0xef4444 : isThermal ? 0xf59e0b : 0xf8fafc,
         roughness: 0.08,
         metalness: 0.98,
         wireframe: isWire,
-        transparent: !isGhost && !isIsolated('rotating'),
-        opacity: isGhost ? 1.0 : getAlpha('rotating'),
-        depthWrite: true
+        transparent: !isIsolated('rotating'),
+        opacity: getAlpha('rotating')
       }),
       arpBlackOxide: new THREE.MeshStandardMaterial({
-        color: isStress ? 0xeab308 : isGhost ? 0x38bdf8 : 0x1e293b,
+        color: isStress ? 0xeab308 : 0x1e293b,
+        bumpMap: isDrawing || analysisMode !== 'none' ? null : textures.boltThreadBump,
+        bumpScale: 0.014,
         roughness: 0.24,
         metalness: 0.92,
-        wireframe: isWire,
-        transparent: isGhost,
-        opacity: isGhost ? 0.35 : 1.0,
-        depthWrite: !isGhost
+        wireframe: isWire
       }),
       brassBronze: new THREE.MeshStandardMaterial({
-        color: isGhost ? 0xfbbf24 : 0xd97706,
+        color: 0xd97706,
         roughness: 0.28,
         metalness: 0.88,
-        wireframe: isWire,
-        transparent: isGhost,
-        opacity: isGhost ? 0.45 : 1.0
+        wireframe: isWire
       }),
       felProCopper: new THREE.MeshStandardMaterial({
-        color: isClearance ? (quenchPass ? 0x22c55e : 0xef4444) : isThermal ? 0xfacc15 : isGhost ? 0x0ea5e9 : 0xc26d38,
+        color: isClearance ? (quenchPass ? 0x22c55e : 0xef4444) : isThermal ? 0xfacc15 : 0xc26d38,
         roughness: 0.26,
         metalness: 0.85,
         wireframe: isWire,
-        transparent: isGhost || !isIsolated('all'),
-        opacity: isGhost ? 0.20 : getAlpha('all'),
-        depthWrite: !isGhost,
-        clippingPlanes: activeClippingPlanes
+        transparent: !isIsolated('all'),
+        opacity: getAlpha('all')
       }),
       aluminumHeads: new THREE.MeshPhysicalMaterial({
-        color: isStress ? 0x3b82f6 : isThermal ? 0xfb923c : isClearance ? 0x475569 : isDrawing ? 0x153155 : isGhost ? 0x7dd3fc : 0xc4cbd2,
-        bumpMap: isDrawing || isGhost || analysisMode !== 'none' ? null : textures.castIronBump,
+        color: isStress ? 0x3b82f6 : isThermal ? 0xfb923c : isClearance ? 0x475569 : isDrawing ? 0x1b3452 : 0xc4cbd2,
+        bumpMap: isDrawing || analysisMode !== 'none' ? null : textures.castIronBump,
         bumpScale: 0.015,
-        roughness: isGhost ? 0.15 : 0.36,
-        metalness: isGhost ? 0.85 : 0.68,
+        normalMap: isDrawing || analysisMode !== 'none' ? null : textures.castIronNormal,
+        normalScale: new THREE.Vector2(0.50, 0.50),
+        roughness: 0.34,
+        metalness: 0.72,
         wireframe: isWire,
         transparent: isGhost || !isIsolated('valvetrain'),
-        opacity: isGhost ? 0.18 : getAlpha('valvetrain'),
-        depthWrite: !isGhost,
+        opacity: isGhost ? 0.28 : getAlpha('valvetrain'),
         clippingPlanes: activeClippingPlanes
       }),
       billetRockersBlue: new THREE.MeshPhysicalMaterial({
-        color: isStress ? 0x22c55e : isDrawing ? 0x0284c7 : isGhost ? 0x38bdf8 : 0x0284c7,
+        color: isStress ? 0x22c55e : 0x0284c7,
         roughness: 0.22,
         metalness: 0.88,
         anisotropy: 0.6,
         wireframe: isWire,
-        transparent: !isGhost && !isIsolated('valvetrain'),
-        opacity: isGhost ? 1.0 : getAlpha('valvetrain'),
-        depthWrite: true
+        transparent: !isIsolated('valvetrain'),
+        opacity: getAlpha('valvetrain')
       }),
       valveSpringsGold: new THREE.MeshStandardMaterial({
-        color: isStress ? 0xf97316 : isDrawing ? 0x38bdf8 : isGhost ? 0xfacc15 : 0xeab308,
+        color: isStress ? 0xf97316 : 0xeab308,
         roughness: 0.26,
         metalness: 0.88,
         wireframe: isWire,
-        transparent: !isGhost && !isIsolated('valvetrain'),
-        opacity: isGhost ? 1.0 : getAlpha('valvetrain'),
-        depthWrite: true
+        transparent: !isIsolated('valvetrain'),
+        opacity: getAlpha('valvetrain')
       }),
       valvesSteel: new THREE.MeshStandardMaterial({
-        color: isThermal ? 0xef4444 : isClearance ? 0x22d3ee : isGhost ? 0xffffff : 0xf1f5f9,
+        color: isThermal ? 0xef4444 : isClearance ? 0x22d3ee : 0xf1f5f9,
         roughness: 0.14,
         metalness: 0.94,
         wireframe: isWire,
-        transparent: !isGhost && !isIsolated('valvetrain'),
-        opacity: isGhost ? 1.0 : getAlpha('valvetrain'),
-        depthWrite: true
+        transparent: !isIsolated('valvetrain'),
+        opacity: getAlpha('valvetrain')
       }),
       chromePolish: new THREE.MeshPhysicalMaterial({
-        color: isDrawing ? 0x3b6998 : isGhost ? 0x7dd3fc : 0xf8fafc,
+        color: isDrawing ? 0x3b6998 : 0xf8fafc,
         roughness: 0.08,
         metalness: 0.98,
         clearcoat: 0.6,
         wireframe: isWire,
         transparent: isGhost || !isIsolated('all'),
-        opacity: isGhost ? 0.20 : getAlpha('all'),
-        depthWrite: !isGhost,
+        opacity: isGhost ? 0.32 : getAlpha('all'),
         clippingPlanes: activeClippingPlanes
       }),
       standChrome: new THREE.MeshPhysicalMaterial({
-        color: isDrawing ? 0x122947 : isGhost ? 0x1e3a5f : 0xe2e8f0,
+        color: isDrawing ? 0x3b6998 : 0xe2e8f0,
         roughness: 0.14,
         metalness: 0.92,
         clearcoat: 0.4,
         wireframe: isWire,
         transparent: isGhost,
-        opacity: isGhost ? 0.18 : 1.0,
-        depthWrite: !isGhost,
-        clippingPlanes: activeClippingPlanes
+        opacity: isGhost ? 0.35 : 1.0
       }),
       valveCoverBody: new THREE.MeshPhysicalMaterial({
-        color: isDrawing ? 0x122947 : isGhost ? 0x0284c7 : 0x1e242c,
-        roughness: isGhost ? 0.15 : 0.38,
-        metalness: isGhost ? 0.85 : 0.55,
-        clearcoat: 0.3,
+        color: isIsoPaper ? 0xe2e8f0 : isDrawing ? 0x1f3b5c : 0x1e242c,
+        roughness: isIsoPaper ? 0.14 : 0.38,
+        metalness: isIsoPaper ? 0.12 : 0.55,
+        clearcoat: isIsoPaper ? 0.85 : 0.3,
         wireframe: isWire,
-        transparent: isGhost || !isIsolated('valvetrain'),
-        opacity: isGhost ? 0.15 : getAlpha('valvetrain'),
-        depthWrite: !isGhost,
+        transparent: isIsoPaper || isGhost || !isIsolated('valvetrain'),
+        opacity: isIsoPaper ? 0.36 : isGhost ? 0.26 : getAlpha('valvetrain'),
+        depthWrite: !isIsoPaper,
         clippingPlanes: activeClippingPlanes
       }),
       valveCoverFin: new THREE.MeshPhysicalMaterial({
-        color: isDrawing ? 0x38bdf8 : isGhost ? 0x38bdf8 : 0xdbe2e9,
+        color: isDrawing ? 0x3b6998 : 0xdbe2e9,
         roughness: 0.16,
         metalness: 0.92,
         wireframe: isWire,
-        transparent: isGhost || !isIsolated('valvetrain'),
-        opacity: isGhost ? 0.18 : getAlpha('valvetrain'),
-        depthWrite: !isGhost,
+        transparent: isIsoPaper || isGhost || !isIsolated('valvetrain'),
+        opacity: isIsoPaper ? 0.55 : isGhost ? 0.28 : getAlpha('valvetrain'),
         clippingPlanes: activeClippingPlanes
       }),
       headerCeramic: new THREE.MeshPhysicalMaterial({
-        color: isThermal ? 0xef4444 : isDrawing ? 0x163457 : isGhost ? 0x0284c7 : 0x9ca3af,
-        roughness: isGhost ? 0.15 : 0.25,
-        metalness: isGhost ? 0.85 : 0.85,
+        color: isThermal ? 0xef4444 : isDrawing ? 0x2b4f75 : 0x9ca3af,
+        roughness: 0.25,
+        metalness: 0.85,
         wireframe: isWire,
         transparent: isGhost || !isIsolated('all'),
-        opacity: isGhost ? 0.15 : getAlpha('all'),
-        depthWrite: !isGhost,
+        opacity: isGhost ? 0.25 : getAlpha('all'),
         clippingPlanes: activeClippingPlanes
       }),
       damperTiming: new THREE.MeshStandardMaterial({
-        map: isGhost ? null : textures.harmonicTimingTape,
-        color: isGhost ? 0x0284c7 : 0xffffff,
+        map: textures.harmonicTimingTape,
         roughness: 0.35,
         metalness: 0.45,
         wireframe: isWire,
-        transparent: isGhost || !isIsolated('rotating'),
-        opacity: isGhost ? 0.22 : getAlpha('rotating'),
-        depthWrite: !isGhost,
-        clippingPlanes: activeClippingPlanes
+        transparent: !isIsolated('rotating'),
+        opacity: getAlpha('rotating')
       }),
       ignitionRed: new THREE.MeshStandardMaterial({
-        color: isDrawing ? 0x18375f : isGhost ? 0x38bdf8 : 0xd92626,
-        roughness: isGhost ? 0.15 : 0.35,
-        metalness: isGhost ? 0.85 : 0.25,
+        color: 0xd92626,
+        roughness: 0.35,
+        metalness: 0.25,
         wireframe: isWire,
-        transparent: isGhost || !isIsolated('ignition'),
-        opacity: isGhost ? 0.22 : getAlpha('ignition'),
-        depthWrite: !isGhost,
-        clippingPlanes: activeClippingPlanes
+        transparent: !isIsolated('ignition'),
+        opacity: getAlpha('ignition')
       }),
       sparkPlugWhite: new THREE.MeshStandardMaterial({
-        color: isGhost ? 0x7dd3fc : 0xffffff,
+        color: 0xffffff,
         roughness: 0.12,
         metalness: 0.08,
         wireframe: isWire,
-        transparent: isGhost || !isIsolated('ignition'),
-        opacity: isGhost ? 0.25 : getAlpha('ignition'),
-        depthWrite: !isGhost,
-        clippingPlanes: activeClippingPlanes
+        transparent: !isIsolated('ignition'),
+        opacity: getAlpha('ignition')
       }),
       oilPumpBronze: new THREE.MeshStandardMaterial({
-        color: isGhost ? 0x0284c7 : 0xb45309,
+        color: 0xb45309,
         roughness: 0.34,
         metalness: 0.82,
         wireframe: isWire,
-        transparent: isGhost || !isIsolated('lubrication'),
-        opacity: isGhost ? 0.20 : getAlpha('lubrication'),
-        depthWrite: !isGhost,
-        clippingPlanes: activeClippingPlanes
+        transparent: !isIsolated('lubrication'),
+        opacity: getAlpha('lubrication')
       }),
       filterBlue: new THREE.MeshStandardMaterial({
-        color: isDrawing ? 0x153155 : isGhost ? 0x0284c7 : 0x1d4ed8,
+        color: 0x1d4ed8,
         roughness: 0.28,
         metalness: 0.5,
         wireframe: isWire,
-        transparent: isGhost || !isIsolated('lubrication'),
-        opacity: isGhost ? 0.20 : getAlpha('lubrication'),
-        depthWrite: !isGhost,
-        clippingPlanes: activeClippingPlanes
+        transparent: !isIsolated('lubrication'),
+        opacity: getAlpha('lubrication')
       }),
       coolingAlum: new THREE.MeshStandardMaterial({
-        color: isDrawing ? 0x142f50 : isGhost ? 0x38bdf8 : 0x94a3b8,
-        roughness: isGhost ? 0.15 : 0.38,
-        metalness: isGhost ? 0.85 : 0.65,
+        color: 0x94a3b8,
+        roughness: 0.38,
+        metalness: 0.65,
         wireframe: isWire,
-        transparent: isGhost || !isIsolated('cooling'),
-        opacity: isGhost ? 0.18 : getAlpha('cooling'),
-        depthWrite: !isGhost,
-        clippingPlanes: activeClippingPlanes
+        transparent: !isIsolated('cooling'),
+        opacity: getAlpha('cooling')
       }),
       beltsBlack: new THREE.MeshStandardMaterial({
-        color: isDrawing ? 0x0c1e33 : isGhost ? 0x1e293b : 0x14171a,
+        color: 0x14171a,
         roughness: 0.85,
         metalness: 0.05,
         wireframe: isWire,
-        transparent: isGhost || !isIsolated('cooling'),
-        opacity: isGhost ? 0.20 : getAlpha('cooling'),
-        depthWrite: !isGhost,
-        clippingPlanes: activeClippingPlanes
+        transparent: !isIsolated('cooling'),
+        opacity: getAlpha('cooling')
       }),
       fuelBlueAnodized: new THREE.MeshStandardMaterial({
-        color: isGhost ? 0x38bdf8 : 0x0284c7,
+        color: 0x0284c7,
         roughness: 0.2,
         metalness: 0.88,
         wireframe: isWire,
-        transparent: isGhost || !isIsolated('fuel'),
-        opacity: isGhost ? 0.22 : getAlpha('fuel'),
-        depthWrite: !isGhost,
-        clippingPlanes: activeClippingPlanes
+        transparent: !isIsolated('fuel'),
+        opacity: getAlpha('fuel')
       }),
       starterDark: new THREE.MeshStandardMaterial({
-        color: isDrawing ? 0x102540 : isGhost ? 0x1e3a5f : 0x1e293b,
-        roughness: isGhost ? 0.15 : 0.35,
-        metalness: isGhost ? 0.85 : 0.82,
+        color: 0x1e293b,
+        roughness: 0.35,
+        metalness: 0.82,
         wireframe: isWire,
-        transparent: isGhost || !isIsolated('starter'),
-        opacity: isGhost ? 0.20 : getAlpha('starter'),
-        depthWrite: !isGhost,
-        clippingPlanes: activeClippingPlanes
+        transparent: !isIsolated('starter'),
+        opacity: getAlpha('starter')
       }),
       techEdgeLine: new THREE.LineBasicMaterial({
-        color: 0x38bdf8,
+        color: isIsoPaper ? 0x1e293b : 0x38bdf8,
         transparent: true,
-        opacity: isDrawing ? 0.95 : 0.45
+        opacity: isIsoPaper ? 0.72 : isDrawing ? 0.92 : 0.45
       }),
       billetAlum: new THREE.MeshPhysicalMaterial({
-        color: isStress ? 0x3b82f6 : isThermal ? 0xfb923c : isDrawing ? 0x18375f : isGhost ? 0x0ea5e9 : 0xdbe2e9,
-        map: isDrawing || isGhost || analysisMode !== 'none' ? null : textures.machinedSwirl,
-        roughness: isGhost ? 0.15 : 0.22,
-        metalness: isGhost ? 0.85 : 0.86,
-        anisotropy: 0.55,
+        color: isStress ? 0x3b82f6 : isThermal ? 0xfb923c : isDrawing ? 0x24466b : 0xdbe2e9,
+        map: isDrawing || analysisMode !== 'none' ? null : textures.machinedSwirl,
+        normalMap: isDrawing || analysisMode !== 'none' ? null : textures.machinedNormal,
+        normalScale: new THREE.Vector2(0.38, 0.38),
+        roughness: 0.20,
+        metalness: 0.88,
+        anisotropy: 0.6,
         wireframe: isWire,
         transparent: isGhost || !isIsolated('valvetrain'),
-        opacity: isGhost ? 0.18 : getAlpha('valvetrain'),
-        depthWrite: !isGhost,
+        opacity: isGhost ? 0.30 : getAlpha('valvetrain'),
         clippingPlanes: activeClippingPlanes
       }),
       carbGoldZinc: new THREE.MeshPhysicalMaterial({
-        color: isDrawing ? 0x1c3f6b : isGhost ? 0x38bdf8 : 0xc9a24b,
-        roughness: isGhost ? 0.15 : 0.28,
-        metalness: isGhost ? 0.85 : 0.82,
+        color: isDrawing ? 0x3b6998 : 0xc9a24b,
+        roughness: 0.28,
+        metalness: 0.82,
         wireframe: isWire,
         transparent: isGhost || !isIsolated('fuel'),
-        opacity: isGhost ? 0.20 : isIsolated('all') ? 1.0 : getAlpha('fuel'),
-        depthWrite: !isGhost,
-        clippingPlanes: activeClippingPlanes
+        opacity: isGhost ? 0.32 : isIsolated('all') ? 1.0 : getAlpha('fuel')
       }),
       copperWinding: new THREE.MeshStandardMaterial({
-        color: isGhost ? 0x38bdf8 : 0xc26d27,
+        color: 0xc26d27,
         roughness: 0.26,
         metalness: 0.88,
-        wireframe: isWire,
-        transparent: isGhost,
-        opacity: isGhost ? 0.22 : 1.0,
-        depthWrite: !isGhost,
-        clippingPlanes: activeClippingPlanes
+        wireframe: isWire
       }),
       braidedStainless: new THREE.MeshStandardMaterial({
-        map: isGhost ? null : textures.braidedSteelMap,
-        color: isGhost ? 0x7dd3fc : 0xe2e8f0,
+        map: textures.braidedSteelMap,
+        color: 0xe2e8f0,
         roughness: 0.36,
         metalness: 0.72,
-        wireframe: isWire,
-        transparent: isGhost,
-        opacity: isGhost ? 0.25 : 1.0,
-        depthWrite: !isGhost
+        wireframe: isWire
       }),
       coilBlue: new THREE.MeshPhysicalMaterial({
-        color: isDrawing ? 0x0284c7 : isGhost ? 0x38bdf8 : 0x1d4ed8,
+        color: 0x1d4ed8,
         roughness: 0.26,
         metalness: 0.58,
         clearcoat: 0.45,
         wireframe: isWire,
-        transparent: isGhost || !isIsolated('ignition'),
-        opacity: isGhost ? 0.22 : getAlpha('ignition'),
-        depthWrite: !isGhost,
-        clippingPlanes: activeClippingPlanes
+        transparent: !isIsolated('ignition'),
+        opacity: getAlpha('ignition')
       }),
       chassisBlack: new THREE.MeshStandardMaterial({
-        color: isDrawing ? 0x1b3452 : isGhost ? 0x1e3a5f : 0x1a1e24,
+        color: isDrawing ? 0x1b3452 : 0x1a1e24,
         roughness: 0.48,
         metalness: 0.48,
         wireframe: isWire,
         transparent: isGhost,
-        opacity: isGhost ? 0.18 : 1.0,
-        depthWrite: !isGhost,
-        clippingPlanes: activeClippingPlanes
+        opacity: isGhost ? 0.35 : 1.0
       }),
       anodizedBlack: new THREE.MeshStandardMaterial({
-        color: isGhost ? 0x1e293b : 0x181c22,
+        color: 0x181c22,
         roughness: 0.30,
         metalness: 0.76,
-        wireframe: isWire,
-        transparent: isGhost,
-        opacity: isGhost ? 0.20 : 1.0,
-        depthWrite: !isGhost,
-        clippingPlanes: activeClippingPlanes
+        wireframe: isWire
       }),
       anRed: new THREE.MeshStandardMaterial({
-        color: isGhost ? 0x38bdf8 : 0xdc2626,
+        color: 0xdc2626,
         roughness: 0.24,
         metalness: 0.84,
-        wireframe: isWire,
-        transparent: isGhost,
-        opacity: isGhost ? 0.25 : 1.0,
-        depthWrite: !isGhost,
-        clippingPlanes: activeClippingPlanes
+        wireframe: isWire
       }),
       radiatorFin: new THREE.MeshStandardMaterial({
-        map: isGhost ? null : textures.radiatorCoreMap,
-        color: isGhost ? 0x38bdf8 : 0xd8dee6,
+        map: textures.radiatorCoreMap,
+        color: 0xd8dee6,
         roughness: 0.38,
         metalness: 0.76,
-        wireframe: isWire,
-        transparent: isGhost,
-        opacity: isGhost ? 0.18 : 1.0,
-        depthWrite: !isGhost,
-        clippingPlanes: activeClippingPlanes
+        wireframe: isWire
       }),
       oilPanCoat: new THREE.MeshStandardMaterial({
-        color: isDrawing ? 0x102540 : isGhost ? 0x0369a1 : 0xd83b01,
-        roughness: isGhost ? 0.15 : 0.46,
-        metalness: isGhost ? 0.85 : 0.35,
+        color: isDrawing ? 0x162a45 : 0xd83b01,
+        roughness: 0.46,
+        metalness: 0.35,
         wireframe: isWire,
         transparent: isGhost || !isIsolated('lubrication'),
-        opacity: isGhost ? 0.18 : isIsolated('all') ? 1.0 : getAlpha('lubrication'),
-        depthWrite: !isGhost,
+        opacity: isGhost ? 0.28 : isIsolated('all') ? 1.0 : getAlpha('lubrication'),
         clippingPlanes: activeClippingPlanes
       }),
       timingCoverAlum: new THREE.MeshPhysicalMaterial({
-        color: isDrawing ? 0x142f50 : isGhost ? 0x38bdf8 : 0xd2d9e1,
-        map: isDrawing || isGhost || analysisMode !== 'none' ? null : textures.machinedSwirl,
-        roughness: isGhost ? 0.15 : 0.26,
-        metalness: isGhost ? 0.85 : 0.84,
+        color: isDrawing ? 0x1f3b5c : 0xd2d9e1,
+        map: isDrawing || analysisMode !== 'none' ? null : textures.machinedSwirl,
+        normalMap: isDrawing || analysisMode !== 'none' ? null : textures.machinedNormal,
+        normalScale: new THREE.Vector2(0.42, 0.42),
+        roughness: 0.24,
+        metalness: 0.86,
+        anisotropy: 0.5,
         wireframe: isWire,
         transparent: isGhost || !isIsolated('all'),
-        opacity: isGhost ? 0.18 : getAlpha('all'),
-        depthWrite: !isGhost,
+        opacity: isGhost ? 0.28 : getAlpha('all'),
         clippingPlanes: activeClippingPlanes
       })
     };
@@ -744,6 +859,7 @@ export const Engine3DScene: React.FC<Engine3DSceneProps> = ({
     const engineGroup = new THREE.Group();
     const parts: Record<string, THREE.Object3D> = {};
 
+    // Real-World Scaled Kinematic Constants (1 scene unit ≈ 1.48 inches on engine centerline)
     const crankCenterY = -1.0;
     const boreRadius = (config.bore / 4.000) * 1.02;
     const crankRadius = (config.stroke / 3.480) * 0.64;
@@ -751,8 +867,11 @@ export const Engine3DScene: React.FC<Engine3DSceneProps> = ({
     const journalZ = [-3.9, -1.3, 1.3, 3.9];
     const crankPhases = [0, Math.PI / 2, (3 * Math.PI) / 2, Math.PI];
 
-    // 1. Block Casting
+    // =========================================================================
+    // 1. CAST-IRON 90° V8 BLOCK CASTING, 4-BOLT SPLAYED MAIN CAPS & BORES
+    // =========================================================================
     const blockGroup = new THREE.Group();
+
     const blockCasting = new THREE.Mesh(createV8BlockProfileGeometry(11.4), mats.chevyBlock);
     blockCasting.position.y = -0.2;
     blockCasting.castShadow = true;
@@ -766,12 +885,14 @@ export const Engine3DScene: React.FC<Engine3DSceneProps> = ({
     };
     blockGroup.add(blockCasting);
 
+    // 5 Splayed 4-Bolt Main Bearing Caps
     for (let m = 0; m < 5; m++) {
       const capZ = -5.2 + m * 2.6;
       const capBridge = new THREE.Mesh(new THREE.BoxGeometry(3.4, 1.15, 0.85), mats.machinedDeck);
       capBridge.position.set(0, -1.85, capZ);
       blockGroup.add(capBridge);
 
+      // Inner vertical & splayed outer ARP main bolts
       [-0.85, 0.85].forEach((xOff) => {
         const innerBolt = createARP12PointBolt(0.11, 1.2, mats.arpBlackOxide);
         innerBolt.position.set(xOff, -2.42, capZ);
@@ -787,7 +908,9 @@ export const Engine3DScene: React.FC<Engine3DSceneProps> = ({
       });
     }
 
+    // 8 Plateau-Honed Cylinder Bore Sleeves & Brass Freeze Plugs
     [-1, 1].forEach((side) => {
+      // 3 Brass Core Freeze Plugs along outer block skirt
       [-3.5, 0, 3.5].forEach((zPlug) => {
         const freezePlug = new THREE.Mesh(
           new THREE.CylinderGeometry(0.46, 0.44, 0.16, 20),
@@ -803,6 +926,7 @@ export const Engine3DScene: React.FC<Engine3DSceneProps> = ({
         blockGroup.add(freezePlug);
       });
 
+      // Honed Cylinder Sleeves + Deck Fire Ring
       for (let c = 0; c < 4; c++) {
         const zOff = journalZ[c] + (side === 1 ? 0.22 : -0.22);
         const bankRot = -side * (Math.PI / 4);
@@ -820,6 +944,7 @@ export const Engine3DScene: React.FC<Engine3DSceneProps> = ({
         blockGroup.add(sleeve);
       }
 
+      // Machined Cylinder Deck Plane + Fel-Pro 1003 (.039") Copper/Composite Head Gasket
       const bankRot = -side * (Math.PI / 4);
       const deckDist = 3.22;
       const deckPlate = new THREE.Mesh(
@@ -847,23 +972,66 @@ export const Engine3DScene: React.FC<Engine3DSceneProps> = ({
       headGasket.userData = {
         name: `Fel-Pro 1003 Head Gasket (${config.gasketThickness.toFixed(3)}" Compressed)`,
         category: 'Sealing & Quench',
-        desc: `Pre-flattened copper wire ring armor. Sets total quench to ${specs.quenchDistance}".`,
+        desc: `Pre-flattened copper wire ring armor. Contributes ${specs.gasketVolumeCc}cc to clearance volume; sets total quench to ${specs.quenchDistance}".`,
         partNumber: 'FEL-1003'
       };
       blockGroup.add(headGasket);
 
+      // 3-Bolt Motor Mount Casting Boss on SBC Block Side
       const mountBoss = new THREE.Mesh(
         new THREE.BoxGeometry(0.45, 0.82, 1.35),
         mats.chevyBlock
       );
       mountBoss.position.set(side * 3.15, -1.35, 0.55);
       blockGroup.add(mountBoss);
+
+      // Hollow Deck Alignment Dowel Pins (front & rear deck corners)
+      [-4.95, 4.95].forEach((dZ) => {
+        const dowel = new THREE.Mesh(
+          new THREE.CylinderGeometry(0.14, 0.14, 0.24, 14, 1, true),
+          mats.machinedInternal
+        );
+        dowel.position.set(
+          -Math.sin(bankRot) * (deckDist + 0.08) + Math.cos(bankRot) * (side * 1.15),
+          crankCenterY + Math.cos(bankRot) * (deckDist + 0.08) + Math.sin(bankRot) * (side * 1.15),
+          dZ
+        );
+        dowel.rotation.z = bankRot;
+        blockGroup.add(dowel);
+      });
+    });
+
+    // Dura-Bond Cam Tunnel Babbit Bearings + Front/Rear 1/4" NPT Brass Oil Gallery Plugs
+    for (let m = 0; m < 5; m++) {
+      const camBearing = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.45, 0.45, 0.46, 20, 1, true),
+        mats.brassBronze
+      );
+      camBearing.rotation.x = Math.PI / 2;
+      camBearing.position.set(0, 1.05, -5.2 + m * 2.6);
+      blockGroup.add(camBearing);
+    }
+    [-5.72, 5.72].forEach((endZ) => {
+      [-0.72, 0.72].forEach((px) => {
+        const nptPlug = new THREE.Mesh(
+          new THREE.CylinderGeometry(0.14, 0.14, 0.16, 6),
+          mats.brassBronze
+        );
+        nptPlug.rotation.x = Math.PI / 2;
+        nptPlug.position.set(px, 1.05, endZ);
+        nptPlug.userData = {
+          name: '1/4" NPT Brass Oil Gallery Plug',
+          category: 'Lubrication',
+          desc: 'Tapered pipe plug with 0.030" front-timing-chain splash orifice for main oil gallery.'
+        };
+        blockGroup.add(nptPlug);
+      });
     });
 
     engineGroup.add(blockGroup);
     parts.block = blockGroup;
 
-    // Timing Cover
+    // 1B. FRONT ALUMINUM TIMING CHAIN COVER + CRANK SEAL + TIMING POINTER
     const timingCoverGroup = createTimingCoverGroup(
       mats.timingCoverAlum,
       mats.beltsBlack,
@@ -874,14 +1042,14 @@ export const Engine3DScene: React.FC<Engine3DSceneProps> = ({
     timingCoverGroup.userData = {
       name: 'Billet Aluminum Timing Chain Cover & TDC Pointer',
       category: 'Engine Block',
-      desc: 'CNC aluminum front timing cover enclosing double-roller timing drive with adjustable 0° TDC pointer.',
+      desc: 'CNC machined aluminum front timing cover with Viton front crank seal and adjustable 0° TDC timing pointer.',
       torque: 'Timing Cover Bolts: 12 ft-lbs',
       partNumber: 'SUM-G6320'
     };
     engineGroup.add(timingCoverGroup);
     parts.timingCover = timingCoverGroup;
 
-    // Oil Pan
+    // 1C. DEEP-SUMP OIL PAN, GASKET RAIL, MAGNETIC DRAIN PLUG & DIPSTICK TUBE
     const oilPanGroup = createDetailedOilPanGroup(
       mats.oilPanCoat,
       mats.anodizedBlack,
@@ -900,28 +1068,75 @@ export const Engine3DScene: React.FC<Engine3DSceneProps> = ({
     engineGroup.add(oilPanGroup);
     parts.oilPan = oilPanGroup;
 
-    // 2. Crankshaft Assembly
+    // =========================================================================
+    // 2. CROSS-PLANE 4340 FORGED CRANKSHAFT, COUNTERWEIGHTS, DAMPER & FLEXPLATE
+    // =========================================================================
     const crankGroup = new THREE.Group();
     crankGroup.position.set(0, crankCenterY, 0);
 
+    // 5 Main Journals (2.450" diameter scaled) + Thrust Flanges + Splined Snout + Rear Flange
     for (let m = 0; m < 5; m++) {
+      const mz = -5.2 + m * 2.6;
       const mj = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.56, 0.56, 0.88, 22),
+        new THREE.CylinderGeometry(0.56, 0.56, 0.88, 24),
         mats.crankForged
       );
       mj.rotation.x = Math.PI / 2;
-      mj.position.z = -5.2 + m * 2.6;
+      mj.position.z = mz;
       crankGroup.add(mj);
+
+      // Rear Main #5 Thrust Bearing Flange Cheeks
+      if (m === 0) {
+        [-0.44, 0.44].forEach((tz) => {
+          const thrustCheek = new THREE.Mesh(
+            new THREE.CylinderGeometry(0.84, 0.84, 0.07, 24),
+            mats.machinedInternal
+          );
+          thrustCheek.rotation.x = Math.PI / 2;
+          thrustCheek.position.z = mz + tz;
+          crankGroup.add(thrustCheek);
+        });
+      }
     }
 
     const frontSnout = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.42, 0.48, 2.3, 20),
+      createSplineShaftGeometry(0.44, 2.2, 18),
       mats.crankForged
     );
-    frontSnout.rotation.x = Math.PI / 2;
-    frontSnout.position.z = 6.35;
+    frontSnout.position.z = 6.32;
     crankGroup.add(frontSnout);
 
+    // 3/16" Hardened Woodruff Keyway Bar on Crank Snout
+    const keyway = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.14, 1.35), mats.arpBlackOxide);
+    keyway.position.set(0, 0.44, 6.25);
+    crankGroup.add(keyway);
+
+    // Rear Crank Flange Hub + Oilite Bronze Pilot Bushing + 6 ARP Flexplate Bolts
+    const rearHub = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.92, 0.92, 0.36, 26),
+      mats.crankForged
+    );
+    rearHub.rotation.x = Math.PI / 2;
+    rearHub.position.z = -5.78;
+    crankGroup.add(rearHub);
+
+    const pilotBushing = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.29, 0.29, 0.38, 16, 1, true),
+      mats.brassBronze
+    );
+    pilotBushing.rotation.x = Math.PI / 2;
+    pilotBushing.position.z = -5.92;
+    crankGroup.add(pilotBushing);
+
+    for (let fb = 0; fb < 6; fb++) {
+      const a = (fb / 6) * Math.PI * 2;
+      const fpBolt = createARP12PointBolt(0.08, 0.30, mats.arpBlackOxide);
+      fpBolt.rotation.x = -Math.PI / 2;
+      fpBolt.position.set(Math.cos(a) * 0.66, Math.sin(a) * 0.66, -6.16);
+      crankGroup.add(fpBolt);
+    }
+
+    // 4 Offset Rod Journals (2.100" diameter) + Cross-Drilled Oil Holes + 8 Counterweights
     const cwGeo = createCounterweightGeometry(1.55, 0.36);
     journalZ.forEach((zPin, idx) => {
       const phase = crankPhases[idx];
@@ -929,7 +1144,7 @@ export const Engine3DScene: React.FC<Engine3DSceneProps> = ({
       const py = crankRadius * Math.cos(phase);
 
       const rodJournal = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.44, 0.44, 1.15, 22),
+        new THREE.CylinderGeometry(0.44, 0.44, 1.15, 24),
         mats.crankForged
       );
       rodJournal.rotation.x = Math.PI / 2;
@@ -943,6 +1158,18 @@ export const Engine3DScene: React.FC<Engine3DSceneProps> = ({
       };
       crankGroup.add(rodJournal);
 
+      // Chamfered Cross-Drilled Rod Journal Oil Feed Ports (twin paired throws)
+      [-0.22, 0.22].forEach((oz) => {
+        const oilPort = new THREE.Mesh(
+          new THREE.CylinderGeometry(0.065, 0.065, 0.91, 10),
+          mats.anodizedBlack
+        );
+        oilPort.position.set(px, py, zPin + oz);
+        oilPort.rotation.z = -phase + 0.45;
+        crankGroup.add(oilPort);
+      });
+
+      // Pair of teardrop counterweights flanking each throw (unclipped internal steel)
       [-0.78, 0.78].forEach((zOff) => {
         const cw = new THREE.Mesh(cwGeo, mats.machinedInternal);
         cw.position.z = zPin + zOff;
@@ -954,17 +1181,35 @@ export const Engine3DScene: React.FC<Engine3DSceneProps> = ({
         drill.rotation.x = Math.PI / 2;
         drill.position.set(0.42, -1.05, 0);
         cw.add(drill);
+
+        if (idx === 0 || idx === 3) {
+          const malloryPlug = new THREE.Mesh(
+            new THREE.CylinderGeometry(0.18, 0.18, 0.39, 14),
+            mats.brassBronze
+          );
+          malloryPlug.rotation.x = Math.PI / 2;
+          malloryPlug.position.set(-0.36, -1.08, 0);
+          cw.add(malloryPlug);
+        }
         crankGroup.add(cw);
       });
     });
 
+    // Crank Timing Sprocket (22 Teeth)
     const crankSprocket = new THREE.Mesh(
       createGearGeometry(0.68, 22, 0.38, 0.35, 0.12),
       mats.arpBlackOxide
     );
     crankSprocket.position.z = 5.95;
+    crankSprocket.userData = {
+      name: 'Billet Steel Double-Roller Crank Sprocket',
+      category: 'Timing Drive',
+      desc: '9-keyway adjustable billet timing gear with 2:1 ratio to camshaft.',
+      partNumber: 'CLY-9-1100'
+    };
     crankGroup.add(crankSprocket);
 
+    // SFI Harmonic Damper / Balancer with 360° Timing Tape
     const damperHub = new THREE.Mesh(
       new THREE.CylinderGeometry(1.42, 1.42, 0.88, 32),
       mats.damperTiming
@@ -974,12 +1219,13 @@ export const Engine3DScene: React.FC<Engine3DSceneProps> = ({
     damperHub.userData = {
       name: 'ATI Super Damper SFI 18.1 Harmonic Balancer',
       category: 'Rotating Assembly',
-      desc: `6.78" OD elastomer inertia ring with engraved timing scale.`,
+      desc: `6.78" OD elastomer inertia ring with engraved timing scale (Target timing: ${config.ignitionTiming}° BTDC).`,
       torque: 'Crank Snout ARP Bolt: 85 ft-lbs',
       partNumber: 'ATI-917781'
     };
     crankGroup.add(damperHub);
 
+    // Rear 168-Tooth SFI Flexplate / Flywheel Ring Gear
     const flexplate = new THREE.Mesh(
       createGearGeometry(2.65, 64, 0.24, 0.55, 0.11),
       mats.machinedInternal
@@ -994,6 +1240,7 @@ export const Engine3DScene: React.FC<Engine3DSceneProps> = ({
     };
     crankGroup.add(flexplate);
 
+    // 60-2 Billet Crankshaft Trigger Reluctor Wheel (Shown behind pulley in MPFI+CNP mode)
     if (inductionDress === 'mpfi_cnp') {
       const triggerWheel = new THREE.Mesh(
         createCrankTriggerWheelGeometry(1.62, 60, 2, 0.18, 0.65),
@@ -1003,7 +1250,7 @@ export const Engine3DScene: React.FC<Engine3DSceneProps> = ({
       triggerWheel.userData = {
         name: '60-2 CNC Billet Crank Trigger Reluctor Wheel',
         category: 'Ignition & Timing',
-        desc: '60-tooth precision crank wheel with 2-tooth missing TDC index gap for sequential EFI timing.',
+        desc: '60-tooth precision crank wheel with 2-tooth missing TDC index gap for sequential EFI & coil-near-plug timing.',
         torque: 'Damper Center Bolt: 85 ft-lbs',
         partNumber: 'HOL-556-112'
       };
@@ -1013,7 +1260,9 @@ export const Engine3DScene: React.FC<Engine3DSceneProps> = ({
     engineGroup.add(crankGroup);
     parts.crank = crankGroup;
 
-    // 3. Rotating Assembly (Rods + Pistons)
+    // =========================================================================
+    // 3. TRUE ARTICULATING 5.700" H-BEAM RODS, PISTONS & 3-RING PACKS
+    // =========================================================================
     const rotatingGroup = new THREE.Group();
     const pistonNodes: Array<{
       bankRot: number;
@@ -1023,17 +1272,19 @@ export const Engine3DScene: React.FC<Engine3DSceneProps> = ({
     }> = [];
 
     for (let p = 0; p < 8; p++) {
-      const isRight = p % 2 === 1;
+      const isRight = p % 2 === 1; // Odd = 2,4,6,8 (Right Bank); Even = 1,3,5,7 (Left Bank)
       const bankSign = isRight ? 1 : -1;
       const bankRot = -bankSign * (Math.PI / 4);
       const journalIdx = Math.floor(p / 2);
       const zPos = journalZ[journalIdx] + (isRight ? 0.22 : -0.22);
       const pinPhase = crankPhases[journalIdx];
 
+      // Bank-local kinematic carrier centered on crankshaft centerline at cylinder Z
       const bankCarrier = new THREE.Group();
       bankCarrier.position.set(0, crankCenterY, zPos);
       bankCarrier.rotation.z = bankRot;
 
+      // Connecting Rod (origin at big-end crankpin)
       const rodGroup = createHBeamConnectingRod(
         scaledRodLen,
         0.44,
@@ -1045,56 +1296,46 @@ export const Engine3DScene: React.FC<Engine3DSceneProps> = ({
       rodGroup.userData = {
         name: `Connecting Rod #${p + 1} (Ray's ${config.rodLength.toFixed(3)}" Spec)`,
         category: 'Connecting Rods',
-        desc: `Scat 4340 Forged H-Beam ${config.rodLength.toFixed(3)}" C-to-C | Rod/Stroke ratio: ${specs.rodStrokeRatio}:1.`,
+        desc: `Scat 4340 Forged H-Beam ${config.rodLength.toFixed(3)}" C-to-C | Rod/Stroke ratio: ${specs.rodStrokeRatio}:1 | Max angle: ${specs.maxRodAngleDeg}°.`,
         torque: 'ARP 2000 Rod Bolts: 45 ft-lbs (0.0058" - 0.0062" stretch)',
         partNumber: 'SCA-25700'
       };
       bankCarrier.add(rodGroup);
 
+      // Forged Slipper-Skirt Piston + 3-Piece Oil/Compression Ring Pack + Hollow Wrist Pin & Spiralox Clips
       const pistonAsm = new THREE.Group();
-      const pPts = [
-        new THREE.Vector2(0.0, 0.56),
-        new THREE.Vector2(boreRadius * 0.96, 0.56),
-        new THREE.Vector2(boreRadius * 0.96, 0.10),
-        new THREE.Vector2(boreRadius * 0.88, 0.08),
-        new THREE.Vector2(boreRadius * 0.95, -0.35),
-        new THREE.Vector2(boreRadius * 0.82, -0.45),
-        new THREE.Vector2(0.0, -0.35)
-      ];
-      const pistonMesh = new THREE.Mesh(new THREE.LatheGeometry(pPts, 28), mats.pistonsAlloy);
-      pistonMesh.userData = {
+      const detailedPiston = createDetailedPistonAssembly(
+        boreRadius,
+        mats.pistonsAlloy,
+        mats.anodizedBlack,
+        mats.chromePolish,
+        mats.arpBlackOxide,
+        mats.brassBronze,
+        mats.wristPins,
+        mats.arpBlackOxide
+      );
+      // Scale Y to match SBC compression height & align wrist pin centerline directly onto rod small-end eye (y=0)
+      detailedPiston.scale.set(1, 0.58, 1);
+      detailedPiston.position.y = 0.16;
+      pistonAsm.add(detailedPiston);
+      pistonAsm.userData = {
         name: `Forged Piston #${p + 1} (${config.pistonAlloy.toUpperCase()} Alloy)`,
         category: 'Rotating Assembly',
-        desc: `Bore: ${config.bore.toFixed(3)}" | ${config.pistonReliefCc.toFixed(1)}cc valve relief | Quench: ${specs.quenchDistance}".`,
+        desc: `Bore: ${config.bore.toFixed(3)}" | ${config.pistonReliefCc.toFixed(1)}cc 4-eyebrow flat top | PTFE moly skirts | PTW: ${specs.ptwClearance} | Rings: ${specs.topRingGap}"/${specs.secondRingGap}"/${specs.oilRingGap}".`,
         partNumber: 'KB-115-000'
       };
-      pistonAsm.add(pistonMesh);
-
-      [0.44, 0.30, 0.16].forEach((rY, rIdx) => {
-        const ring = new THREE.Mesh(
-          new THREE.TorusGeometry(boreRadius * 0.965, 0.032, 8, 28),
-          rIdx === 0 ? mats.chromePolish : mats.arpBlackOxide
-        );
-        ring.rotation.x = Math.PI / 2;
-        ring.position.y = rY;
-        pistonAsm.add(ring);
-      });
-
-      const wristPin = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.20, 0.20, boreRadius * 1.65, 16),
-        mats.wristPins
-      );
-      wristPin.rotation.x = Math.PI / 2;
-      pistonAsm.add(wristPin);
 
       bankCarrier.add(pistonAsm);
       rotatingGroup.add(bankCarrier);
+
       pistonNodes.push({ bankRot, pinPhase, rodGroup, pistonAsm });
     }
     engineGroup.add(rotatingGroup);
     parts.rotating = rotatingGroup;
 
-    // 4. Camshaft & Valvetrain Drive
+    // =========================================================================
+    // 4. DOUBLE-ROLLER TIMING DRIVE, CAMSHAFT, DISTRIBUTOR DRIVE, LIFTERS & PUSHRODS
+    // =========================================================================
     const camGroup = new THREE.Group();
     const camY = 1.05;
 
@@ -1107,25 +1348,47 @@ export const Engine3DScene: React.FC<Engine3DSceneProps> = ({
     camCore.userData = {
       name: `Hydraulic Roller Camshaft (${specs.camData.name})`,
       category: 'Valvetrain',
-      desc: `Intake: ${specs.camData.intakeDur050}° | Exh: ${specs.camData.exhDur050}° @ .050" | Lobe Lift: ${specs.camData.lobeLift}".`,
+      desc: `Intake: ${specs.camData.intakeDur050}° | Exh: ${specs.camData.exhDur050}° @ .050" | Lobe Lift: ${specs.camData.lobeLift}" | IVC: ${specs.camData.ivcDeg}° ABDC.`,
       partNumber: 'CCA-CL12-422-8'
     };
     camGroup.add(camCore);
 
+    // Rear Camshaft Distributor & Oil-Pump Drive Bevel Gear (at z = -4.85)
     const camDistGear = new THREE.Mesh(
       createGearGeometry(0.56, 14, 0.38, 0.36, 0.10),
       mats.brassBronze
     );
     camDistGear.position.set(0, camY, -4.85);
+    camDistGear.userData = {
+      name: 'Bronze Distributor & Oil Pump Drive Gear',
+      category: 'Ignition & Lubrication',
+      desc: 'Wear-matched aluminum-bronze gear driving HEI distributor shaft & Melling M-55HV oil pump hex shaft 1:1 with cam.'
+    };
     camGroup.add(camDistGear);
 
+    // 44-Tooth Cam Timing Sprocket (2:1 exact ratio to 22-tooth crank sprocket) + 3 ARP Cam Bolts
     const camSprocket = new THREE.Mesh(
       createGearGeometry(1.36, 44, 0.38, 0.36, 0.12),
       mats.arpBlackOxide
     );
     camSprocket.position.set(0, camY, 5.95);
+    for (let cb = 0; cb < 3; cb++) {
+      const a = (cb / 3) * Math.PI * 2;
+      const cBolt = createARP12PointBolt(0.07, 0.22, mats.chromePolish);
+      cBolt.rotation.x = Math.PI / 2;
+      cBolt.position.set(Math.cos(a) * 0.42, Math.sin(a) * 0.42, 0.22);
+      camSprocket.add(cBolt);
+    }
+    camSprocket.userData = {
+      name: 'Cloyes Billet Double-Roller Cam Sprocket',
+      category: 'Timing Drive',
+      desc: '44-tooth CNC induction-hardened cam gear driven at 0.5x crank speed with 3-bolt ARP retention.',
+      torque: 'Cam Bolts: 25 ft-lbs w/ Loctite',
+      partNumber: 'CLY-9-1100'
+    };
     camGroup.add(camSprocket);
 
+    // Double-Roller Timing Chain Loop connecting Crank (0, -1.0) & Cam (0, 1.05)
     const chainPoints: THREE.Vector3[] = [];
     const chainZ = 5.95;
     for (let i = 0; i <= 16; i++) {
@@ -1141,9 +1404,16 @@ export const Engine3DScene: React.FC<Engine3DSceneProps> = ({
       new THREE.TubeGeometry(chainCurve, 48, 0.14, 8, true),
       mats.crankForged
     );
+    timingChain.userData = {
+      name: 'True-Roller Double Timing Chain',
+      category: 'Timing Drive',
+      desc: '0.250" solid roller pre-stretched timing chain linking crank & cam 2:1.'
+    };
     camGroup.add(timingChain);
 
-    // 5. Cylinder Heads & Pushrod Valvetrain
+    // =========================================================================
+    // 5. CYLINDER HEADS, REAL PUSHROD VALVETRAIN (E-I-I-E), STUD GIRDLE & HOLLOW COVERS
+    // =========================================================================
     const headsGroup = new THREE.Group();
     const headShape = new THREE.Shape();
     headShape.moveTo(-1.55, -1.05);
@@ -1184,8 +1454,9 @@ export const Engine3DScene: React.FC<Engine3DSceneProps> = ({
       lSide: number;
     }> = [];
 
-    const cylFireDegLeft = [0, 270, 450, 540];
-    const cylFireDegRight = [90, 180, 360, 630];
+    // SBC 1-8-4-3-6-5-7-2 firing angle per cylinder (indexed by side & journal 0..3)
+    const cylFireDegLeft = [0, 270, 450, 540];   // Cyl 1, 3, 5, 7
+    const cylFireDegRight = [90, 180, 360, 630]; // Cyl 2, 4, 6, 8
     const upVec = new THREE.Vector3(0, 1, 0);
 
     [-1, 1].forEach((side) => {
@@ -1205,16 +1476,69 @@ export const Engine3DScene: React.FC<Engine3DSceneProps> = ({
       headMesh.userData = {
         name: `23° CNC Aluminum Cylinder Head (${side === 1 ? 'Right / Pass' : 'Left / Driver'})`,
         category: 'Cylinder Heads',
-        desc: `4.400" Bore Spacing | Chamber: ${config.chamberCc.toFixed(1)}cc | Static CR: ${specs.staticCR}:1.`,
-        torque: '17 Head Bolts: 25 ➔ 45 ➔ 70 ft-lbs',
+        desc: `4.400" Bore Spacing | Chamber: ${config.chamberCc.toFixed(1)}cc | 2.02" Intake / 1.60" Exhaust (E-I-I-E-E-I-I-E) | Static CR: ${specs.staticCR}:1.`,
+        torque: '17 Head Bolts: 25 ➔ 45 ➔ 70 ft-lbs (w/ thread sealant)',
         partNumber: 'EDL-5089'
       };
       headSub.add(headMesh);
 
+      // Rectangular CNC Port Openings & Integrated Spark Plug Wells scaled dynamically by port & valve mods
+      const intPortScale3D = Math.sqrt((config.intakePortCc ?? 185) / 185);
+      const exhPortScale3D = Math.sqrt((config.exhaustPortCc ?? 68) / 68);
+      const exhShapeMode = config.exhaustPortShape || 'd_port';
+      const exhRaisedOffset = exhShapeMode === 'raised_runner' || exhShapeMode === 'cnc_race' ? 0.12 : 0;
+
+      for (let portIdx = 0; portIdx < 4; portIdx++) {
+        const pZ = journalZ[portIdx] + (side === 1 ? 0.22 : -0.22);
+        const exhPocket = new THREE.Mesh(
+          new THREE.BoxGeometry(0.18, 0.72 * exhPortScale3D, 0.92 * exhPortScale3D),
+          mats.anodizedBlack
+        );
+        exhPocket.position.set(side * 1.50, -0.15 + exhRaisedOffset, pZ);
+        headSub.add(exhPocket);
+
+        const intPocket = new THREE.Mesh(
+          new THREE.BoxGeometry(0.16, 0.85 * intPortScale3D, 0.96 * intPortScale3D),
+          mats.anodizedBlack
+        );
+        intPocket.position.set(-side * 1.50, -0.05, pZ);
+        headSub.add(intPocket);
+
+        const plugWell = new THREE.Mesh(
+          new THREE.CylinderGeometry(0.24, 0.24, 0.42, 16),
+          mats.machinedInternal
+        );
+        plugWell.rotation.z = -side * 0.58;
+        plugWell.position.set(side * 1.38, 0.58, pZ + 0.32);
+        headSub.add(plugWell);
+      }
+
+      // Authentic 17-Bolt SBC Fastener Layout (9 intake-side + 8 exhaust-side bolts)
+      for (let b = 0; b < 9; b++) {
+        const bZ = -4.95 + b * 1.24;
+        const topBolt = createARP12PointBolt(0.11, 1.35, mats.arpBlackOxide);
+        topBolt.position.set(-side * 1.15, 0.95, bZ);
+        headSub.add(topBolt);
+      }
+      for (let b = 0; b < 8; b++) {
+        const bZ = -4.35 + b * 1.24;
+        const botBolt = createARP12PointBolt(0.11, 1.15, mats.arpBlackOxide);
+        botBolt.position.set(side * 1.22, 0.72, bZ);
+        headSub.add(botBolt);
+      }
+
+      // Blue Anodized Billet Stud Girdle / Shaft Rocker Bar inside Hollow Valve Cover
       const studGirdle = createStudGirdleBarGroup(mats.billetRockersBlue, mats.valvesSteel);
       studGirdle.position.set(-side * 0.22, 1.82, side * 0.22);
+      studGirdle.userData = {
+        name: `Anodized Blue Billet Stud Girdle (${side === 1 ? 'Right' : 'Left'} Bank)`,
+        category: 'Valvetrain',
+        desc: `7075-T6 CNC shaft-mounted stud girdle clamping 7/16" ARP rocker studs and locking ${config.rockerRatio}:1 valve lash.`
+      };
       headSub.add(studGirdle);
 
+      // 8 Cylinder-Aligned Valvetrain Assemblies per Bank (E-I-I-E-E-I-I-E)
+      // Valves, Springs, Retainers & Rockers sit inside headSub; Cam Lobes, Lifters & Pushrods connect from camGroup!
       const valveAxisHead = new THREE.Vector3(side * Math.sin(0.14), Math.cos(0.14), 0).normalize();
       const headRotQuat = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), bankRot);
 
@@ -1228,7 +1552,12 @@ export const Engine3DScene: React.FC<Engine3DSceneProps> = ({
           const valveZ = cylZ + (vIdx === 0 ? -0.34 : 0.34);
           const camOffset = -((fireDeg * 0.5) * Math.PI) / 180 + (isIntake ? 0.35 : -1.45);
 
-          const valveHeadRad = isIntake ? 0.42 : 0.34;
+          // 1. Valve sized dynamically by config.intakeValveIn / config.exhaustValveIn
+          const intValveInVal = config.intakeValveIn ?? 2.02;
+          const exhValveInVal = config.exhaustValveIn ?? 1.60;
+          const valveHeadRad = isIntake
+            ? (intValveInVal / 2.02) * 0.42
+            : (exhValveInVal / 1.60) * 0.34;
           const valve = new THREE.Mesh(
             new THREE.CylinderGeometry(0.072, valveHeadRad, 2.15, 16),
             mats.valvesSteel
@@ -1237,11 +1566,28 @@ export const Engine3DScene: React.FC<Engine3DSceneProps> = ({
           valve.position.copy(baseValvePos);
           valve.rotation.z = -side * 0.14;
           valve.userData = {
-            name: `${isIntake ? '2.02" Intake' : '1.60" Exhaust'} Stainless Valve (Cyl #${cylNum})`,
+            name: `${isIntake ? `${intValveInVal.toFixed(2)}" Intake` : `${exhValveInVal.toFixed(2)}" Exhaust`} Stainless Valve (Cyl #${cylNum})`,
             category: 'Valvetrain',
-            desc: `Net Lift: ${specs.totalValveLift}" | ${specs.camData.intakeDur050}°/${specs.camData.exhDur050}° @ .050".`
+            desc: `Int Port ${config.intakePortCc ?? 185}cc / Exh Port ${config.exhaustPortCc ?? 68}cc (${exhShapeMode.replace('_', '-').toUpperCase()}) | Net Lift: ${specs.totalValveLift}".`
           };
           headSub.add(valve);
+
+          // 2. Manganese-Bronze Valve Guide + Viton Stem Seal + Helical Beehive Spring + Titanium Retainer & Split 7° Keepers
+          const vGuide = new THREE.Mesh(
+            new THREE.CylinderGeometry(0.11, 0.13, 0.38, 12),
+            mats.brassBronze
+          );
+          vGuide.position.set(side * 0.14, 0.62, valveZ);
+          vGuide.rotation.z = -side * 0.14;
+          headSub.add(vGuide);
+
+          const vitonSeal = new THREE.Mesh(
+            new THREE.CylinderGeometry(0.105, 0.125, 0.12, 12),
+            mats.fuelBlueAnodized
+          );
+          vitonSeal.position.set(side * 0.17, 0.80, valveZ);
+          vitonSeal.rotation.z = -side * 0.14;
+          headSub.add(vitonSeal);
 
           const spring = new THREE.Mesh(springGeo, mats.valveSpringsGold);
           spring.position.set(side * 0.20, 0.98, valveZ);
@@ -1252,21 +1598,36 @@ export const Engine3DScene: React.FC<Engine3DSceneProps> = ({
             new THREE.CylinderGeometry(0.29, 0.23, 0.11, 16),
             mats.machinedInternal
           );
+          const keeperCollar = new THREE.Mesh(
+            new THREE.CylinderGeometry(0.11, 0.085, 0.09, 12),
+            mats.arpBlackOxide
+          );
+          keeperCollar.position.y = 0.05;
+          retainer.add(keeperCollar);
           const baseRetainerPos = new THREE.Vector3(side * 0.25, 1.39, valveZ);
           retainer.position.copy(baseRetainerPos);
           retainer.rotation.z = -side * 0.14;
           headSub.add(retainer);
 
+          // 3. Billet Roller Rocker Arm pivoting under Blue Stud Girdle
           const rocker = createRollerRockerGroup(mats.billetRockersBlue, mats.valvesSteel);
           rocker.position.set(-side * 0.22, 1.54, valveZ);
           rocker.scale.x = side;
+          rocker.userData = {
+            name: `Billet Roller Rocker #${cylNum}${isIntake ? 'I' : 'E'} (${config.rockerRatio}:1)`,
+            category: 'Valvetrain',
+            desc: `7075-T6 CNC roller rocker stabilized by blue stud girdle | Lift: ${specs.totalValveLift}" | 0.004" hot lash.`,
+            partNumber: 'SCP-1024'
+          };
           headSub.add(rocker);
 
+          // 4. Camshaft Lobe at exact valveZ
           const lobe = new THREE.Mesh(lobeGeo, mats.machinedInternal);
           lobe.position.set(0, camY, valveZ);
           lobe.rotation.z = camOffset;
           camGroup.add(lobe);
 
+          // 5. Hydraulic/Solid Roller Lifter riding on Cam Lobe along 45° Lifter Bore
           const lifterAxis = new THREE.Vector3(side * Math.SQRT1_2, Math.SQRT1_2, 0).normalize();
           const baseLifterPos = new THREE.Vector3(side * 0.51, 1.56, valveZ);
           const lifter = new THREE.Mesh(
@@ -1275,8 +1636,14 @@ export const Engine3DScene: React.FC<Engine3DSceneProps> = ({
           );
           lifter.position.copy(baseLifterPos);
           lifter.rotation.z = -side * (Math.PI / 4);
+          lifter.userData = {
+            name: `Link-Bar Roller Lifter (Cyl #${cylNum}${isIntake ? 'I' : 'E'})`,
+            category: 'Valvetrain',
+            desc: '0.842" hardened tool-steel body with needle-bearing roller wheel tracking camshaft lobe.'
+          };
           camGroup.add(lifter);
 
+          // 6. Exact 3D Chromoly Pushrod bridging Lifter Cup -> Rocker Pushrod Cup in World Space
           const lifterTopWorld = baseLifterPos.clone().addScaledVector(lifterAxis, 0.40);
           const cupLocalHead = new THREE.Vector3(-side * 0.64, 1.49, valveZ);
           const cupWorld = cupLocalHead.clone().applyQuaternion(headRotQuat).add(headOrigin);
@@ -1291,6 +1658,11 @@ export const Engine3DScene: React.FC<Engine3DSceneProps> = ({
           );
           pushrod.position.copy(pushrodBasePos);
           pushrod.quaternion.setFromUnitVectors(upVec, pushrodDir);
+          pushrod.userData = {
+            name: `7.800" Chromoly Pushrod (Cyl #${cylNum}${isIntake ? 'I' : 'E'})`,
+            category: 'Valvetrain',
+            desc: '5/16" × 0.080" wall 4130 chromoly pushrod linking roller lifter directly to billet roller rocker cup.'
+          };
           camGroup.add(pushrod);
 
           valvetrainNodes.push({
@@ -1314,6 +1686,7 @@ export const Engine3DScene: React.FC<Engine3DSceneProps> = ({
         }
       }
 
+      // Hollow Finned Racing Aluminum Valve Cover (reveals stud girdle, rockers & springs inside on cutaway!)
       const hollowValveCover = createHollowValveCoverGroup(
         side,
         mats.valveCoverBody,
@@ -1324,10 +1697,11 @@ export const Engine3DScene: React.FC<Engine3DSceneProps> = ({
       hollowValveCover.userData = {
         name: `Hollow Finned Racing Valve Cover (${side === 1 ? 'Right' : 'Left'})`,
         category: 'Valvetrain',
-        desc: 'Finned aluminum cover clearing roller rockers and blue stud girdle.'
+        desc: 'Tall die-cast finned aluminum cover clearing billet roller rockers and blue stud girdle.'
       };
       headSub.add(hollowValveCover);
 
+      // Custom Stainless 4-into-1 Tubular Exhaust Headers + Collector Flanges + Wideband O2
       const headerFlange = new THREE.Mesh(
         new THREE.BoxGeometry(0.24, 0.92, 10.8),
         mats.headerCeramic
@@ -1335,19 +1709,35 @@ export const Engine3DScene: React.FC<Engine3DSceneProps> = ({
       headerFlange.position.set(side * 1.68, -0.15, 0);
       headSub.add(headerFlange);
 
+      for (let hb = 0; hb < 8; hb++) {
+        const hbZ = -4.85 + hb * 1.38;
+        const hBolt = new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.075, 0.26, 6), mats.arpBlackOxide);
+        hBolt.rotation.z = Math.PI / 2;
+        hBolt.position.set(side * 1.82, -0.15, hbZ);
+        headSub.add(hBolt);
+      }
+
+      const headerPrimaryVal = config.headerPrimaryIn ?? 1.625;
+      const primaryTubeR = 0.28 * (headerPrimaryVal / 1.625);
+
       for (let pIdx = 0; pIdx < 4; pIdx++) {
         const portZ = journalZ[pIdx] + (side === 1 ? 0.22 : -0.22);
         const collectorZ = -3.8;
         const primaryCurve = new THREE.CatmullRomCurve3([
-          new THREE.Vector3(side * 1.72, -0.15, portZ),
+          new THREE.Vector3(side * 1.72, -0.15 + exhRaisedOffset, portZ),
           new THREE.Vector3(side * 3.15, -0.55, portZ * 0.75 - 0.5),
           new THREE.Vector3(side * 3.45, -2.15, (portZ + collectorZ) * 0.5),
           new THREE.Vector3(side * 2.75, -3.55, collectorZ)
         ]);
         const primaryTube = new THREE.Mesh(
-          new THREE.TubeGeometry(primaryCurve, 18, 0.28, 10, false),
+          new THREE.TubeGeometry(primaryCurve, 18, primaryTubeR, 10, false),
           mats.headerCeramic
         );
+        primaryTube.userData = {
+          name: `Custom 304 Stainless 4-into-1 Swept Headers (${headerPrimaryVal.toFixed(3)}" OD)`,
+          category: 'Exhaust',
+          desc: `Mandrel-bent ${headerPrimaryVal.toFixed(3)}" 304 stainless primaries matched to ${config.exhaustPortCc ?? 68}cc ${exhShapeMode.replace('_', '-').toUpperCase()} exhaust ports.`
+        };
         headSub.add(primaryTube);
       }
 
@@ -1359,6 +1749,26 @@ export const Engine3DScene: React.FC<Engine3DSceneProps> = ({
       collector.position.set(side * 2.75, -3.55, -4.75);
       headSub.add(collector);
 
+      const colFlange = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.86, 0.86, 0.22, 3),
+        mats.machinedDeck
+      );
+      colFlange.rotation.x = Math.PI / 2;
+      colFlange.position.set(side * 2.75, -3.55, -5.85);
+      headSub.add(colFlange);
+
+      const o2Sensor = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.13, 0.16, 0.65, 8),
+        mats.chromePolish
+      );
+      o2Sensor.position.set(side * 2.75, -3.02, -5.1);
+      o2Sensor.userData = {
+        name: 'Bosch LSU 4.9 Wideband O2 Sensor',
+        category: 'Exhaust & EFI Tuning',
+        desc: `Closed-loop AFR feedback targeting ${config.targetAFR}:1 under WOT.`
+      };
+      headSub.add(o2Sensor);
+
       headsGroup.add(headSub);
     });
 
@@ -1367,16 +1777,20 @@ export const Engine3DScene: React.FC<Engine3DSceneProps> = ({
     engineGroup.add(headsGroup);
     parts.heads = headsGroup;
 
-    // 6. Intake Manifold & Fuel System
+    // =========================================================================
+    // 6. INTAKE MANIFOLD, HOLLEY 4150 CARBURETOR (DEFAULT) OR MPFI FUEL RAILS
+    // =========================================================================
     const intakeGroup = new THREE.Group();
     const isTunnelRam = config.selectedIntake === 'tunnelram_dual';
     const isSinglePlane = config.selectedIntake === 'singleplane_victor';
 
+    // Sculpted Intake Runners bridging head intake ports to valley manifold (scaled by intakePortCc)
+    const runnerPortScale = Math.sqrt((config.intakePortCc ?? 185) / 185);
     for (let r = 0; r < 8; r++) {
       const rSide = r % 2 === 0 ? 1 : -1;
       const rZ = -3.9 + Math.floor(r / 2) * 2.6 + (rSide === 1 ? 0.22 : -0.22);
       const runner = new THREE.Mesh(
-        new THREE.BoxGeometry(1.75, 0.56, 0.86),
+        new THREE.BoxGeometry(1.75, 0.56 * runnerPortScale, 0.86 * runnerPortScale),
         mats.billetAlum
       );
       runner.position.set(
@@ -1391,6 +1805,7 @@ export const Engine3DScene: React.FC<Engine3DSceneProps> = ({
     const efiRailsGroup = new THREE.Group();
 
     if (inductionDress === 'mpfi_cnp' && !isTunnelRam) {
+      // Modern Real-World MPFI Plenum + 90mm Throttle Body + Billet Injector Rails
       const valleyPlenum = new THREE.Mesh(
         new THREE.BoxGeometry(2.75, 0.68, 9.6),
         mats.billetAlum
@@ -1399,8 +1814,8 @@ export const Engine3DScene: React.FC<Engine3DSceneProps> = ({
       valleyPlenum.userData = {
         name: `${specs.intakeData.name} (MPFI Conversion)`,
         category: 'Induction',
-        desc: `Sequential Port EFI | Flow: ${specs.intakeData.flowCfm} CFM.`,
-        torque: 'Intake Bolts: 30 ft-lbs',
+        desc: `Runner Volume: ${specs.intakeData.runnerCc}cc | Flow: ${specs.intakeData.flowCfm} CFM | Sequential Port EFI.`,
+        torque: 'Intake Bolts: 30 ft-lbs (center spiral)',
         partNumber: specs.intakeData.id
       };
       intakeGroup.add(valleyPlenum);
@@ -1412,24 +1827,43 @@ export const Engine3DScene: React.FC<Engine3DSceneProps> = ({
       tbHousing.rotation.x = Math.PI / 2;
       tbHousing.position.set(0, 2.68, 5.25);
       tbHousing.userData = {
-        name: `90mm CNC Billet EFI Throttle Body (850 CFM Rated)`,
+        name: `90mm CNC Billet EFI Throttle Body (${config.carbCfm} CFM Rated)`,
         category: 'Induction',
-        desc: `CNC 6061-T6 throttle body feeding ${specs.peakCfmDemand} CFM demand.`
+        desc: `CNC 6061-T6 bore feeding ${specs.peakCfmDemand} CFM engine demand at ${config.targetAFR}:1 Target AFR.`
       };
       intakeGroup.add(tbHousing);
+
+      const tbButterfly = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.84, 0.84, 0.10, 24),
+        mats.brassBronze
+      );
+      tbButterfly.rotation.x = Math.PI / 2;
+      tbButterfly.position.set(0, 2.68, 5.78);
+      intakeGroup.add(tbButterfly);
 
       [-1.55, 1.55].forEach((railX, rBank) => {
         const fuelRail = new THREE.Mesh(
           new THREE.BoxGeometry(0.42, 0.42, 9.4),
-          rBank === 0 ? mats.anodizedBlack : mats.fuelBlueAnodized
+          rBank === 0 ? mats.anodizedBlack : mats.billetAlum
         );
         fuelRail.position.set(railX, 3.68, 0);
         fuelRail.userData = {
           name: `Billet High-Flow MPFI Fuel Rail (${rBank === 0 ? 'Left' : 'Right'} Bank)`,
           category: 'Fuel System',
-          desc: 'CNC -8 AN bored fuel rail with 8x 42 lb/hr port injectors.'
+          desc: 'CNC -8 AN bored aluminum fuel rail with 8× 42 lb/hr port injectors & braided crossover.',
+          partNumber: 'HOL-534-212'
         };
         efiRailsGroup.add(fuelRail);
+
+        [-4.85, 4.85].forEach((fz, fIdx) => {
+          const anHex = new THREE.Mesh(
+            new THREE.CylinderGeometry(0.22, 0.22, 0.42, 6),
+            fIdx === 0 ? mats.anRed : mats.fuelBlueAnodized
+          );
+          anHex.rotation.x = Math.PI / 2;
+          anHex.position.set(railX, 3.68, fz);
+          efiRailsGroup.add(anHex);
+        });
 
         for (let inj = 0; inj < 4; inj++) {
           const iz = journalZ[inj] + (rBank === 1 ? 0.22 : -0.22);
@@ -1439,10 +1873,28 @@ export const Engine3DScene: React.FC<Engine3DSceneProps> = ({
           );
           injector.position.set(railX * 0.92, 3.22, iz);
           injector.rotation.z = rBank === 1 ? -0.26 : 0.26;
+          injector.userData = {
+            name: `MPFI Fuel Injector #${inj + 1 + rBank * 4} (42 lb/hr EV14)`,
+            category: 'Fuel System',
+            desc: 'High-impedance sequential port injector feeding cylinder head intake runner.'
+          };
           efiRailsGroup.add(injector);
         }
       });
+
+      const frontCrossover = new THREE.CatmullRomCurve3([
+        new THREE.Vector3(-1.55, 3.68, 4.95),
+        new THREE.Vector3(0, 3.92, 5.25),
+        new THREE.Vector3(1.55, 3.68, 4.95)
+      ]);
+      efiRailsGroup.add(
+        new THREE.Mesh(
+          new THREE.TubeGeometry(frontCrossover, 16, 0.095, 8, false),
+          mats.braidedStainless
+        )
+      );
     } else {
+      // Proven Racing SBC High-Rise Manifold + Holley 4150 Double-Pumper 4-Barrel Carburetor
       const manifoldBase = new THREE.Mesh(
         new THREE.BoxGeometry(3.05, isTunnelRam ? 2.1 : 1.08, 9.4),
         mats.aluminumHeads
@@ -1451,12 +1903,13 @@ export const Engine3DScene: React.FC<Engine3DSceneProps> = ({
       manifoldBase.userData = {
         name: specs.intakeData.name,
         category: 'Induction',
-        desc: `Style: ${specs.intakeData.style} | Flow: ${specs.intakeData.flowCfm} CFM.`,
-        torque: 'Intake Bolts: 30 ft-lbs',
+        desc: `Runner Volume: ${specs.intakeData.runnerCc}cc | Flow: ${specs.intakeData.flowCfm} CFM | Style: ${specs.intakeData.style}.`,
+        torque: 'Intake Bolts: 30 ft-lbs (center spiral)',
         partNumber: specs.intakeData.id
       };
       intakeGroup.add(manifoldBase);
 
+      // Raised Square-Bore Carb Plenum Pad on Manifold
       const plenumPad = new THREE.Mesh(
         new THREE.BoxGeometry(2.25, 0.42, 2.35),
         mats.billetAlum
@@ -1464,7 +1917,9 @@ export const Engine3DScene: React.FC<Engine3DSceneProps> = ({
       plenumPad.position.set(0, isTunnelRam ? 4.72 : 3.62, 0);
       intakeGroup.add(plenumPad);
 
-      const carbOffsetsZ = isTunnelRam ? [-1.85, 1.85] : [0];
+      const carbOffsetsZ = isTunnelRam || config.carbStyle === 'dual_quad' ? [-1.85, 1.85] : [0];
+      const carbStyleActive = config.carbStyle || '4150_dp';
+      const carbVenturiActive = config.carbVenturiIn ?? 1.375;
       carbOffsetsZ.forEach((cz) => {
         const holleyCarb = createHolley4150CarburetorGroup(
           mats.carbGoldZinc,
@@ -1473,14 +1928,20 @@ export const Engine3DScene: React.FC<Engine3DSceneProps> = ({
           mats.brassBronze,
           mats.anRed,
           mats.fuelBlueAnodized,
-          mats.braidedStainless
+          mats.braidedStainless,
+          {
+            style: carbStyleActive,
+            venturiRatio: carbVenturiActive / 1.375,
+            cfm: config.carbCfm,
+            airBonus: config.airFilterCfmBonus
+          }
         );
         holleyCarb.position.set(0, isTunnelRam ? 5.65 : 4.66, cz);
         holleyCarb.userData = {
-          name: `Holley 4150 Double-Pumper (${config.carbCfm} CFM)`,
+          name: `${carbStyleActive.replace('_', ' ').toUpperCase()} (${config.carbCfm} CFM · ${carbVenturiActive.toFixed(3)}" Venturi)`,
           category: 'Induction',
-          desc: `4-barrel mechanical secondaries | Target AFR: ${config.targetAFR}:1.`,
-          partNumber: `HLY-0-4779-${config.carbCfm}`
+          desc: `Eff. Capacity: ${specs.effectiveCarbCfm} CFM (${specs.carbSizingStatus}) | Target AFR: ${config.targetAFR}:1.`,
+          partNumber: `HLY-${carbStyleActive.toUpperCase()}-${config.carbCfm}`
         };
         intakeGroup.add(holleyCarb);
       });
@@ -1491,10 +1952,13 @@ export const Engine3DScene: React.FC<Engine3DSceneProps> = ({
     engineGroup.add(intakeGroup);
     parts.intake = intakeGroup;
 
-    // 7. Ignition System
+    // =========================================================================
+    // 7. IGNITION: MSD PRO-BILLET HEI DISTRIBUTOR (DEFAULT) OR COIL-NEAR-PLUG
+    // =========================================================================
     const ignitionGroup = new THREE.Group();
 
     if (inductionDress === 'mpfi_cnp' && !isTunnelRam) {
+      // Hall-Effect Crank Position Sensor reading 60-2 Trigger Wheel
       const hallBracket = new THREE.Mesh(
         new THREE.BoxGeometry(0.95, 0.32, 0.42),
         mats.billetAlum
@@ -1517,6 +1981,7 @@ export const Engine3DScene: React.FC<Engine3DSceneProps> = ({
       };
       ignitionGroup.add(hallSensor);
 
+      // Center-Valley Billet Coil Carrier + 4 Anodized Blue Twin-Tower Spark Plug Coils
       const coilBracket = new THREE.Mesh(
         new THREE.BoxGeometry(1.15, 0.18, 8.8),
         mats.billetAlum
@@ -1534,12 +1999,33 @@ export const Engine3DScene: React.FC<Engine3DSceneProps> = ({
         coilBlock.userData = {
           name: `High-Output Blue Coil-Near-Plug Pack #${c + 1}`,
           category: 'Ignition',
-          desc: `IGN-1A smart coil pack | Digital timing advance: ${config.ignitionTiming}° BTDC.`,
+          desc: `Dual-post smart IGN-1A coil pack | Dwell-controlled ${config.ignitionTiming}° BTDC | Gap: ${config.sparkPlugGap.toFixed(3)}".`,
           partNumber: 'MSD-82878'
         };
         ignitionGroup.add(coilBlock);
+
+        const coilCap = new THREE.Mesh(
+          new THREE.BoxGeometry(1.12, 0.14, 1.42),
+          mats.anodizedBlack
+        );
+        coilCap.position.set(0, 3.96, cz);
+        ignitionGroup.add(coilCap);
       }
+
+      // Rear Low-Profile Billet Cam Sync Sensor engaging Cam Gear (z = -4.85)
+      const camSync = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.45, 0.36, 1.4, 16),
+        mats.machinedInternal
+      );
+      camSync.position.set(0, 2.95, -4.85);
+      camSync.userData = {
+        name: 'Billet Cam Sync Phase Sensor',
+        category: 'Ignition',
+        desc: '1x camshaft phase reference for sequential fuel & ignition firing order (1-8-4-3-6-5-7-2).'
+      };
+      ignitionGroup.add(camSync);
     } else {
+      // Rear MSD Pro-Billet HEI Distributor engaging Camshaft Bevel Gear at z = -4.85
       const distShaft = new THREE.Mesh(
         new THREE.CylinderGeometry(0.28, 0.28, 3.1, 16),
         mats.crankForged
@@ -1562,10 +2048,18 @@ export const Engine3DScene: React.FC<Engine3DSceneProps> = ({
       distCap.userData = {
         name: 'MSD Pro-Billet HEI Distributor',
         category: 'Ignition',
-        desc: `Mechanical centrifugal advance | Total Advance: ${config.ignitionTiming}° BTDC | Firing Order: 1-8-4-3-6-5-7-2.`,
+        desc: `Engages rear cam bevel gear & oil pump hex shaft | Total Advance: ${config.ignitionTiming}° BTDC | Firing Order: 1-8-4-3-6-5-7-2.`,
         partNumber: 'MSD-8360'
       };
       ignitionGroup.add(distCap);
+
+      const vacCan = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.38, 0.44, 0.68, 14),
+        mats.machinedInternal
+      );
+      vacCan.rotation.z = Math.PI / 2;
+      vacCan.position.set(1.12, 4.25, -4.85);
+      ignitionGroup.add(vacCan);
     }
 
     for (let sp = 0; sp < 8; sp++) {
@@ -1578,14 +2072,27 @@ export const Engine3DScene: React.FC<Engine3DSceneProps> = ({
       plugGroup.rotation.z = -spSide * 0.45;
 
       const plugHex = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.15, 0.45, 6), mats.crankForged);
-      const plugCeramic = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 0.45, 12), mats.sparkPlugWhite);
+      const plugThreadBase = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.11, 0.22, 12), mats.arpBlackOxide);
+      plugThreadBase.position.y = -0.32;
+      const plugCeramic = new THREE.Mesh(new THREE.CylinderGeometry(0.115, 0.125, 0.46, 14), mats.sparkPlugWhite);
       plugCeramic.position.y = 0.42;
+      for (let cr = 0; cr < 3; cr++) {
+        const rib = new THREE.Mesh(new THREE.TorusGeometry(0.122, 0.016, 6, 14), mats.sparkPlugWhite);
+        rib.rotation.x = Math.PI / 2;
+        rib.position.y = 0.28 + cr * 0.10;
+        plugGroup.add(rib);
+      }
       const plugBoot = new THREE.Mesh(
         new THREE.CylinderGeometry(0.14, 0.18, 0.52, 12),
         inductionDress === 'mpfi_cnp' && !isTunnelRam ? mats.anodizedBlack : mats.ignitionRed
       );
       plugBoot.position.y = 0.78;
-      plugGroup.add(plugHex, plugCeramic, plugBoot);
+      plugGroup.add(plugHex, plugThreadBase, plugCeramic, plugBoot);
+      plugGroup.userData = {
+        name: `Iridium Spark Plug #${sp + 1}`,
+        category: 'Ignition',
+        desc: `Gap: ${config.sparkPlugGap.toFixed(3)}" | 14mm tapered seat | Ribbed alumina ceramic insulator.`
+      };
       ignitionGroup.add(plugGroup);
 
       const wireCurve =
@@ -1611,7 +2118,9 @@ export const Engine3DScene: React.FC<Engine3DSceneProps> = ({
     engineGroup.add(ignitionGroup);
     parts.ignition = ignitionGroup;
 
-    // 8. Lubrication System
+    // =========================================================================
+    // 8. LUBRICATION: MELLING M-55HV OIL PUMP, 3/8" PICKUP & WIX FILTER
+    // =========================================================================
     const lubeGroup = new THREE.Group();
     const oilPumpBody = new THREE.Mesh(
       new THREE.BoxGeometry(1.45, 1.55, 1.35),
@@ -1621,7 +2130,7 @@ export const Engine3DScene: React.FC<Engine3DSceneProps> = ({
     oilPumpBody.userData = {
       name: 'Melling M-55HV High-Volume Oil Pump',
       category: 'Lubrication',
-      desc: 'High-volume pump driven via distributor hex shaft with 0.375" pickup pan clearance.',
+      desc: '60 PSI cast-iron high-volume pump bolted to rear main cap. Driven via ARP chromoly hex shaft.',
       torque: 'Oil Pump Stud: 65 ft-lbs',
       partNumber: 'MEL-M55HV'
     };
@@ -1664,7 +2173,7 @@ export const Engine3DScene: React.FC<Engine3DSceneProps> = ({
     oilFilter.rotation.x = 0.25;
     oilFilter.position.set(-2.55, -2.35, -4.8);
     oilFilter.userData = {
-      name: 'Wix 51069 Spin-On Oil Filter',
+      name: 'Wix 51069 Racing Spin-On Oil Filter',
       category: 'Lubrication',
       desc: '21-micron synthetic media with silicone anti-drainback valve.'
     };
@@ -1673,18 +2182,21 @@ export const Engine3DScene: React.FC<Engine3DSceneProps> = ({
     engineGroup.add(lubeGroup);
     parts.lubrication = lubeGroup;
 
-    // 9. Cooling System
+    // =========================================================================
+    // 9. COOLING & COPLANAR ACCESSORY DRIVE: WATER PUMP, BYPASS HOSE, TENSIONER & VENTED ALT
+    // =========================================================================
     const coolingGroup = new THREE.Group();
+
     const wpCenter = new THREE.Mesh(
       new THREE.CylinderGeometry(1.12, 1.48, 1.45, 24),
-      mats.coolingAlum
+      mats.billetAlum
     );
     wpCenter.rotation.x = Math.PI / 2;
     wpCenter.position.set(0, 1.65, 6.72);
     wpCenter.userData = {
       name: 'Edelbrock Victor High-Flow Aluminum Water Pump',
       category: 'Cooling',
-      desc: '35 GPM high-flow pump circulating coolant evenly.',
+      desc: '35 GPM CNC-machined billet impeller circulating coolant evenly across both cylinder banks.',
       partNumber: 'EDL-8810'
     };
     coolingGroup.add(wpCenter);
@@ -1692,7 +2204,7 @@ export const Engine3DScene: React.FC<Engine3DSceneProps> = ({
     [-1.45, 1.45].forEach((lx) => {
       const wpLeg = new THREE.Mesh(
         new THREE.BoxGeometry(1.65, 0.82, 0.62),
-        mats.coolingAlum
+        mats.billetAlum
       );
       wpLeg.position.set(lx, 1.38, 6.18);
       wpLeg.rotation.z = lx > 0 ? -0.18 : 0.18;
@@ -1705,8 +2217,14 @@ export const Engine3DScene: React.FC<Engine3DSceneProps> = ({
     );
     tStatHousing.rotation.x = 0.45;
     tStatHousing.position.set(0, 3.68, 4.35);
+    tStatHousing.userData = {
+      name: 'Billet O-Ring Water Neck & 180°F Thermostat',
+      category: 'Cooling',
+      desc: 'Swivel billet thermostat housing with high-flow 180°F Robertshaw stat & lower pump bypass port.'
+    };
     coolingGroup.add(tStatHousing);
 
+    // Molded Rubber Coolant Bypass Hose (Intake Front Water Port -> Water Pump Top Bypass Boss)
     const bypassCurve = new THREE.CatmullRomCurve3([
       new THREE.Vector3(0.55, 3.15, 4.72),
       new THREE.Vector3(0.68, 2.75, 5.65),
@@ -1716,6 +2234,11 @@ export const Engine3DScene: React.FC<Engine3DSceneProps> = ({
       new THREE.TubeGeometry(bypassCurve, 14, 0.16, 10, false),
       mats.beltsBlack
     );
+    bypassHose.userData = {
+      name: 'Molded EPDM Coolant Bypass Hose',
+      category: 'Cooling',
+      desc: 'Recirculates coolant between intake crossover and water pump until 180°F thermostat opens.'
+    };
     coolingGroup.add(bypassHose);
 
     const crankPulley = new THREE.Mesh(
@@ -1734,6 +2257,35 @@ export const Engine3DScene: React.FC<Engine3DSceneProps> = ({
     wpPulley.position.set(0, 1.65, 7.62);
     coolingGroup.add(wpPulley);
 
+    const altBracketArm = new THREE.Mesh(
+      new THREE.BoxGeometry(2.65, 0.68, 0.35),
+      mats.billetAlum
+    );
+    altBracketArm.position.set(2.05, 2.15, 6.68);
+    altBracketArm.rotation.z = 0.35;
+    coolingGroup.add(altBracketArm);
+
+    const altLowerLink = new THREE.Mesh(
+      new THREE.BoxGeometry(2.35, 0.42, 0.32),
+      mats.billetAlum
+    );
+    altLowerLink.position.set(2.15, 0.72, 6.95);
+    altLowerLink.rotation.z = 0.25;
+    coolingGroup.add(altLowerLink);
+
+    const tensionerPulley = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.52, 0.52, 0.42, 20),
+      mats.anodizedBlack
+    );
+    tensionerPulley.rotation.x = Math.PI / 2;
+    tensionerPulley.position.set(2.15, 0.72, 7.62);
+    tensionerPulley.userData = {
+      name: 'Billet Spring-Loaded Belt Idler & Tensioner',
+      category: 'Accessory Drive',
+      desc: '6061-T6 CNC tensioner maintaining constant belt wrap across 160A alternator & water pump.'
+    };
+    coolingGroup.add(tensionerPulley);
+
     const alternator = createVentedAlternatorGroup(
       mats.billetAlum,
       mats.copperWinding,
@@ -1744,13 +2296,14 @@ export const Engine3DScene: React.FC<Engine3DSceneProps> = ({
     );
     alternator.position.set(3.85, 2.25, 6.40);
     alternator.userData = {
-      name: 'Heavy-Duty 160A Vented Alternator',
+      name: 'Heavy-Duty 160A High-Output Vented Alternator',
       category: 'Electrical',
-      desc: '160A output with coplanar bracket and cooling fan.',
+      desc: 'Slotted cast-aluminum housing with exposed copper stator windings, billet fan, and CNC slotted bracket.',
       partNumber: 'PWM-47294'
     };
     coolingGroup.add(alternator);
 
+    // Coplanar Multi-Rib Serpentine Belt (all pulleys at z = 7.62)
     const beltCurve = new THREE.CatmullRomCurve3(
       [
         new THREE.Vector3(-1.32, crankCenterY, 7.62),
@@ -1773,7 +2326,9 @@ export const Engine3DScene: React.FC<Engine3DSceneProps> = ({
     engineGroup.add(coolingGroup);
     parts.cooling = coolingGroup;
 
-    // 10. Fuel Supply & Starter
+    // =========================================================================
+    // 10. HOLLEY FUEL PUMP, POWERMASTER MINI STARTER & SHOP DISPLAY STAND / CHASSIS
+    // =========================================================================
     const fuelGroup = new THREE.Group();
     const fuelPump = new THREE.Mesh(
       new THREE.CylinderGeometry(0.96, 0.96, 1.42, 18),
@@ -1781,9 +2336,9 @@ export const Engine3DScene: React.FC<Engine3DSceneProps> = ({
     );
     fuelPump.position.set(2.95, -0.45, 4.65);
     fuelPump.userData = {
-      name: 'Holley 110 GPH Mechanical Fuel Pump',
+      name: 'Holley 110 GPH High-Flow Mechanical Fuel Pump',
       category: 'Fuel System',
-      desc: `Cam-pushrod driven supply feeding ${specs.fuelGph} GPH demand.`,
+      desc: `Cam-eccentric pushrod driven supply feeding ${specs.fuelGph} GPH peak demand to Holley dual-feed log.`,
       partNumber: 'HLY-12-327-11'
     };
     fuelGroup.add(fuelPump);
@@ -1838,13 +2393,13 @@ export const Engine3DScene: React.FC<Engine3DSceneProps> = ({
     starterGroup.userData = {
       name: 'Powermaster MasterTorque Mini Starter',
       category: 'Starting System',
-      desc: '4.4:1 planetary gear reduction engaging 168-tooth ring gear.',
+      desc: '4.4:1 planetary gear reduction engaging 168-tooth SFI flexplate (0.035" pinion backlash).',
       partNumber: 'PWM-9600'
     };
     engineGroup.add(starterGroup);
     parts.starter = starterGroup;
 
-    // 11. Support Mode
+    // 11. SUPPORT STRUCTURE: TUBULAR ROLLING SHOP ENGINE DISPLAY STAND (DEFAULT) OR HOT-ROD CHASSIS
     if (supportMode === 'hotrod_chassis') {
       const chassisGroup = createChassisAndRadiatorGroup(
         mats.chassisBlack,
@@ -1864,37 +2419,23 @@ export const Engine3DScene: React.FC<Engine3DSceneProps> = ({
         mats.beltsBlack
       );
       standGroup.userData = {
-        name: 'Tubular Rolling Engine Display & Dyno Cradle Stand',
+        name: 'Tubular Chrome Rolling Engine Display & Dyno Cradle Stand',
         category: 'Shop Fixture',
-        desc: '1.5" TIG-welded tubular display cradle mounted to SBC side motor mounts.'
+        desc: '1.5" TIG-welded tubular display cradle bolted directly to SBC 3-bolt side motor mounts and rear bellhousing flange.'
       };
       engineGroup.add(standGroup);
       parts.chassis = standGroup;
     }
 
-    // Ghost X-Ray Render Order Hierarchy
-    if (isGhost) {
-      crankGroup.renderOrder = 0;
-      rotatingGroup.renderOrder = 0;
-      camGroup.renderOrder = 0;
-      blockGroup.renderOrder = 2;
-      headsGroup.renderOrder = 2;
-      timingCoverGroup.renderOrder = 2;
-      oilPanGroup.renderOrder = 2;
-      intakeGroup.renderOrder = 2;
-      efiRailsGroup.renderOrder = 2;
-      coolingGroup.renderOrder = 2;
-      fuelGroup.renderOrder = 2;
-      starterGroup.renderOrder = 2;
-    }
-
+    // Apply crisp EdgesGeometry technical CAD linework when in Tech Drawing or Tech Paper ISO mode
     const edgeLines: THREE.LineSegments[] = [];
-    if (isDrawing) {
-      edgeLines.push(...applyTechnicalEdges(engineGroup, mats.techEdgeLine, 22));
+    if (isDrawing || isIsoPaper) {
+      edgeLines.push(...applyTechnicalEdges(engineGroup, mats.techEdgeLine, isIsoPaper ? 18 : 22));
     }
 
     scene.add(engineGroup);
 
+    // 3D Spatial Caliper Visuals (Endpoint Markers + Dimension Line)
     const caliperMarkerMat = new THREE.MeshBasicMaterial({ color: 0x22d3ee });
     const caliperLineMat = new THREE.LineBasicMaterial({ color: 0x22d3ee });
     const caliperP1Marker = new THREE.Mesh(new THREE.SphereGeometry(0.16, 12, 12), caliperMarkerMat);
@@ -1909,6 +2450,7 @@ export const Engine3DScene: React.FC<Engine3DSceneProps> = ({
     caliperLine.visible = false;
     scene.add(caliperP1Marker, caliperP2Marker, caliperLine);
 
+    // CAD Selection Highlight Ring/Marker at hit target
     const selectionRingMat = new THREE.MeshBasicMaterial({
       color: 0xf97316,
       side: THREE.DoubleSide,
@@ -1923,6 +2465,7 @@ export const Engine3DScene: React.FC<Engine3DSceneProps> = ({
     selectionReticle.visible = false;
     scene.add(selectionReticle);
 
+    // Store snapshot of base userData & register partsRef for live BOM callout binding
     engineGroup.traverse((obj) => {
       if (obj.userData?.name) {
         obj.userData._base = { ...obj.userData };
@@ -1931,15 +2474,49 @@ export const Engine3DScene: React.FC<Engine3DSceneProps> = ({
     enginePartsRef.current = parts;
     engineReticleStateRef.current = { reticle: selectionReticle, camera };
 
+    // Dynamic Cinematic Combustion Spark / Flame Pulse (Right Bank #2 Cylinder Cutaway Window)
+    const combustionMat = new THREE.MeshBasicMaterial({
+      color: 0xff7b1c,
+      transparent: true,
+      opacity: 0,
+      depthWrite: false
+    });
+    const combustionGlow = new THREE.Mesh(
+      new THREE.SphereGeometry(boreRadius * 0.72, 16, 12),
+      combustionMat
+    );
+    combustionGlow.position.set(1.92, crankCenterY + 1.92, journalZ[0] + 0.22);
+    combustionGlow.visible = false;
+    engineGroup.add(combustionGlow);
+
+    // Optional Hardware Post-Processing Composer for Cinematic Mode
+    let composer: EffectComposer | null = null;
+    let bloomPass: UnrealBloomPass | null = null;
+    if (isCinematic && !isSoftwareGl) {
+      composer = new EffectComposer(renderer);
+      composer.addPass(new RenderPass(scene, camera));
+      bloomPass = new UnrealBloomPass(new THREE.Vector2(width, height), 0.26, 0.45, 0.86);
+      composer.addPass(bloomPass);
+      composer.addPass(new OutputPass());
+    }
+
+    // Pre-compile shaders on hardware WebGL for silky first-frame interaction
     if (!isSoftwareGl) {
       renderer.compile(scene, camera);
     }
 
-    const updateKinematics = (crankAngle: number) => {
+    // =========================================================================
+    // KINEMATICS UPDATE FUNCTION (SLIDER-CRANK + 2:1 VALVETRAIN)
+    // =========================================================================
+    let lastTelemetryPush = 0;
+    const updateKinematics = (crankAngle: number, pushTelemetry = false) => {
       crankGroup.rotation.z = crankAngle;
-      camCore.rotation.z = crankAngle * 0.5;
+      // Fixed Nov 24 (carried from v10/v11): spin on the shaft axis (rotation.y),
+      // not rotation.z — the old line tumbled the cam end-over-end through the block.
+      camCore.rotation.y = crankAngle * 0.5;
       camSprocket.rotation.z = crankAngle * 0.5;
 
+      // Exact 2D Slider-Crank solution per cylinder bank plane
       for (let i = 0; i < pistonNodes.length; i++) {
         const node = pistonNodes[i];
         const phi = node.pinPhase - crankAngle + node.bankRot;
@@ -1953,11 +2530,16 @@ export const Engine3DScene: React.FC<Engine3DSceneProps> = ({
         node.pistonAsm.position.set(0, yp, 0);
       }
 
+      // Synchronized Cam Lobe / Lifter / Pushrod / Rocker / Valve / Spring Motion
+      let intakeLiftFactor0 = 0;
+      let exhaustLiftFactor0 = 0;
       for (let i = 0; i < valvetrainNodes.length; i++) {
         const v = valvetrainNodes[i];
         const thetaCam = crankAngle * 0.5 + v.offset;
         v.lobe.rotation.z = thetaCam;
         const liftFactor = Math.pow(Math.max(0, Math.sin(thetaCam)), 2);
+        if (i === 0) intakeLiftFactor0 = liftFactor;
+        if (i === 1) exhaustLiftFactor0 = liftFactor;
         const travel = liftFactor * 0.24;
 
         v.lifter.position.copy(v.baseLifterPos).addScaledVector(v.lifterAxis, travel);
@@ -1967,12 +2549,156 @@ export const Engine3DScene: React.FC<Engine3DSceneProps> = ({
         v.retainer.position.copy(v.baseRetainerPos).addScaledVector(v.valveAxis, -travel);
         v.spring.scale.y = 1.0 - liftFactor * 0.22;
       }
+
+      // 720-degree 4-stroke cycle phase & cinematic combustion/header thermal effects
+      const cycleDeg = (((crankAngle * 180) / Math.PI) % 720 + 720) % 720;
+      const runningNow = isRunningRef.current;
+      const currentRpm = rpmRef.current;
+
+      // Subtle exhaust header thermal glow at sustained high RPM in Cinematic/PBR modes
+      if (runningNow && (isCinematic || isStudio) && analysisMode === 'none') {
+        const heatFactor = Math.max(0, Math.min(1, (currentRpm - 2600) / 3900));
+        mats.headerCeramic.emissive.setHex(0xb4320c);
+        mats.headerCeramic.emissiveIntensity = heatFactor * (isCinematic ? 0.42 : 0.22);
+      } else if (analysisMode === 'none') {
+        mats.headerCeramic.emissiveIntensity = 0;
+      }
+
+      // Combustion spark pulse in Power stroke window (355° - 435° crank angle)
+      if (runningNow && cutawayMode !== 'none' && cycleDeg >= 355 && cycleDeg <= 435) {
+        const norm = (cycleDeg - 355) / 80;
+        const pulse = Math.sin(norm * Math.PI);
+        combustionGlow.visible = true;
+        combustionMat.opacity = pulse * (isCinematic ? 0.78 : 0.55);
+        combustionGlow.scale.setScalar(0.75 + pulse * 0.45);
+      } else {
+        combustionGlow.visible = false;
+      }
+
+      if (pushTelemetry && onTelemetryUpdateRef.current) {
+        const cfg = configRef.current;
+        const sp = specsRef.current;
+        const rIn = cfg.stroke * 0.5;
+        const lIn = cfg.rodLength;
+        const thetaRad = (cycleDeg * Math.PI) / 180;
+        const omega = (currentRpm * 2 * Math.PI) / 60;
+        const sinT = Math.sin(thetaRad);
+        const cosT = Math.cos(thetaRad);
+        const rodSin = Math.max(-0.99, Math.min(0.99, (rIn / lIn) * sinT));
+        const rodCos = Math.sqrt(1 - rodSin * rodSin);
+        // Exact piston displacement from TDC (inches)
+        const pistonPosFromCenter = rIn * cosT + lIn * rodCos;
+        const tdcCenterDist = rIn + lIn;
+        const pistonDepthFromTdcIn = Math.max(0, tdcCenterDist - pistonPosFromCenter);
+        // Exact instantaneous piston velocity: v = omega * r * (sin(theta) + (r*sin(theta)*cos(theta))/(L*rodCos))
+        const velInPerSec =
+          omega * rIn * (sinT + (rIn * sinT * cosT) / Math.max(0.1, lIn * rodCos));
+        const pistonVelocityFpm = Math.abs(velInPerSec * 5); // in/s * 60 / 12 = * 5
+        const pistonVelocityMs = Math.abs(velInPerSec * 0.0254);
+        const rodAngleDeg = (Math.asin(rodSin) * 180) / Math.PI;
+
+        const cyl1Phase: DynamicKinematicTelemetry['cyl1Phase'] =
+          cycleDeg < 180
+            ? 'POWER'
+            : cycleDeg < 360
+            ? 'EXHAUST'
+            : cycleDeg < 540
+            ? 'INTAKE'
+            : 'COMPRESSION';
+
+        // Approximate Wiebe cylinder pressure trace for live readout
+        let cylinderPressurePsi = 14.7;
+        if (cyl1Phase === 'COMPRESSION') {
+          const compRatioPos = (cycleDeg - 540) / 180;
+          cylinderPressurePsi = 14.7 * Math.pow(1 + compRatioPos * (sp.staticCR - 1), 1.32);
+        } else if (cyl1Phase === 'POWER') {
+          const pwrPos = cycleDeg / 180;
+          const peakPsi = 620 + sp.staticCR * 58;
+          cylinderPressurePsi = 14.7 + peakPsi * Math.exp(-Math.pow((pwrPos - 0.14) / 0.24, 2));
+        } else if (cyl1Phase === 'EXHAUST') {
+          cylinderPressurePsi = 28 - (cycleDeg - 180) * 0.06;
+        }
+
+        // Interpolate live Torque & HP at current test RPM from coordinated dynoCurve
+        const curve = sp.dynoCurve;
+        let instTq = sp.peakTq * 0.65;
+        let instHp = (instTq * currentRpm) / 5252;
+        if (curve.length > 0) {
+          const clampedRpm = Math.max(curve[0].rpm, Math.min(curve[curve.length - 1].rpm, currentRpm));
+          let lower = curve[0];
+          let upper = curve[curve.length - 1];
+          for (let ci = 0; ci < curve.length - 1; ci++) {
+            if (clampedRpm >= curve[ci].rpm && clampedRpm <= curve[ci + 1].rpm) {
+              lower = curve[ci];
+              upper = curve[ci + 1];
+              break;
+            }
+          }
+          const span = Math.max(1, upper.rpm - lower.rpm);
+          const alpha = (clampedRpm - lower.rpm) / span;
+          instTq = lower.tq + (upper.tq - lower.tq) * alpha;
+          instHp = (instTq * currentRpm) / 5252;
+        }
+
+        onTelemetryUpdateRef.current({
+          crankAngleDeg: +cycleDeg.toFixed(1),
+          cyl1Phase,
+          pistonDepthFromTdcIn: +pistonDepthFromTdcIn.toFixed(3),
+          pistonVelocityFpm: Math.round(pistonVelocityFpm),
+          pistonVelocityMs: +pistonVelocityMs.toFixed(2),
+          rodAngleDeg: +rodAngleDeg.toFixed(2),
+          intakeValveLiftIn: +(intakeLiftFactor0 * sp.totalValveLift).toFixed(3),
+          exhaustValveLiftIn: +(exhaustLiftFactor0 * sp.totalValveLift).toFixed(3),
+          instantaneousTorqueLbFt: Math.round(instTq),
+          instantaneousHp: Math.round(instHp),
+          cylinderPressurePsi: Math.round(cylinderPressurePsi)
+        });
+      }
     };
 
+    // Initialize at TDC #1 clean resting pose
     let crankAngle = 0;
-    updateKinematics(0);
+    updateKinematics(0, true);
 
+    // =========================================================================
+    // RAYCASTING & INTERACTION (CLICK INSPECT + THROTTLED SPATIAL PROBE)
+    // =========================================================================
     const raycaster = new THREE.Raycaster();
+    let lastProbeAt = 0;
+    const onPointerMove = (event: MouseEvent) => {
+      if (!onHoverProbeRef.current) return;
+      const now = performance.now();
+      if (now - lastProbeAt < 55) return;
+      lastProbeAt = now;
+
+      const rect = renderer.domElement.getBoundingClientRect();
+      _rayMouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+      _rayMouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+      raycaster.setFromCamera(_rayMouse, camera);
+      const hits = raycaster.intersectObjects(engineGroup.children, true);
+      if (hits.length > 0) {
+        const hit = hits[0];
+        let obj: THREE.Object3D | null = hit.object;
+        while (obj && obj !== engineGroup) {
+          if (obj.userData && obj.userData.name) break;
+          obj = obj.parent;
+        }
+        onHoverProbeRef.current({
+          xIn: +(hit.point.x * 1.48).toFixed(3),
+          yIn: +(hit.point.y * 1.48).toFixed(3),
+          zIn: +(hit.point.z * 1.48).toFixed(3),
+          partName: (obj?.userData?.name as string) || 'Engine Assembly Surface'
+        });
+      } else {
+        onHoverProbeRef.current(null);
+      }
+    };
+    const onPointerLeave = () => {
+      onHoverProbeRef.current?.(null);
+    };
+    renderer.domElement.addEventListener('pointermove', onPointerMove);
+    renderer.domElement.addEventListener('pointerleave', onPointerLeave);
+
     const onPointerDown = (event: MouseEvent) => {
       const rect = renderer.domElement.getBoundingClientRect();
       _rayMouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
@@ -2027,16 +2753,34 @@ export const Engine3DScene: React.FC<Engine3DSceneProps> = ({
     };
     renderer.domElement.addEventListener('pointerdown', onPointerDown);
 
+    // Resize Observer + Window Resize
     const onResize = () => {
       if (!container) return;
       const w = container.clientWidth || 1;
       const h = container.clientHeight || 1;
-      camera.aspect = w / h;
+      const asp = w / h;
+      if (camera instanceof THREE.OrthographicCamera) {
+        camera.left = -orthoHalf * asp;
+        camera.right = orthoHalf * asp;
+        camera.top = orthoHalf;
+        camera.bottom = -orthoHalf;
+      } else {
+        camera.aspect = asp;
+      }
       camera.updateProjectionMatrix();
       renderer.setSize(w, h);
+      if (composer) {
+        composer.setSize(w, h);
+      }
+      if (bloomPass) {
+        bloomPass.resolution.set(w, h);
+      }
     };
     window.addEventListener('resize', onResize);
 
+    // =========================================================================
+    // PACED RENDER LOOP (SMOOTH DAMPED EXPLOSION + SOFTWARE-WEBGL GUARD)
+    // =========================================================================
     let frameId = 0;
     let disposed = false;
     let lastTime = performance.now();
@@ -2044,34 +2788,56 @@ export const Engine3DScene: React.FC<Engine3DSceneProps> = ({
 
     function afterDraw(cb: () => void) {
       if (disposed) return;
-      const gl = renderer.getContext() as WebGL2RenderingContext;
+      const gl = renderer.getContext() as WebGL2RenderingContext | null;
+      if (!gl || typeof gl.fenceSync !== 'function') {
+        frameId = window.setTimeout(cb, 80);
+        return;
+      }
       const sync = gl.fenceSync(gl.SYNC_GPU_COMMANDS_COMPLETE, 0);
+      if (!sync) {
+        frameId = window.setTimeout(cb, 80);
+        return;
+      }
       gl.flush();
       const poll = () => {
         if (disposed) {
-          if (sync) gl.deleteSync(sync);
+          gl.deleteSync(sync);
           return;
         }
-        const state = sync && gl.getSyncParameter(sync, gl.SYNC_STATUS);
+        const state = gl.getSyncParameter(sync, gl.SYNC_STATUS);
         if (state === gl.UNSIGNALED) {
           frameId = window.setTimeout(poll, 5);
         } else {
-          if (sync) gl.deleteSync(sync);
+          gl.deleteSync(sync);
           frameId = window.setTimeout(cb, 80);
         }
       };
       frameId = window.setTimeout(poll, 5);
     }
 
+    // Register CATIA/HOOPS CAD Snapshot & Watertight STL Export callbacks
     if (onRegisterCaptureRef.current) {
       onRegisterCaptureRef.current(() => {
         if (disposed) return;
-        renderer.render(scene, camera);
+        if (composer) {
+          composer.render();
+        } else {
+          renderer.render(scene, camera);
+        }
         const url = renderer.domElement.toDataURL('image/png');
         const link = document.createElement('a');
         link.href = url;
         link.download = `SBC350-CAD-${config.bore.toFixed(3)}x${config.stroke.toFixed(3)}.png`;
         link.click();
+      });
+    }
+    if (onRegisterStlExportRef.current) {
+      onRegisterStlExportRef.current(() => {
+        if (disposed) return;
+        exportObject3DToSTL(
+          engineGroup,
+          `MODSIM-${specs.displacementCi}CID-${config.bore.toFixed(3)}x${config.stroke.toFixed(3)}.stl`
+        );
       });
     }
 
@@ -2080,6 +2846,7 @@ export const Engine3DScene: React.FC<Engine3DSceneProps> = ({
       const dt = Math.min((now - lastTime) / 1000, 0.1);
       lastTime = now;
 
+      // Apply live Spec Tree component visibility
       const hidden = hiddenPartsRef.current;
       for (const key in parts) {
         if (parts[key]) {
@@ -2087,6 +2854,7 @@ export const Engine3DScene: React.FC<Engine3DSceneProps> = ({
         }
       }
 
+      // Damped HOOPS Camera Preset Transition
       if (camTransitionRef.current.active) {
         _camGoalPos.copy(camTransitionRef.current.pos);
         camera.position.x = THREE.MathUtils.damp(camera.position.x, _camGoalPos.x, 8, dt);
@@ -2104,10 +2872,12 @@ export const Engine3DScene: React.FC<Engine3DSceneProps> = ({
 
       controls.update();
 
+      // Dynamic Section Plane Offset
       if (activeClippingPlanes.length > 0) {
         activeClippingPlanes[0].constant = baseClipConstant + sectionOffsetRef.current;
       }
 
+      // Sync Selection Reticle & Spatial 3D Caliper Visuals
       if (!selectedPartRef.current) {
         selectionReticle.visible = false;
       } else if (selectionReticle.visible) {
@@ -2136,6 +2906,7 @@ export const Engine3DScene: React.FC<Engine3DSceneProps> = ({
         caliperLine.visible = false;
       }
 
+      // Smooth exponential damping for exploded view separation
       smoothedExploded = THREE.MathUtils.damp(smoothedExploded, explodedRef.current, 9, dt);
       const f = smoothedExploded;
 
@@ -2166,12 +2937,30 @@ export const Engine3DScene: React.FC<Engine3DSceneProps> = ({
       if (parts.chassis) parts.chassis.position.y = -f * 3.0;
 
       if (isRunningRef.current) {
+        // Visually readable scaled angular rate synchronized to RPM slider
         const radPerSec = Math.min(26, (rpmRef.current / 60) * 0.42 * Math.PI);
         crankAngle += radPerSec * dt;
-        updateKinematics(crankAngle);
+        const shouldPush = now - lastTelemetryPush >= 65;
+        if (shouldPush) lastTelemetryPush = now;
+        updateKinematics(crankAngle, shouldPush);
+      } else if (now - lastTelemetryPush >= 220) {
+        lastTelemetryPush = now;
+        updateKinematics(crankAngle, true);
       }
 
-      renderer.render(scene, camera);
+      try {
+        if (composer) {
+          composer.render();
+        } else {
+          renderer.render(scene, camera);
+        }
+      } catch (err) {
+        disposed = true;
+        setWebglError(
+          err instanceof Error ? err.message : '3D WebGL frame rendering failed.'
+        );
+        return;
+      }
 
       if (isSoftwareGl) {
         afterDraw(() => tick(performance.now()));
@@ -2186,30 +2975,52 @@ export const Engine3DScene: React.FC<Engine3DSceneProps> = ({
       frameId = requestAnimationFrame(tick);
     }
 
+    const onContextLost = (e: Event) => {
+      e.preventDefault();
+      disposed = true;
+      cancelAnimationFrame(frameId);
+      clearTimeout(frameId);
+      setWebglError('3D WebGL context was interrupted by the browser.');
+    };
+    const onContextRestored = () => {
+      setWebglError(null);
+      setRetryNonce((n) => n + 1);
+    };
+    renderer.domElement.addEventListener('webglcontextlost', onContextLost);
+    renderer.domElement.addEventListener('webglcontextrestored', onContextRestored);
+
     return () => {
       disposed = true;
       enginePartsRef.current = {};
       engineReticleStateRef.current = null;
       onRegisterCaptureRef.current?.(null);
+      onRegisterStlExportRef.current?.(null);
       cancelAnimationFrame(frameId);
       clearTimeout(frameId);
       window.removeEventListener('resize', onResize);
+      renderer.domElement.removeEventListener('pointermove', onPointerMove);
+      renderer.domElement.removeEventListener('pointerleave', onPointerLeave);
       renderer.domElement.removeEventListener('pointerdown', onPointerDown);
+      renderer.domElement.removeEventListener('webglcontextlost', onContextLost);
+      renderer.domElement.removeEventListener('webglcontextrestored', onContextRestored);
       controls.dispose();
 
+      // Cleanly dispose geometries, materials, and procedural textures (keep persistent WebGLRenderer)
       scene.traverse((obj) => {
         if (obj instanceof THREE.Mesh || obj instanceof THREE.LineSegments || obj instanceof THREE.Line) {
           obj.geometry?.dispose();
         }
       });
+      combustionMat.dispose();
       caliperMarkerMat.dispose();
       caliperLineMat.dispose();
       selectionRingMat.dispose();
       Object.values(mats).forEach((m) => m.dispose());
       edgeLines.forEach((l) => l.geometry.dispose());
       textures.dispose();
+      composer?.dispose();
       if (scene.environment) scene.environment.dispose();
-      renderer.dispose();
+      renderer.renderLists.dispose();
     };
   }, [
     config.bore,
@@ -2225,17 +3036,30 @@ export const Engine3DScene: React.FC<Engine3DSceneProps> = ({
     config.rockerRatio,
     config.selectedIntake,
     config.carbCfm,
+    config.carbStyle,
+    config.carbVenturiIn,
+    config.airFilterCfmBonus,
+    config.intakePortCc,
+    config.intakeValveIn,
+    config.exhaustPortCc,
+    config.exhaustPortShape,
+    config.exhaustValveIn,
+    config.headerPrimaryIn,
     config.targetAFR,
     config.ignitionTiming,
     config.sparkPlugGap,
     cutawayMode,
     subsystemIsolation,
     viewMode,
+    projectionMode,
     analysisMode,
     inductionDress,
-    supportMode
+    supportMode,
+    cinematicPreset,
+    retryNonce
   ]);
 
+  // Lightweight live binding of Technical Drawing BOM callouts onto Engine 3D subassemblies
   useEffect(() => {
     const partsMap = enginePartsRef.current;
     Object.values(partsMap).forEach((groupObj) => {
@@ -2280,6 +3104,7 @@ export const Engine3DScene: React.FC<Engine3DSceneProps> = ({
     }
   }, [techDrawing, cutawayMode, viewMode, inductionDress, supportMode]);
 
+  // Focus & reticle highlight when user clicks a BOM row in the Technical Drawing drawer
   useEffect(() => {
     if (!focusPartRequest) return;
     const obj = enginePartsRef.current[focusPartRequest.key];
@@ -2292,6 +3117,15 @@ export const Engine3DScene: React.FC<Engine3DSceneProps> = ({
     reticleState.reticle.visible = true;
   }, [focusPartRequest]);
 
+  const handleRetryWebgl = () => {
+    if (rendererRef.current) {
+      rendererRef.current.dispose();
+      rendererRef.current = null;
+    }
+    setWebglError(null);
+    setRetryNonce((n) => n + 1);
+  };
+
   return (
     <div className="relative w-full h-full min-h-[480px]">
       <div
@@ -2299,6 +3133,32 @@ export const Engine3DScene: React.FC<Engine3DSceneProps> = ({
         className="w-full h-full cursor-grab active:cursor-grabbing blueprint-grid overflow-hidden"
         style={{ minHeight: '480px' }}
       />
+      {webglError && (
+        <div className="absolute inset-0 z-20 flex items-center justify-center bg-[#0d1014]/95 p-6">
+          <div className="max-w-md w-full rounded-xl border border-slate-700 bg-[#12161c] p-5 text-center space-y-3">
+            <h3 className="text-sm font-bold text-white">3D WebGL Viewport Temporarily Unavailable</h3>
+            <p className="text-xs text-slate-400 leading-relaxed">{webglError}</p>
+            <div className="flex flex-wrap justify-center gap-2 pt-1">
+              <button
+                type="button"
+                onClick={handleRetryWebgl}
+                className="px-3.5 py-2 rounded-lg bg-orange-600 hover:bg-orange-500 text-white text-xs font-semibold transition"
+              >
+                Retry 3D Viewport
+              </button>
+              {onOpenDrawingsTab && (
+                <button
+                  type="button"
+                  onClick={onOpenDrawingsTab}
+                  className="px-3.5 py-2 rounded-lg border border-cyan-500/60 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 text-xs font-semibold transition"
+                >
+                  Open 2D Dimensioned Schematics
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

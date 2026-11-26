@@ -18,6 +18,11 @@ import {
   BookOpen,
   Archive,
   FileSpreadsheet,
+  Sliders,
+  Compass,
+  Grid2x2,
+  Cpu,
+  Wrench,
   X
 } from 'lucide-react';
 
@@ -49,6 +54,7 @@ export const StudioSidebar: React.FC<StudioSidebarProps> = ({
   onCloseMobile
 }) => {
   const workbenches: Array<{ id: TabId; index: string; label: string; icon: React.ReactNode }> = [
+    { id: 'designstudio', index: '00', label: 'CAD / CAM Design Studio', icon: <Cpu className="w-4 h-4" /> },
     { id: 'block3d', index: '01', label: '3D Drafting & Rig', icon: <Box className="w-4 h-4" /> },
     { id: 'rotating', index: '02', label: 'Engine & Rotating', icon: <Layers className="w-4 h-4" /> },
     { id: 'valvetrain', index: '03', label: 'Valvetrain & Flow', icon: <Wind className="w-4 h-4" /> },
@@ -57,7 +63,11 @@ export const StudioSidebar: React.FC<StudioSidebarProps> = ({
     { id: 'trans', index: '06', label: 'Driveline Matrix', icon: <Car className="w-4 h-4" /> },
     { id: 'dyno', index: '07', label: 'Dyno & Curves', icon: <Activity className="w-4 h-4" /> },
     { id: 'shop', index: '08', label: 'Machine Shop BOM', icon: <ClipboardList className="w-4 h-4" /> },
-    { id: 'drawings', index: '09', label: 'Tech Drawings', icon: <FileSpreadsheet className="w-4 h-4" /> }
+    { id: 'drawings', index: '09', label: 'Tech Drawings', icon: <FileSpreadsheet className="w-4 h-4" /> },
+    { id: 'engconfig', index: '10', label: 'Engineering Config', icon: <Sliders className="w-4 h-4" /> },
+    { id: 'drawings2', index: '11', label: 'More Drawings', icon: <Compass className="w-4 h-4" /> },
+    { id: 'drawingmatrix', index: '12', label: 'Drawing & MFG Matrix', icon: <Grid2x2 className="w-4 h-4" /> },
+    { id: 'modstudio', index: '13', label: 'Modification Studio', icon: <Wrench className="w-4 h-4" /> }
   ];
 
   const vitalsRows = [

@@ -1,0 +1,18 @@
+SBC 350 v14 — Base44 paste clusters (source: ai-studio-app-v13-staging, restored Nov 25 from the 08:04 backup; rebuilt Nov 26)
+cluster-01-core.txt: 10 files (v14)
+cluster-02a-types-data.txt: 5 files (v14)
+cluster-02b-families-catalogs.txt: 8 files (v14)
+cluster-03-cadviewer.txt: 8 files (v14)
+cluster-04-tabs-design.txt: 6 files (v14 — holds OLD TabDesignStudio.tsx, 1890 lines; REPLACED by cluster 08 when it lands)
+cluster-05-tabs-engine.txt: 8 files (v14)
+cluster-06-tabs-config.txt: 10 files (v14)
+cluster-07-utils-services.txt: 2 files (v14)
+cluster-08-image-to-3d.txt: 2 files (image-to-3D — imageVectorizer.ts NEW + TabDesignStudio.tsx 3190 lines, REPLACES cluster-04's old tab)
+
+Binary files (upload first, never pasted):
+ - src/assets/images/cinematic_cad_blueprint_desk_1795540041126.jpg
+ - src/assets/images/cinematic_cnc_5axis_head_1795540041464.jpg
+ - src/assets/images/cinematic_v8_dyno_cell_1795540040912.jpg
+
+All 57 text files md5-verified + completeness-checked by build-packages.py.
+Paste one cluster per builder message, in order, per BASE44-BUILD-BRIEF.md.

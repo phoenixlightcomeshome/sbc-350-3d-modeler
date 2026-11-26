@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
@@ -12,6 +12,7 @@ import {
   createProceduralTextureSet,
   createGearGeometry,
   createARP12PointBolt,
+  createSplineShaftGeometry,
   applyTechnicalEdges
 } from './mechanicalGeometry';
 import { EngineViewMode } from './Engine3DScene';
@@ -24,6 +25,19 @@ interface Transmission3DSceneProps {
   techDrawing?: TechDrawingSheet | null;
   focusPartRequest?: { key: string; nonce: number } | null;
   onSelectPart: (data: InspectionData | null) => void;
+  onOpenDrawingsTab?: () => void;
+}
+
+function detectSoftwareRenderer(gl: WebGLRenderingContext | WebGL2RenderingContext | null): boolean {
+  if (!gl) return true;
+  try {
+    const ext = gl.getExtension('WEBGL_debug_renderer_info');
+    const param = ext ? ext.UNMASKED_RENDERER_WEBGL : gl.RENDERER;
+    const gpu = String(gl.getParameter(param) || '');
+    return /SwiftShader|llvmpipe|softpipe|Software|Basic Render/i.test(gpu);
+  } catch {
+    return false;
+  }
 }
 
 const _rayMouse = new THREE.Vector2();
@@ -37,9 +51,13 @@ export const Transmission3DScene: React.FC<Transmission3DSceneProps> = ({
   viewMode = 'realistic',
   techDrawing = null,
   focusPartRequest = null,
-  onSelectPart
+  onSelectPart,
+  onOpenDrawingsTab
 }) => {
   const mountRef = useRef<HTMLDivElement>(null);
+  const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
+  const [webglError, setWebglError] = useState<string | null>(null);
+  const [retryNonce, setRetryNonce] = useState<number>(0);
   const explodedRef = useRef(explodedAmount);
   const isRunningRef = useRef(isRunning);
   const onSelectPartRef = useRef(onSelectPart);
@@ -54,30 +72,52 @@ export const Transmission3DScene: React.FC<Transmission3DSceneProps> = ({
   useEffect(() => { onSelectPartRef.current = onSelectPart; }, [onSelectPart]);
 
   useEffect(() => {
+    return () => {
+      if (rendererRef.current) {
+        rendererRef.current.dispose();
+        rendererRef.current = null;
+      }
+    };
+  }, []);
+
+  useEffect(() => {
     const container = mountRef.current;
     if (!container) return;
 
     const width = container.clientWidth || window.innerWidth;
     const height = container.clientHeight || 480;
 
-    const isSoftwareGl = (() => {
-      try {
-        const gl = document.createElement('canvas').getContext('webgl2');
-        if (!gl) return true;
-        const ext = gl.getExtension('WEBGL_debug_renderer_info');
-        const param = ext ? ext.UNMASKED_RENDERER_WEBGL : gl.RENDERER;
-        const gpu = String(gl.getParameter(param));
-        gl.getExtension('WEBGL_lose_context')?.loseContext();
-        return /SwiftShader|llvmpipe|softpipe|Software|Basic Render/i.test(gpu);
-      } catch {
-        return false;
-      }
-    })();
-
     const isDrawing = viewMode === 'drawing';
     const isWire = viewMode === 'wireframe';
     const isGhost = viewMode === 'ghost';
     const isStudio = viewMode === 'realistic';
+
+    let candidateRenderer = rendererRef.current;
+    if (!candidateRenderer) {
+      try {
+        candidateRenderer = new THREE.WebGLRenderer({
+          antialias: true,
+          powerPreference: 'default'
+        });
+        rendererRef.current = candidateRenderer;
+      } catch (err) {
+        setWebglError(
+          err instanceof Error
+            ? err.message
+            : 'WebGL 3D context could not be initialized by your browser.'
+        );
+        return;
+      }
+    }
+    const renderer: THREE.WebGLRenderer = candidateRenderer;
+    const initialGl = renderer.getContext();
+    if (!initialGl) {
+      setWebglError('WebGL rendering context is unavailable or was lost.');
+      return;
+    }
+    setWebglError(null);
+
+    const isSoftwareGl = detectSoftwareRenderer(initialGl);
 
     const scene = new THREE.Scene();
     const bgHex = isDrawing
@@ -86,26 +126,22 @@ export const Transmission3DScene: React.FC<Transmission3DSceneProps> = ({
       ? 0x07111a
       : isStudio
       ? 0xdce1e7
-      : isGhost
-      ? 0x050d18
       : 0x101419;
     scene.background = new THREE.Color(bgHex);
-    scene.fog = new THREE.FogExp2(bgHex, isStudio ? 0.005 : isGhost ? 0.008 : 0.012);
+    scene.fog = new THREE.FogExp2(bgHex, isStudio ? 0.005 : 0.012);
 
-    const renderer = new THREE.WebGLRenderer({
-      antialias: !isSoftwareGl,
-      powerPreference: 'high-performance'
-    });
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = isStudio ? 1.08 : isGhost ? 1.25 : 1.18;
+    renderer.toneMappingExposure = 1.18;
     renderer.setSize(width, height);
     renderer.setPixelRatio(isSoftwareGl ? 1 : Math.min(window.devicePixelRatio || 1, 2));
     renderer.shadowMap.enabled = !isSoftwareGl;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
-    container.innerHTML = '';
-    container.appendChild(renderer.domElement);
+    if (renderer.domElement.parentNode !== container) {
+      container.innerHTML = '';
+      container.appendChild(renderer.domElement);
+    }
 
     const camera = new THREE.PerspectiveCamera(42, width / height, 0.1, 300);
     camera.position.set(14.5, 9.5, 17.0);
@@ -120,18 +156,18 @@ export const Transmission3DScene: React.FC<Transmission3DSceneProps> = ({
     scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
     pmrem.dispose();
 
-    scene.add(new THREE.HemisphereLight(
-      isStudio ? 0xffffff : isGhost ? 0x7dd3fc : 0xcbe4ff,
-      isStudio ? 0x64748b : isGhost ? 0x082f49 : 0x241d17,
-      isStudio ? 1.05 : isGhost ? 0.95 : 0.72
-    ));
-    const keyLight = new THREE.DirectionalLight(0xfff5eb, 1.55);
+    scene.add(new THREE.HemisphereLight(isStudio ? 0xffffff : 0xcbe4ff, isStudio ? 0x64748b : 0x241d17, isStudio ? 0.95 : 0.75));
+    const keyLight = new THREE.DirectionalLight(0xfff5eb, isStudio ? 1.85 : 1.65);
     keyLight.position.set(16, 20, 16);
     scene.add(keyLight);
 
-    const rimLight = new THREE.DirectionalLight(0x38bdf8, 0.75);
+    const rimLight = new THREE.DirectionalLight(isStudio ? 0xe0f2fe : 0x38bdf8, 0.85);
     rimLight.position.set(-14, 10, -14);
     scene.add(rimLight);
+
+    const underLight = new THREE.DirectionalLight(0xffcf99, 0.45);
+    underLight.position.set(2, -12, 8);
+    scene.add(underLight);
 
     const maxAniso = Math.min(8, renderer.capabilities.getMaxAnisotropy());
     const textures = createProceduralTextureSet(maxAniso);
@@ -139,9 +175,9 @@ export const Transmission3DScene: React.FC<Transmission3DSceneProps> = ({
     const stagePlane = new THREE.Mesh(
       new THREE.PlaneGeometry(24, 24),
       new THREE.MeshBasicMaterial({
-        map: isStudio ? textures.studioFloorShadowMap : textures.blueprintScaleMap,
+        map: textures.blueprintScaleMap,
         transparent: true,
-        opacity: isStudio ? 0.92 : isGhost ? 0.65 : 0.85,
+        opacity: 0.85,
         depthWrite: false
       })
     );
@@ -152,86 +188,93 @@ export const Transmission3DScene: React.FC<Transmission3DSceneProps> = ({
     const grid = new THREE.GridHelper(
       28,
       28,
-      isGhost ? 0x00f0ff : isDrawing ? 0x38bdf8 : isStudio ? 0x94a3b8 : 0xe5a823,
-      isGhost ? 0x092b45 : isDrawing ? 0x16324f : isStudio ? 0xc5cdd8 : 0x1f2e3d
+      isDrawing ? 0x38bdf8 : 0xe5a823,
+      isDrawing ? 0x16324f : 0x1f2e3d
     );
     grid.position.y = -3.80;
     scene.add(grid);
 
-    // Performance Materials
+    // Performance CAD Materials
     const mats = {
       castAlumCase: new THREE.MeshPhysicalMaterial({
-        color: isDrawing ? 0x1a3352 : isGhost ? 0x38bdf8 : 0xa3b1c2,
-        bumpMap: isDrawing || isGhost ? null : textures.castIronBump,
+        color: isDrawing ? 0x1a3352 : 0xa9b6c6,
+        bumpMap: isDrawing ? null : textures.castIronBump,
         bumpScale: 0.02,
-        roughness: isGhost ? 0.15 : 0.42,
-        metalness: isGhost ? 0.85 : 0.65,
+        normalMap: isDrawing ? null : textures.castIronNormal,
+        normalScale: new THREE.Vector2(0.55, 0.55),
+        roughness: 0.38,
+        metalness: 0.68,
         wireframe: isWire,
         transparent: isGhost,
-        opacity: isGhost ? 0.20 : 1.0,
-        depthWrite: !isGhost,
+        opacity: isGhost ? 0.28 : 1.0,
         side: THREE.DoubleSide
       }),
       machinedSteel: new THREE.MeshPhysicalMaterial({
-        color: isDrawing ? 0x2b4f75 : isGhost ? 0x00f0ff : 0xdde3ea,
-        map: isDrawing || isGhost ? null : textures.machinedSwirl,
-        roughness: isGhost ? 0.12 : 0.18,
-        metalness: isGhost ? 0.98 : 0.92,
-        anisotropy: 0.6,
-        wireframe: isWire,
-        depthWrite: true
+        color: isDrawing ? 0x2b4f75 : 0xdde3ea,
+        map: isDrawing ? null : textures.machinedSwirl,
+        normalMap: isDrawing ? null : textures.machinedNormal,
+        normalScale: new THREE.Vector2(0.42, 0.42),
+        roughness: 0.16,
+        metalness: 0.94,
+        anisotropy: 0.68,
+        wireframe: isWire
       }),
       hardenedGear: new THREE.MeshPhysicalMaterial({
-        color: isGhost ? 0xffffff : 0x64748b,
-        roughness: isGhost ? 0.16 : 0.24,
-        metalness: isGhost ? 0.94 : 0.90,
-        anisotropy: 0.5,
-        wireframe: isWire,
-        depthWrite: true
+        color: 0x64748b,
+        normalMap: isDrawing ? null : textures.machinedNormal,
+        normalScale: new THREE.Vector2(0.35, 0.35),
+        roughness: 0.22,
+        metalness: 0.92,
+        anisotropy: 0.55,
+        wireframe: isWire
       }),
       brassSynchro: new THREE.MeshStandardMaterial({
-        color: isGhost ? 0xfbbf24 : 0xe5a823,
-        roughness: 0.26,
-        metalness: 0.88,
-        wireframe: isWire,
-        depthWrite: true
+        color: 0xe5a823,
+        roughness: 0.24,
+        metalness: 0.90,
+        wireframe: isWire
       }),
       converterGold: new THREE.MeshPhysicalMaterial({
-        color: isGhost ? 0x0ea5e9 : 0xd97706,
-        roughness: 0.26,
-        metalness: 0.85,
-        clearcoat: 0.4,
-        wireframe: isWire,
-        transparent: isGhost,
-        opacity: isGhost ? 0.22 : 1.0,
-        depthWrite: !isGhost
+        color: 0xd97706,
+        normalMap: isDrawing ? null : textures.machinedNormal,
+        normalScale: new THREE.Vector2(0.28, 0.28),
+        roughness: 0.24,
+        metalness: 0.88,
+        clearcoat: 0.45,
+        wireframe: isWire
       }),
       clutchFriction: new THREE.MeshStandardMaterial({
-        color: isGhost ? 0x38bdf8 : 0x334155,
+        color: 0x334155,
         roughness: 0.85,
         metalness: 0.08,
-        wireframe: isWire,
-        depthWrite: true
+        wireframe: isWire
       }),
       arpBolt: new THREE.MeshStandardMaterial({
-        color: isGhost ? 0x38bdf8 : 0x1e293b,
+        color: 0x1e293b,
+        bumpMap: isDrawing ? null : textures.boltThreadBump,
+        bumpScale: 0.015,
         roughness: 0.24,
         metalness: 0.92,
-        wireframe: isWire,
-        transparent: isGhost,
-        opacity: isGhost ? 0.35 : 1.0,
-        depthWrite: !isGhost
+        wireframe: isWire
+      }),
+      anodizedBlack: new THREE.MeshStandardMaterial({
+        color: 0x151921,
+        roughness: 0.34,
+        metalness: 0.72,
+        wireframe: isWire
       }),
       techEdge: new THREE.LineBasicMaterial({
         color: 0x38bdf8,
         transparent: true,
-        opacity: 0.95
+        opacity: 0.9
       })
     };
 
     const transGroup = new THREE.Group();
 
-    // 1. Bellhousing
+    // =========================================================================
+    // 1. LATHE BELLHOUSING WITH FLANGE & STARTER POCKET
+    // =========================================================================
     const bellPts = [
       new THREE.Vector2(4.25, -1.7),
       new THREE.Vector2(4.25, -1.4),
@@ -248,22 +291,40 @@ export const Transmission3DScene: React.FC<Transmission3DSceneProps> = ({
     bellMesh.rotation.z = -Math.PI / 2;
     bellhousing.add(bellMesh);
 
+    // 6 Chevy V8 Bellhousing Mount Bolts + 2 Dowel Alignment Pins + Radial Cooling Gussets
     for (let b = 0; b < 6; b++) {
       const a = (b / 6) * Math.PI * 2 + 0.3;
       const bolt = createARP12PointBolt(0.11, 0.45, mats.arpBolt);
       bolt.rotation.z = Math.PI / 2;
       bolt.position.set(-1.6, Math.sin(a) * 4.0, Math.cos(a) * 4.0);
       bellhousing.add(bolt);
+
+      const gusset = new THREE.Mesh(new THREE.BoxGeometry(2.8, 0.16, 0.36), mats.castAlumCase);
+      gusset.position.set(0.05, Math.sin(a) * 3.15, Math.cos(a) * 3.15);
+      gusset.rotation.x = -a;
+      gusset.rotation.z = 0.32;
+      bellhousing.add(gusset);
     }
+    [-1, 1].forEach((dSign) => {
+      const dowelPin = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.18, 0.18, 0.42, 14, 1, true),
+        mats.machinedSteel
+      );
+      dowelPin.rotation.z = Math.PI / 2;
+      dowelPin.position.set(-1.72, -0.35, dSign * 3.72);
+      bellhousing.add(dowelPin);
+    });
     bellhousing.position.x = -4.6;
     bellhousing.userData = {
       name: `${transmission.name} SFI Bellhousing`,
       category: 'Transmission Housing',
-      desc: `Native Pattern: ${transmission.nativePattern}. Precision dowel-pinned alignment.`
+      desc: `Native Pattern: ${transmission.nativePattern}. Precision dowel-pinned bellhousing alignment with structural ribs.`
     };
     transGroup.add(bellhousing);
 
-    // 2. Input Coupler (Torque Converter or Clutch Assembly)
+    // =========================================================================
+    // 2. INPUT COUPLER (FINNED TORQUE CONVERTER OR SFI FLYWHEEL + CLUTCH)
+    // =========================================================================
     const inputCouplerGroup = new THREE.Group();
     if (transmission.type === 'Automatic') {
       const tcPts = [
@@ -276,20 +337,50 @@ export const Transmission3DScene: React.FC<Transmission3DSceneProps> = ({
         new THREE.Vector2(0.78, 1.55),
         new THREE.Vector2(0.0, 1.55)
       ];
-      const converter = new THREE.Mesh(new THREE.LatheGeometry(tcPts, 32), mats.converterGold);
+      const converter = new THREE.Mesh(new THREE.LatheGeometry(tcPts, 36), mats.converterGold);
       converter.rotation.z = -Math.PI / 2;
       converter.userData = {
         name: `Finned Lockup Torque Converter (${transmission.defaultStall} RPM Stall)`,
         category: 'Torque Converter',
-        desc: 'Furnace-brazed pump & turbine impeller fins with anti-ballooning front cover.'
+        desc: 'Furnace-brazed pump & turbine impeller fins with anti-ballooning front cover, pilot hub & NPT drain plug.'
       };
       inputCouplerGroup.add(converter);
 
+      // Crank Pilot Hub + Circumferential Furnace-Brazed Seam + NPT Brass Drain Plug
+      const tcPilot = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.42, 0.48, 0.55, 18),
+        mats.machinedSteel
+      );
+      tcPilot.rotation.z = Math.PI / 2;
+      tcPilot.position.x = -1.05;
+      inputCouplerGroup.add(tcPilot);
+
+      const weldSeam = new THREE.Mesh(
+        new THREE.TorusGeometry(3.45, 0.055, 8, 36),
+        mats.machinedSteel
+      );
+      weldSeam.rotation.y = Math.PI / 2;
+      inputCouplerGroup.add(weldSeam);
+
+      const drainPlug = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.14, 0.14, 0.18, 6),
+        mats.brassSynchro
+      );
+      drainPlug.rotation.z = Math.PI / 2;
+      drainPlug.position.set(-0.92, -2.55, 0);
+      inputCouplerGroup.add(drainPlug);
+
+      // 3 Welded Flexplate Mounting Lugs + ARP Torque Converter Bolts
       for (let l = 0; l < 3; l++) {
         const a = (l / 3) * Math.PI * 2;
         const pad = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.55, 0.55), mats.machinedSteel);
         pad.position.set(-0.95, Math.cos(a) * 2.35, Math.sin(a) * 2.35);
         inputCouplerGroup.add(pad);
+
+        const lugBolt = createARP12PointBolt(0.085, 0.34, mats.arpBolt);
+        lugBolt.rotation.z = Math.PI / 2;
+        lugBolt.position.set(-1.12, Math.cos(a) * 2.35, Math.sin(a) * 2.35);
+        inputCouplerGroup.add(lugBolt);
       }
     } else {
       const flywheel = new THREE.Mesh(
@@ -305,6 +396,14 @@ export const Transmission3DScene: React.FC<Transmission3DSceneProps> = ({
       };
       inputCouplerGroup.add(flywheel);
 
+      for (let fb = 0; fb < 6; fb++) {
+        const a = (fb / 6) * Math.PI * 2;
+        const fwBolt = createARP12PointBolt(0.08, 0.25, mats.arpBolt);
+        fwBolt.rotation.z = -Math.PI / 2;
+        fwBolt.position.set(-0.88, Math.cos(a) * 0.85, Math.sin(a) * 0.85);
+        inputCouplerGroup.add(fwBolt);
+      }
+
       const disc = new THREE.Mesh(
         new THREE.CylinderGeometry(3.1, 3.1, 0.18, 28),
         mats.clutchFriction
@@ -313,6 +412,7 @@ export const Transmission3DScene: React.FC<Transmission3DSceneProps> = ({
       disc.position.x = -0.68;
       inputCouplerGroup.add(disc);
 
+      // Sprung hub damper springs inside clutch disc
       for (let s = 0; s < 6; s++) {
         const a = (s / 6) * Math.PI * 2;
         const damper = new THREE.Mesh(
@@ -336,11 +436,23 @@ export const Transmission3DScene: React.FC<Transmission3DSceneProps> = ({
         desc: transmission.clutch
       };
       inputCouplerGroup.add(pressurePlate);
+
+      // 12 Radial Diaphragm Spring Fingers
+      for (let df = 0; df < 12; df++) {
+        const a = (df / 12) * Math.PI * 2;
+        const finger = new THREE.Mesh(new THREE.BoxGeometry(0.10, 1.05, 0.22), mats.machinedSteel);
+        finger.position.set(0.05, Math.cos(a) * 1.35, Math.sin(a) * 1.35);
+        finger.rotation.x = a;
+        finger.rotation.z = -0.18;
+        inputCouplerGroup.add(finger);
+      }
     }
     inputCouplerGroup.position.x = -4.2;
     transGroup.add(inputCouplerGroup);
 
-    // 3. Main Case & Internal Gear Train
+    // =========================================================================
+    // 3. RIBBED ALUMINUM MAIN CASE + INTERNAL ROTATING GEAR TRAIN
+    // =========================================================================
     const mainCaseGroup = new THREE.Group();
     const caseShape = new THREE.Shape();
     caseShape.moveTo(-2.1, -1.8);
@@ -369,18 +481,53 @@ export const Transmission3DScene: React.FC<Transmission3DSceneProps> = ({
     };
     mainCaseGroup.add(mainCaseMesh);
 
+    // Cast Reinforcement Case Ribs + Side Cooler Line Brass Fittings + Selector Arm
     for (let r = -2; r <= 2; r++) {
       const rib = new THREE.Mesh(new THREE.BoxGeometry(0.16, 2.6, 4.75), mats.castAlumCase);
       rib.position.set(r * 1.05, 0.1, 0);
       mainCaseGroup.add(rib);
     }
 
+    // Twin AN-6 Brass Cooler Fittings on Right Side of Main Case
+    [-1.4, 1.2].forEach((cx) => {
+      const anFitting = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.18, 0.18, 0.42, 6),
+        mats.brassSynchro
+      );
+      anFitting.rotation.x = Math.PI / 2;
+      anFitting.position.set(cx, -0.55, 2.38);
+      mainCaseGroup.add(anFitting);
+    });
+
+    // Manual Selector / Shifter Detent Lever Shaft on Left Case Side
+    const detentLever = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.95, 0.28), mats.machinedSteel);
+    detentLever.position.set(-1.1, -0.45, -2.42);
+    detentLever.rotation.z = 0.35;
+    mainCaseGroup.add(detentLever);
+
+    // Internal Input / Output Mainshaft with 26-Spline Front Tip & 32-Spline Output Tail
     const inputShaft = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.32, 0.32, 5.2, 16),
+      new THREE.CylinderGeometry(0.32, 0.32, 5.4, 20),
       mats.machinedSteel
     );
     inputShaft.rotation.z = Math.PI / 2;
-    inputShaft.position.set(-1.1, 0.35, 0);
+    inputShaft.position.set(-0.6, 0.35, 0);
+
+    const frontSpline = new THREE.Mesh(
+      createSplineShaftGeometry(0.34, 1.55, 24),
+      mats.machinedSteel
+    );
+    frontSpline.rotation.x = Math.PI / 2;
+    frontSpline.position.y = 2.95;
+    inputShaft.add(frontSpline);
+
+    const rearSpline = new THREE.Mesh(
+      createSplineShaftGeometry(0.36, 1.9, 28),
+      mats.machinedSteel
+    );
+    rearSpline.rotation.x = Math.PI / 2;
+    rearSpline.position.y = -3.45;
+    inputShaft.add(rearSpline);
     mainCaseGroup.add(inputShaft);
 
     const gearRadii = [1.45, 1.18, 0.95, 0.78];
@@ -399,6 +546,7 @@ export const Transmission3DScene: React.FC<Transmission3DSceneProps> = ({
       mainCaseGroup.add(gear);
       mainShaftGears.push(gear);
 
+      // Countershaft / Planetary Pinion gear below
       const cRad = 1.95 - rad;
       const cTeeth = Math.max(12, Math.round(cRad * 18));
       const cGear = new THREE.Mesh(
@@ -410,6 +558,7 @@ export const Transmission3DScene: React.FC<Transmission3DSceneProps> = ({
       mainCaseGroup.add(cGear);
       counterShaftGears.push(cGear);
 
+      // Brass Synchronizer Ring (Manual) or Clutch Drum (Auto)
       if (gIdx < 3) {
         const ring = new THREE.Mesh(
           new THREE.TorusGeometry(rad * 0.72, 0.08, 8, 22),
@@ -421,6 +570,7 @@ export const Transmission3DScene: React.FC<Transmission3DSceneProps> = ({
       }
     });
 
+    // Front Oil Pump Housing + Stator Support (Explodes forward from main case)
     const frontPumpGroup = new THREE.Group();
     const pumpFlange = new THREE.Mesh(
       new THREE.CylinderGeometry(2.05, 2.05, 0.55, 24),
@@ -438,10 +588,11 @@ export const Transmission3DScene: React.FC<Transmission3DSceneProps> = ({
     frontPumpGroup.userData = {
       name: 'Front Oil Pump & Stator Support Assembly',
       category: 'Hydraulics',
-      desc: 'Gerotor / crescent front pump assembly pressurizing clutch packs.'
+      desc: 'Gerotor / crescent front pump assembly pressurizing clutch packs and converter circuit.'
     };
     transGroup.add(frontPumpGroup);
 
+    // Multi-Disc Clutch Pack & Planetary Carrier Exploded Stack
     const clutchPackGroup = new THREE.Group();
     for (let cp = 0; cp < 6; cp++) {
       const plate = new THREE.Mesh(
@@ -460,9 +611,9 @@ export const Transmission3DScene: React.FC<Transmission3DSceneProps> = ({
     planetaryDrum.position.set(1.45, 0.35, 0);
     clutchPackGroup.add(planetaryDrum);
     clutchPackGroup.userData = {
-      name: 'Multi-Disc Clutch Pack & Planetary Carrier',
+      name: 'Multi-Disc Friction/Steel Clutch Pack & Planetary Carrier',
       category: 'Internal Gear Train',
-      desc: 'High-energy friction & steel plates with planetary carrier.'
+      desc: 'Alternating high-energy friction & Kolene steel plates with sun/ring planetary carrier.'
     };
     mainCaseGroup.add(clutchPackGroup);
 
@@ -473,21 +624,49 @@ export const Transmission3DScene: React.FC<Transmission3DSceneProps> = ({
       const vbPlate = new THREE.Mesh(new THREE.BoxGeometry(4.1, 0.42, 3.1), mats.machinedSteel);
       const filterPlate = new THREE.Mesh(new THREE.BoxGeometry(3.4, 0.18, 2.4), mats.brassSynchro);
       filterPlate.position.y = -0.34;
+      // Twin Shift Solenoids & Accumulator Piston Cylinders
+      [-1.1, 0.8].forEach((sx) => {
+        const solenoid = new THREE.Mesh(
+          new THREE.CylinderGeometry(0.24, 0.24, 0.65, 14),
+          mats.anodizedBlack
+        );
+        solenoid.rotation.z = Math.PI / 2;
+        solenoid.position.set(sx, 0.26, 1.05);
+        valveBodyGroup!.add(solenoid);
+      });
       valveBodyGroup.add(vbPlate, filterPlate);
       valveBodyGroup.position.set(0, -1.65, 0);
       valveBodyGroup.userData = {
-        name: 'Hydraulic Valve Body & Internal Filter',
+        name: 'Hydraulic Valve Body, Shift Solenoids & Filter',
         category: 'Hydraulics',
-        desc: 'Precision valve body regulating line pressure and lockup solenoid.'
+        desc: 'Precision-bored aluminum valve body regulating line pressure, shift accumulators, and lockup solenoid.'
       };
       transGroup.add(valveBodyGroup);
 
-      panMesh = new THREE.Mesh(new THREE.BoxGeometry(4.8, 0.85, 3.7), mats.castAlumCase);
+      panMesh = new THREE.Mesh(new THREE.BoxGeometry(4.8, 0.85, 3.7), mats.machinedSteel);
+      // Cast Aluminum Bottom Cooling Fins + Magnetic Brass Drain Plug + 12 Pan Flange Bolts
+      for (let cf = -1.4; cf <= 1.41; cf += 0.35) {
+        const fin = new THREE.Mesh(new THREE.BoxGeometry(4.5, 0.12, 0.08), mats.machinedSteel);
+        fin.position.set(0, -0.46, cf);
+        panMesh.add(fin);
+      }
+      const magDrain = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.16, 0.16, 6), mats.brassSynchro);
+      magDrain.position.set(1.85, -0.46, 0);
+      panMesh.add(magDrain);
+      for (let pb = 0; pb < 4; pb++) {
+        const px = -1.9 + pb * 1.26;
+        [-1.72, 1.72].forEach((pz) => {
+          const pBolt = createARP12PointBolt(0.065, 0.24, mats.arpBolt);
+          pBolt.rotation.x = Math.PI;
+          pBolt.position.set(px, -0.42, pz);
+          panMesh!.add(pBolt);
+        });
+      }
       panMesh.position.set(0, -2.28, 0);
       panMesh.userData = {
         name: 'Finned Cast-Aluminum Deep Sump Pan',
         category: 'Transmission',
-        desc: 'Deep cooling sump with magnetic drain plug.'
+        desc: 'Extra +2 Qt ATF cooling capacity with magnetic drain plug, cooling fins & 12-bolt rail.'
       };
       transGroup.add(panMesh);
     } else {
@@ -499,7 +678,7 @@ export const Transmission3DScene: React.FC<Transmission3DSceneProps> = ({
       shifterTurret.userData = {
         name: 'Hurst Competition Plus Shifter & Linkage',
         category: 'Shifter Assembly',
-        desc: 'Short-throw billet gate with adjustable stops.'
+        desc: 'Short-throw billet gate with adjustable 3rd/4th gear over-shift stops.'
       };
       mainCaseGroup.add(shifterTurret);
 
@@ -514,26 +693,43 @@ export const Transmission3DScene: React.FC<Transmission3DSceneProps> = ({
 
     transGroup.add(mainCaseGroup);
 
-    // 4. Tailhousing & Output Slip Yoke
+    // =========================================================================
+    // 4. TAPERED TAILHOUSING & FORGED 1350 SLIP YOKE WITH U-JOINT
+    // =========================================================================
     const tailPts = [
       new THREE.Vector2(2.3, -2.2),
       new THREE.Vector2(2.05, -0.8),
       new THREE.Vector2(1.45, 1.2),
       new THREE.Vector2(1.25, 2.2)
     ];
-    const tailshaft = new THREE.Mesh(new THREE.LatheGeometry(tailPts, 24), mats.castAlumCase);
+    const tailshaft = new THREE.Mesh(new THREE.LatheGeometry(tailPts, 28), mats.castAlumCase);
     tailshaft.rotation.z = -Math.PI / 2;
     tailshaft.position.x = 4.9;
+    // VSS Output Speed Sensor Housing + Urethane Transmission Mount Pad + Rear Oil Seal
+    const vssSensor = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.18, 0.65, 12), mats.anodizedBlack);
+    vssSensor.rotation.x = Math.PI / 2;
+    vssSensor.position.set(0.4, 0.25, 1.85);
+    tailshaft.add(vssSensor);
+
+    const mountPad = new THREE.Mesh(new THREE.BoxGeometry(0.35, 1.35, 1.85), mats.anodizedBlack);
+    mountPad.position.set(-1.52, 0.85, 0);
+    tailshaft.add(mountPad);
+
+    const rearSeal = new THREE.Mesh(new THREE.TorusGeometry(1.12, 0.14, 10, 24), mats.anodizedBlack);
+    rearSeal.rotation.x = Math.PI / 2;
+    rearSeal.position.y = 2.18;
+    tailshaft.add(rearSeal);
+
     tailshaft.userData = {
       name: 'Ribbed Aluminum Extension Tailhousing',
       category: 'Driveline',
-      desc: 'Houses rear output bushing and mount pad.'
+      desc: 'Houses rear output bushing, VSS speedometer sensor, Viton lip seal, and urethane mount pad.'
     };
     transGroup.add(tailshaft);
 
     const slipYokeGroup = new THREE.Group();
     const yokeBarrel = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.74, 0.74, 2.4, 20),
+      new THREE.CylinderGeometry(0.74, 0.74, 2.4, 24),
       mats.machinedSteel
     );
     yokeBarrel.rotation.z = -Math.PI / 2;
@@ -544,30 +740,30 @@ export const Transmission3DScene: React.FC<Transmission3DSceneProps> = ({
     const yokeEarBot = new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.28, 1.25), mats.machinedSteel);
     yokeEarBot.position.set(1.5, -0.55, 0);
     const uJointCross = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.24, 0.24, 1.25, 12),
+      new THREE.CylinderGeometry(0.24, 0.24, 1.25, 14),
       mats.brassSynchro
     );
     uJointCross.position.set(1.65, 0, 0);
-    slipYokeGroup.add(yokeEarTop, yokeEarBot, uJointCross);
+    const uJointPin = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.24, 0.24, 1.25, 14),
+      mats.brassSynchro
+    );
+    uJointPin.rotation.x = Math.PI / 2;
+    uJointPin.position.set(1.65, 0, 0);
+    [-0.64, 0.64].forEach((cy) => {
+      const cap = new THREE.Mesh(new THREE.CylinderGeometry(0.30, 0.30, 0.14, 14), mats.arpBolt);
+      cap.position.set(1.65, cy, 0);
+      slipYokeGroup.add(cap);
+    });
+    slipYokeGroup.add(yokeEarTop, yokeEarBot, uJointCross, uJointPin);
 
     slipYokeGroup.position.x = 7.4;
     slipYokeGroup.userData = {
       name: 'Forged 1350 Series Driveshaft Slip Yoke',
       category: 'Driveline',
-      desc: 'Chromoly 1350 U-joint yoke rotating at output shaft RPM.'
+      desc: 'Chromoly 1350 U-joint yoke with full-circle bearing caps rotating at output shaft RPM.'
     };
     transGroup.add(slipYokeGroup);
-
-    if (isGhost) {
-      inputShaft.renderOrder = 0;
-      mainShaftGears.forEach((g) => { g.renderOrder = 0; });
-      counterShaftGears.forEach((g) => { g.renderOrder = 0; });
-      bellhousing.renderOrder = 2;
-      mainCaseGroup.renderOrder = 2;
-      tailshaft.renderOrder = 2;
-      if (valveBodyGroup) valveBodyGroup.renderOrder = 2;
-      if (panMesh) panMesh.renderOrder = 2;
-    }
 
     const edgeLines: THREE.LineSegments[] = [];
     if (isDrawing) {
@@ -576,6 +772,7 @@ export const Transmission3DScene: React.FC<Transmission3DSceneProps> = ({
 
     scene.add(transGroup);
 
+    // Register subassembly map for live Technical Drawing BOM binding
     const transParts: Record<string, THREE.Object3D | null> = {
       bellhousing,
       converter: inputCouplerGroup,
@@ -600,6 +797,7 @@ export const Transmission3DScene: React.FC<Transmission3DSceneProps> = ({
     }
     transPartsRef.current = transParts;
 
+    // Selection Reticle Ring
     const selectionRingMat = new THREE.MeshBasicMaterial({
       color: 0xf97316,
       side: THREE.DoubleSide,
@@ -615,6 +813,7 @@ export const Transmission3DScene: React.FC<Transmission3DSceneProps> = ({
     scene.add(selectionReticle);
     reticleStateRef.current = { reticle: selectionReticle, camera };
 
+    // Raycasting
     const raycaster = new THREE.Raycaster();
     const onPointerDown = (event: MouseEvent) => {
       const rect = renderer.domElement.getBoundingClientRect();
@@ -648,6 +847,7 @@ export const Transmission3DScene: React.FC<Transmission3DSceneProps> = ({
     };
     window.addEventListener('resize', onResize);
 
+    // Paced Animation Loop + Damped Explosion
     let frameId = 0;
     let disposed = false;
     let lastTime = performance.now();
@@ -655,19 +855,27 @@ export const Transmission3DScene: React.FC<Transmission3DSceneProps> = ({
 
     function afterDraw(cb: () => void) {
       if (disposed) return;
-      const gl = renderer.getContext() as WebGL2RenderingContext;
+      const gl = renderer.getContext() as WebGL2RenderingContext | null;
+      if (!gl || typeof gl.fenceSync !== 'function') {
+        frameId = window.setTimeout(cb, 80);
+        return;
+      }
       const sync = gl.fenceSync(gl.SYNC_GPU_COMMANDS_COMPLETE, 0);
+      if (!sync) {
+        frameId = window.setTimeout(cb, 80);
+        return;
+      }
       gl.flush();
       const poll = () => {
         if (disposed) {
-          if (sync) gl.deleteSync(sync);
+          gl.deleteSync(sync);
           return;
         }
-        const state = sync && gl.getSyncParameter(sync, gl.SYNC_STATUS);
+        const state = gl.getSyncParameter(sync, gl.SYNC_STATUS);
         if (state === gl.UNSIGNALED) {
           frameId = window.setTimeout(poll, 5);
         } else {
-          if (sync) gl.deleteSync(sync);
+          gl.deleteSync(sync);
           frameId = window.setTimeout(cb, 80);
         }
       };
@@ -707,7 +915,15 @@ export const Transmission3DScene: React.FC<Transmission3DSceneProps> = ({
         slipYokeGroup.rotation.x += inputOmega / firstRatio;
       }
 
-      renderer.render(scene, camera);
+      try {
+        renderer.render(scene, camera);
+      } catch (err) {
+        disposed = true;
+        setWebglError(
+          err instanceof Error ? err.message : '3D Transmission WebGL frame rendering failed.'
+        );
+        return;
+      }
 
       if (isSoftwareGl) {
         afterDraw(() => tick(performance.now()));
@@ -722,6 +938,20 @@ export const Transmission3DScene: React.FC<Transmission3DSceneProps> = ({
       frameId = requestAnimationFrame(tick);
     }
 
+    const onContextLost = (e: Event) => {
+      e.preventDefault();
+      disposed = true;
+      cancelAnimationFrame(frameId);
+      clearTimeout(frameId);
+      setWebglError('3D WebGL context was interrupted by the browser.');
+    };
+    const onContextRestored = () => {
+      setWebglError(null);
+      setRetryNonce((n) => n + 1);
+    };
+    renderer.domElement.addEventListener('webglcontextlost', onContextLost);
+    renderer.domElement.addEventListener('webglcontextrestored', onContextRestored);
+
     return () => {
       disposed = true;
       transPartsRef.current = {};
@@ -730,6 +960,8 @@ export const Transmission3DScene: React.FC<Transmission3DSceneProps> = ({
       clearTimeout(frameId);
       window.removeEventListener('resize', onResize);
       renderer.domElement.removeEventListener('pointerdown', onPointerDown);
+      renderer.domElement.removeEventListener('webglcontextlost', onContextLost);
+      renderer.domElement.removeEventListener('webglcontextrestored', onContextRestored);
       controls.dispose();
       scene.traverse((obj) => {
         if (obj instanceof THREE.Mesh || obj instanceof THREE.LineSegments) {
@@ -741,10 +973,11 @@ export const Transmission3DScene: React.FC<Transmission3DSceneProps> = ({
       edgeLines.forEach((l) => l.geometry.dispose());
       textures.dispose();
       if (scene.environment) scene.environment.dispose();
-      renderer.dispose();
+      renderer.renderLists.dispose();
     };
-  }, [transmission.id, transmission.type, transmission.lengthInches, transmission.defaultStall, transmission.ratios.join(','), viewMode]);
+  }, [transmission.id, transmission.type, transmission.lengthInches, transmission.defaultStall, transmission.ratios.join(','), viewMode, retryNonce]);
 
+  // Lightweight live binding of Technical Drawing callouts without tearing down WebGL
   useEffect(() => {
     const parts = transPartsRef.current;
     Object.values(parts).forEach((obj) => {
@@ -775,6 +1008,7 @@ export const Transmission3DScene: React.FC<Transmission3DSceneProps> = ({
     }
   }, [techDrawing, transmission.id, viewMode]);
 
+  // Focus & reticle highlight when user clicks a BOM row in the Technical Drawing drawer
   useEffect(() => {
     if (!focusPartRequest) return;
     const obj = transPartsRef.current[focusPartRequest.key];
@@ -787,6 +1021,15 @@ export const Transmission3DScene: React.FC<Transmission3DSceneProps> = ({
     reticleState.reticle.visible = true;
   }, [focusPartRequest]);
 
+  const handleRetryWebgl = () => {
+    if (rendererRef.current) {
+      rendererRef.current.dispose();
+      rendererRef.current = null;
+    }
+    setWebglError(null);
+    setRetryNonce((n) => n + 1);
+  };
+
   return (
     <div className="relative w-full h-full min-h-[480px]">
       <div
@@ -794,6 +1037,32 @@ export const Transmission3DScene: React.FC<Transmission3DSceneProps> = ({
         className="w-full h-full cursor-grab active:cursor-grabbing blueprint-grid overflow-hidden"
         style={{ minHeight: '480px' }}
       />
+      {webglError && (
+        <div className="absolute inset-0 z-20 flex items-center justify-center bg-[#0d1014]/95 p-6">
+          <div className="max-w-md w-full rounded-xl border border-slate-700 bg-[#12161c] p-5 text-center space-y-3">
+            <h3 className="text-sm font-bold text-white">3D Transmission Viewport Temporarily Unavailable</h3>
+            <p className="text-xs text-slate-400 leading-relaxed">{webglError}</p>
+            <div className="flex flex-wrap justify-center gap-2 pt-1">
+              <button
+                type="button"
+                onClick={handleRetryWebgl}
+                className="px-3.5 py-2 rounded-lg bg-orange-600 hover:bg-orange-500 text-white text-xs font-semibold transition"
+              >
+                Retry 3D Viewport
+              </button>
+              {onOpenDrawingsTab && (
+                <button
+                  type="button"
+                  onClick={onOpenDrawingsTab}
+                  className="px-3.5 py-2 rounded-lg border border-cyan-500/60 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 text-xs font-semibold transition"
+                >
+                  Open 2D Transmission Schematic
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

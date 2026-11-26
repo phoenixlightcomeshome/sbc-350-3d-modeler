@@ -18,6 +18,7 @@ import { Transmission3DScene } from './CADViewer/Transmission3DScene';
 import { EngineViewMode } from './CADViewer/Engine3DScene';
 import { InspectionHUD } from './CADViewer/InspectionHUD';
 import { TechDrawingSpecsDrawer } from './TechDrawingSpecsDrawer';
+import { SpecialModControlsStrip } from './SpecialModControlsStrip';
 import { Car, Box, FileSpreadsheet } from 'lucide-react';
 
 interface TabTransmissionProps {
@@ -27,6 +28,7 @@ interface TabTransmissionProps {
   transDrawingsById?: Record<string, TechDrawingSheet>;
   transOverridesById?: Record<string, Partial<TransmissionItem>>;
   onApplyTransDrawing?: (transId: string, sheet: TechDrawingSheet | null) => void;
+  onOpenDrawingsTab?: () => void;
 }
 
 export const TabTransmission: React.FC<TabTransmissionProps> = ({
@@ -35,7 +37,8 @@ export const TabTransmission: React.FC<TabTransmissionProps> = ({
   onUpdateConfig,
   transDrawingsById = {},
   transOverridesById = {},
-  onApplyTransDrawing
+  onApplyTransDrawing,
+  onOpenDrawingsTab
 }) => {
   const [categoryFilter, setCategoryFilter] = useState<string>('ALL');
   const [show3DTrans, setShow3DTrans] = useState<boolean>(true);
@@ -141,6 +144,13 @@ export const TabTransmission: React.FC<TabTransmissionProps> = ({
         </div>
       </div>
 
+      <SpecialModControlsStrip
+        config={config}
+        specs={specs}
+        onUpdateConfig={onUpdateConfig}
+        variant="compact"
+      />
+
       {/* 3D Transmission Viewport (Expandable) */}
       {show3DTrans && (
         <div className="relative w-full h-96 rounded-2xl overflow-hidden border border-gray-800 bg-[#11151a] shadow-2xl">
@@ -152,6 +162,7 @@ export const TabTransmission: React.FC<TabTransmissionProps> = ({
             techDrawing={activeTransDrawing}
             focusPartRequest={focusPartRequest}
             onSelectPart={setSelectedTransPart}
+            onOpenDrawingsTab={onOpenDrawingsTab}
           />
 
           <InspectionHUD part={selectedTransPart} onClose={() => setSelectedTransPart(null)} />
@@ -267,6 +278,7 @@ export const TabTransmission: React.FC<TabTransmissionProps> = ({
           <div
             key={t.id}
             onClick={() => {
+              setSelectedTransPart(null);
               onUpdateConfig({
                 selectedTrans: t.id,
                 stallSpeed: t.defaultStall || config.stallSpeed

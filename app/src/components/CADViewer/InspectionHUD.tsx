@@ -10,9 +10,14 @@ import { X, Wrench, ShieldCheck, Tag, ExternalLink, Layers, FileSpreadsheet } fr
 interface InspectionHUDProps {
   part: InspectionData | null;
   onClose: () => void;
+  onOpenInDrawingMatrix?: () => void;
 }
 
-export const InspectionHUD: React.FC<InspectionHUDProps> = ({ part, onClose }) => {
+export const InspectionHUD: React.FC<InspectionHUDProps> = ({
+  part,
+  onClose,
+  onOpenInDrawingMatrix
+}) => {
   if (!part) return null;
 
   return (
@@ -83,6 +88,17 @@ export const InspectionHUD: React.FC<InspectionHUDProps> = ({ part, onClose }) =
               {part.partNumber}
             </span>
           </div>
+        )}
+
+        {onOpenInDrawingMatrix && (
+          <button
+            type="button"
+            onClick={onOpenInDrawingMatrix}
+            className="w-full mt-1 px-3 py-2 rounded-lg bg-cyan-500/15 hover:bg-cyan-500/25 border border-cyan-500/50 text-cyan-200 text-[11px] font-sans font-semibold flex items-center justify-center gap-1.5 transition"
+          >
+            <FileSpreadsheet className="w-3.5 h-3.5 text-cyan-300" />
+            <span>Open Individual 3D Drawing &amp; GD&amp;T Matrix</span>
+          </button>
         )}
 
         {part.sourceUrls && part.sourceUrls.length > 0 && (

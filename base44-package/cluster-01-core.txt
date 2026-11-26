@@ -1,0 +1,1240 @@
+# cluster-01-core.txt — SBC 350 v14 source, cluster 1 of 8
+# Source: ai-studio-app-v13-staging (v14, restored Nov 25 from the 08:04 backup). Paste ONE cluster per builder message, in order.
+# Files in this cluster: 10
+
+===== FILE: index.html (1494 bytes, md5 2ed7506c59c1436bef18d71906cb2446) =====
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>SBC 350 Engine Builder - MODSIM &amp; HOOPS 3D CAD Studio</title>
+    <meta name="description" content="Precision Chevrolet SBC 350 V8 engine builder and universal drivetrain simulator combining 3D CAD visualization, MODSIM kinematic simulation, 28-transmission compatibility matrix, full mechanics subsystem suite, and professional machine shop build sheet." />
+    <meta property="og:title" content="SBC 350 Engine Builder - MODSIM &amp; HOOPS 3D CAD Studio" />
+    <meta property="og:description" content="Precision Chevrolet SBC 350 V8 engine builder and universal drivetrain simulator combining 3D CAD visualization, MODSIM kinematic simulation, 28-transmission compatibility matrix, full mechanics subsystem suite, and professional machine shop build sheet." />
+    <meta property="og:type" content="website" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
+
+
+
+===== FILE: package.json (1030 bytes, md5 1e8fc7bb6ababf42bee7f9c9d8e5181e) =====
+
+{
+  "name": "react-example",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx server.ts",
+    "build": "vite build",
+    "start": "node server.ts",
+    "preview": "vite preview",
+    "clean": "rm -rf dist server.js",
+    "lint": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@google/genai": "^3.6.1",
+    "@tailwindcss/vite": "^4.3.3",
+    "@types/canvas-confetti": "^1.9.0",
+    "@types/three": "^0.187.0",
+    "@vitejs/plugin-react": "^6.1.1",
+    "canvas-confetti": "^1.9.4",
+    "dotenv": "^17.2.3",
+    "express": "^4.21.2",
+    "lucide-react": "^0.546.0",
+    "motion": "^12.23.24",
+    "react": "^19.0.1",
+    "react-dom": "^19.0.1",
+    "three": "^0.187.0",
+    "vite": "^8.3.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.14.0",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "autoprefixer": "^10.4.21",
+    "esbuild": "^0.25.0",
+    "tailwindcss": "^4.3.3",
+    "tsx": "^4.21.0",
+    "typescript": "^7.0.2",
+    "@types/express": "^4.17.21"
+  }
+}
+
+
+===== FILE: server.ts (15424 bytes, md5 266aa9f174010ffca739094ab9d8ba87) =====
+
+/**
+ * @license
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+import 'dotenv/config';
+import express from 'express';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import { GoogleGenAI, Type } from '@google/genai';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+const PORT = Number(process.env.PORT || 3000);
+const MODEL_ID = 'gemini-4-hydrogen';
+
+function createGeminiClient(): GoogleGenAI | null {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey || apiKey === 'MY_GEMINI_API_KEY') {
+    return null;
+  }
+  return new GoogleGenAI({
+    apiKey,
+    httpOptions: {
+      headers: {
+        'User-Agent': 'aistudio-build',
+      },
+    },
+  });
+}
+
+function extractJsonObject(rawText: string): Record<string, unknown> {
+  const trimmed = rawText.trim();
+  const fencedMatch = trimmed.match(/```(?:json)?\s*([\s\S]*?)```/i);
+  const candidate = fencedMatch ? fencedMatch[1].trim() : trimmed;
+  const firstBrace = candidate.indexOf('{');
+  const lastBrace = candidate.lastIndexOf('}');
+  if (firstBrace === -1 || lastBrace === -1 || lastBrace <= firstBrace) {
+    throw new Error('Model response did not contain a valid JSON object.');
+  }
+  const slice = candidate.slice(firstBrace, lastBrace + 1);
+  return JSON.parse(slice) as Record<string, unknown>;
+}
+
+const DIAGRAM_RESPONSE_SCHEMA = {
+  type: Type.OBJECT,
+  properties: {
+    domain: {
+      type: Type.STRING,
+      description: 'Detected automotive domain: either "engine" or "transmission".',
+    },
+    drawingNumber: {
+      type: Type.STRING,
+      description: 'Technical drawing sheet or catalog page identifier visible on the diagram.',
+    },
+    title: {
+      type: Type.STRING,
+      description: 'Official engine or transmission model title from the diagram.',
+    },
+    subtitle: {
+      type: Type.STRING,
+      description: 'Short technical subtitle including application, series, or speed configuration.',
+    },
+    unitSummary: {
+      type: Type.STRING,
+      description: 'Real-world engineering overview of the unit, clearances, hydraulic/valvetrain notes, and design tolerances.',
+    },
+    dimensions: {
+      type: Type.OBJECT,
+      properties: {
+        bore: { type: Type.NUMBER, description: 'Cylinder bore diameter in inches (engine only if specified).' },
+        stroke: { type: Type.NUMBER, description: 'Crankshaft stroke in inches (engine only if specified).' },
+        rodLength: { type: Type.NUMBER, description: 'Connecting rod center-to-center length in inches.' },
+        deckHeight: { type: Type.NUMBER, description: 'Block deck height in inches.' },
+        deckClearance: { type: Type.NUMBER, description: 'Piston-to-deck clearance in inches.' },
+        gasketThickness: { type: Type.NUMBER, description: 'Compressed head gasket thickness in inches.' },
+        chamberCc: { type: Type.NUMBER, description: 'Combustion chamber volume in cc.' },
+        ratios: {
+          type: Type.ARRAY,
+          items: { type: Type.NUMBER },
+          description: 'Forward transmission gear ratios in order 1st..top gear.',
+        },
+        reverse: { type: Type.NUMBER, description: 'Transmission reverse gear ratio.' },
+        lengthInches: { type: Type.NUMBER, description: 'Overall transmission length in inches.' },
+        defaultStall: { type: Type.NUMBER, description: 'Recommended converter stall RPM for automatics (0 for manuals).' },
+        nativePattern: { type: Type.STRING, description: 'Bellhousing bolt pattern family.' },
+      },
+    },
+    callouts: {
+      type: Type.ARRAY,
+      items: {
+        type: Type.OBJECT,
+        properties: {
+          row: { type: Type.STRING, description: 'Diagram row or section letter (A, B, C, D, E, F).' },
+          indexCode: { type: Type.STRING, description: 'Callout number/index shown on the technical drawing (e.g. A-001, 104, 12).' },
+          partName: { type: Type.STRING, description: 'Official component name.' },
+          partNumber: { type: Type.STRING, description: 'OEM or aftermarket reference part number / SKU.' },
+          category: { type: Type.STRING, description: 'Assembly group category.' },
+          clearanceSpec: { type: Type.STRING, description: 'Real-world clearance, end play, backlash, or hydraulic pressure spec.' },
+          torqueSpec: { type: Type.STRING, description: 'Fastener torque spec (ft-lbs or in-lbs).' },
+          material: { type: Type.STRING, description: 'Component alloy or friction/seal material.' },
+          notes: { type: Type.STRING, description: 'Installation, orientation, or service notes.' },
+          targetSubassembly: {
+            type: Type.STRING,
+            description:
+              'Matching 3D subassembly key. Engine keys: block, crank, rotating, heads, cam, intake, ignition, lubrication, cooling, fuel, starter, timingCover, oilPan. Transmission keys: bellhousing, converter, frontPump, clutchPack, mainCase, valveBody, pan, tailhousing, slipYoke.',
+          },
+        },
+        required: ['row', 'indexCode', 'partName', 'category', 'targetSubassembly'],
+      },
+    },
+  },
+  required: ['domain', 'title', 'unitSummary', 'callouts'],
+};
+
+async function startServer() {
+  const app = express();
+  app.use(express.json({ limit: '15mb' }));
+
+  app.get('/api/health', (_req, res) => {
+    res.json({ ok: true, model: MODEL_ID });
+  });
+
+  // Online real-world OEM & aftermarket automotive spec + BOM lookup via Google Search Grounding
+  app.post('/api/specs/lookup', async (req, res) => {
+    const ai = createGeminiClient();
+    if (!ai) {
+      res.status(503).json({
+        error: 'GEMINI_API_KEY is not configured in the server environment.',
+      });
+      return;
+    }
+
+    try {
+      const body = req.body as {
+        domain?: 'engine' | 'transmission';
+        query?: string;
+        unitName?: string;
+        contextSpecs?: Record<string, unknown>;
+      };
+
+      const domain = body.domain === 'transmission' ? 'transmission' : 'engine';
+      const query = String(body.query || body.unitName || '').trim();
+      if (!query) {
+        res.status(400).json({ error: 'Search query or component name is required.' });
+        return;
+      }
+
+      const targetKeys =
+        domain === 'transmission'
+          ? 'bellhousing, converter, frontPump, clutchPack, mainCase, valveBody, pan, tailhousing, slipYoke'
+          : 'block, crank, rotating, heads, cam, intake, ignition, lubrication, cooling, fuel, starter, timingCover, oilPan';
+
+      const prompt = `You are a master automotive machine shop engineer and technical catalog specialist.
+Research real-world OEM and aftermarket technical drawing specifications, service manual clearances, fastener torque specs, and exploded parts catalog BOM callouts for:
+Domain: ${domain.toUpperCase()}
+Query / Unit: "${query}"
+${body.unitName ? `Active Studio Assembly: "${body.unitName}"` : ''}
+${body.contextSpecs ? `Current Parameters: ${JSON.stringify(body.contextSpecs)}` : ''}
+
+Use Google Search to verify accurate real-world specifications, OEM/aftermarket part numbers, factory clearances, end-play tolerances, torque specs, and gear/engine dimensions.
+
+Return ONLY a valid JSON object (no surrounding commentary) matching this exact schema:
+{
+  "domain": "${domain}",
+  "drawingNumber": "string (e.g., OEM / Aftermarket Ref ID)",
+  "title": "string (official unit or component title)",
+  "subtitle": "string (make, years, application, spec summary)",
+  "unitSummary": "string (concise technical engineering overview)",
+  "dimensions": {
+    ${
+      domain === 'transmission'
+        ? `"ratios": [number],
+    "reverse": number,
+    "lengthInches": number,
+    "defaultStall": number,
+    "nativePattern": "string"`
+        : `"bore": number,
+    "stroke": number,
+    "rodLength": number,
+    "deckHeight": number,
+    "deckClearance": number,
+    "gasketThickness": number,
+    "chamberCc": number`
+    }
+  },
+  "callouts": [
+    {
+      "row": "A | B | C | D | E | F",
+      "indexCode": "string (e.g. A-101, B-204)",
+      "partName": "string",
+      "partNumber": "string (real OEM or aftermarket SKU)",
+      "category": "string",
+      "clearanceSpec": "string (real-world clearance / end play / pressure / gap)",
+      "torqueSpec": "string (real-world torque in ft-lbs or in-lbs)",
+      "material": "string",
+      "notes": "string",
+      "targetSubassembly": "one of: ${targetKeys}"
+    }
+  ]
+}
+
+Provide 8 to 14 well-organized callout items spanning Rows A through F so every major subassembly in the 3D CAD viewer receives verified specs. Omit unknown numeric fields inside "dimensions" rather than guessing zero.`;
+
+      const response = await ai.models.generateContent({
+        model: MODEL_ID,
+        contents: prompt,
+        config: {
+          tools: [{ googleSearch: {} }],
+        },
+      });
+
+      const rawText = response.text || '';
+      const parsed = extractJsonObject(rawText);
+
+      const candidate = response.candidates?.[0] as
+        | {
+            groundingMetadata?: {
+              groundingChunks?: Array<{ web?: { uri?: string; title?: string } }>;
+            };
+          }
+        | undefined;
+
+      const chunks = candidate?.groundingMetadata?.groundingChunks || [];
+      const seenUris = new Set<string>();
+      const sourceUrls: Array<{ title: string; uri: string }> = [];
+      for (const chunk of chunks) {
+        const uri = chunk.web?.uri;
+        if (uri && !seenUris.has(uri)) {
+          seenUris.add(uri);
+          sourceUrls.push({
+            title: chunk.web?.title || uri,
+            uri,
+          });
+        }
+      }
+
+      res.json({
+        sheet: {
+          id: `online_${Date.now()}`,
+          domain,
+          drawingNumber: String(parsed.drawingNumber || `WEB-${domain.toUpperCase()}`),
+          title: String(parsed.title || query),
+          subtitle: String(parsed.subtitle || 'Verified Online Automotive Technical Spec'),
+          sourceLabel: 'Live Google Search Grounded Technical Data',
+          unitSummary: String(parsed.unitSummary || ''),
+          dimensions:
+            parsed.dimensions && typeof parsed.dimensions === 'object'
+              ? parsed.dimensions
+              : undefined,
+          callouts: Array.isArray(parsed.callouts) ? parsed.callouts : [],
+          sourceUrls,
+          updatedAt: new Date().toISOString(),
+        },
+      });
+    } catch (err: unknown) {
+      const message =
+        err instanceof Error ? err.message : 'Failed to look up online automotive specifications.';
+      console.error('[/api/specs/lookup] Error:', err);
+      res.status(502).json({ error: message });
+    }
+  });
+
+  // Multimodal Technical Drawing / Exploded Catalog Diagram Upload & Extraction
+  app.post('/api/specs/parse-diagram', async (req, res) => {
+    const ai = createGeminiClient();
+    if (!ai) {
+      res.status(503).json({
+        error: 'GEMINI_API_KEY is not configured in the server environment.',
+      });
+      return;
+    }
+
+    try {
+      const body = req.body as {
+        domain?: 'engine' | 'transmission' | 'auto';
+        imageBase64?: string;
+        mimeType?: string;
+        notes?: string;
+        unitHint?: string;
+      };
+
+      const rawBase64 = String(body.imageBase64 || '').replace(/^data:[^;]+;base64,/, '').trim();
+      if (!rawBase64) {
+        res.status(400).json({ error: 'Uploaded diagram image data is required.' });
+        return;
+      }
+
+      const mimeType = String(body.mimeType || 'image/jpeg');
+      const requestedDomain = body.domain || 'auto';
+
+      const prompt = `Analyze this automotive technical drawing, exploded parts catalog diagram, or engine/transmission specification sheet.
+Requested domain hint: ${requestedDomain}.
+${body.unitHint ? `Active unit context: ${body.unitHint}.` : ''}
+${body.notes ? `Technician notes: ${body.notes}.` : ''}
+
+Instructions:
+1. Identify the exact engine or transmission model/series shown in the header/title (for example Chrysler 40RH / 42RH / 42RE / 44RE A500, TH350, 4L60E, SBC 350, etc.).
+2. Read the visible exploded diagram rows (such as Rows A, B, C, D, E, F) and numbered callouts/part groups.
+3. Combine what is visible in the diagram with accurate real-world automotive OEM/aftermarket service clearances, fastener torque specs, and dimensions for each subassembly.
+4. Map every callout to the closest 3D CAD subassembly key:
+   - For transmission diagrams: bellhousing, converter, frontPump, clutchPack, mainCase, valveBody, pan, tailhousing, slipYoke.
+   - For engine diagrams: block, crank, rotating, heads, cam, intake, ignition, lubrication, cooling, fuel, starter, timingCover, oilPan.
+5. Extract any real numeric dimensions if applicable (gear ratios, lengthInches, defaultStall, nativePattern OR bore, stroke, rodLength, deckHeight, chamberCc, gasketThickness).`;
+
+      const response = await ai.models.generateContent({
+        model: MODEL_ID,
+        contents: [
+          {
+            inlineData: {
+              mimeType,
+              data: rawBase64,
+            },
+          },
+          prompt,
+        ],
+        config: {
+          responseMimeType: 'application/json',
+          responseSchema: DIAGRAM_RESPONSE_SCHEMA,
+        },
+      });
+
+      const parsed = JSON.parse(response.text || '{}') as Record<string, unknown>;
+      const resolvedDomain =
+        parsed.domain === 'transmission' || parsed.domain === 'engine'
+          ? parsed.domain
+          : requestedDomain === 'transmission'
+          ? 'transmission'
+          : 'engine';
+
+      res.json({
+        sheet: {
+          id: `upload_${Date.now()}`,
+          domain: resolvedDomain,
+          drawingNumber: String(parsed.drawingNumber || 'UPLOADED-DWG'),
+          title: String(parsed.title || body.unitHint || 'Uploaded Technical Drawing'),
+          subtitle: String(parsed.subtitle || 'Extracted from Uploaded CAD / Parts Catalog Sheet'),
+          sourceLabel: 'Uploaded Diagram Vision Extraction',
+          unitSummary: String(parsed.unitSummary || ''),
+          dimensions:
+            parsed.dimensions && typeof parsed.dimensions === 'object'
+              ? parsed.dimensions
+              : undefined,
+          callouts: Array.isArray(parsed.callouts) ? parsed.callouts : [],
+          updatedAt: new Date().toISOString(),
+        },
+      });
+    } catch (err: unknown) {
+      const message =
+        err instanceof Error ? err.message : 'Failed to extract technical drawing specifications.';
+      console.error('[/api/specs/parse-diagram] Error:', err);
+      res.status(502).json({ error: message });
+    }
+  });
+
+  if (process.env.NODE_ENV !== 'production') {
+    const { createServer: createViteServer } = await import('vite');
+    const vite = await createViteServer({
+      server: { middlewareMode: true },
+      appType: 'spa',
+    });
+    app.use(vite.middlewares);
+  } else {
+    const distDir = path.resolve(__dirname, 'dist');
+    app.use(express.static(distDir));
+    app.get('*', (_req, res) => {
+      const indexFile = path.join(distDir, 'index.html');
+      if (fs.existsSync(indexFile)) {
+        res.sendFile(indexFile);
+      } else {
+        res.status(404).send('Production build not found. Run npm run build first.');
+      }
+    });
+  }
+
+  app.listen(PORT, '0.0.0.0', () => {
+    console.log(`SBC 350 CAD Studio server listening on http://0.0.0.0:${PORT}`);
+  });
+}
+
+startServer().catch((err) => {
+  console.error('Failed to start server:', err);
+  process.exit(1);
+});
+
+
+===== FILE: vite.config.ts (1476 bytes, md5 45dbeb394e27129d844dece781990b73) =====
+
+import tailwindcss from '@tailwindcss/vite';
+import react from '@vitejs/plugin-react';
+import fs from 'fs';
+import path from 'path';
+import {defineConfig} from 'vite';
+
+export default defineConfig(() => {
+  return {
+    plugins: [
+      react(),
+      tailwindcss(),
+      // Copies src/assets into dist/ so root-relative URLs like
+      // "/src/assets/images/..." (e.g. generate_image output) still resolve
+      // in production builds. Do not remove.
+      {
+        name: 'copy-unbundled-src-assets',
+        apply: 'build',
+        closeBundle(error?: Error): void {
+          if (error) {
+            return;
+          }
+          const distDir = path.resolve(__dirname, 'dist');
+          const srcAssets = path.resolve(__dirname, 'src/assets');
+          const distAssets = path.resolve(distDir, 'src/assets');
+          if (fs.existsSync(distDir) && fs.existsSync(srcAssets)) {
+            fs.cpSync(srcAssets, distAssets, {recursive: true, force: true});
+          }
+        },
+      },
+    ],
+    resolve: {
+      alias: {
+        '@': path.resolve(__dirname, '.'),
+      },
+    },
+    server: {
+      // HMR is disabled in AI Studio via DISABLE_HMR env var.
+      // Do not modify—file watching is disabled to prevent flickering during agent edits.
+      hmr: process.env.DISABLE_HMR !== 'true',
+      // Disable file watching when DISABLE_HMR is true to save CPU during agent edits.
+      watch: process.env.DISABLE_HMR === 'true' ? null : {},
+    },
+  };
+});
+
+
+===== FILE: tsconfig.json (561 bytes, md5 c9ce11f97b614219001b418db5fe4190) =====
+
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "experimentalDecorators": true,
+    "useDefineForClassFields": false,
+    "module": "ESNext",
+    "types": ["vite/client"],
+    "lib": [
+      "ES2022",
+      "DOM",
+      "DOM.Iterable"
+    ],
+    "skipLibCheck": true,
+    "moduleResolution": "bundler",
+    "isolatedModules": true,
+    "moduleDetection": "force",
+    "allowJs": true,
+    "jsx": "react-jsx",
+    "paths": {
+      "@/*": [
+        "./*"
+      ]
+    },
+    "allowImportingTsExtensions": true,
+    "noEmit": true
+  },
+  "exclude": ["dist"]
+}
+
+
+===== FILE: README.md (542 bytes, md5 1ae62d19a47ecdcb2777857fd0639028) =====
+
+<div align="center">
+<img width="1200" height="475" alt="GHBanner" src="https://ai.google.dev/static/site-assets/images/share-ais-513315318.png" />
+</div>
+
+# Run and deploy your AI Studio app
+
+This contains everything you need to run your app locally.
+
+View your app in AI Studio: https://ai.studio/apps/005ec037-b81a-498b-8e2e-7921b4618f18
+
+## Run Locally
+
+**Prerequisites:**  Node.js
+
+
+1. Install dependencies:
+   `npm install`
+2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
+3. Run the app:
+   `npm run dev`
+
+
+===== FILE: metadata.json (449 bytes, md5 b0c11e040d97dc9f2a9a2621c46eafbc) =====
+
+{
+  "name": "Remix Remix Remix Remix SBC 350 3D Engine Builder",
+  "description": "Precision Chevrolet SBC 350 V8 engine builder and universal drivetrain simulator combining 3D CAD visualization, MODSIM kinematic simulation, 28-transmission compatibility matrix, full mechanics subsystem suite, and professional machine shop build sheet.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
+
+===== FILE: src/App.tsx (22080 bytes, md5 8c5282b0e135df6c1f74f706121a7d3c) =====
+
+/**
+ * @license
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+import React, { useState, useMemo, useEffect } from 'react';
+import {
+  EngineConfig,
+  TabId,
+  PartsGradeTier,
+  StoreEngineSpec,
+  StorePartOption,
+  StoreVehicleModel,
+  TechDrawingSheet,
+  TransmissionItem,
+  PartOverridesMap,
+  DesignStudioSubPageId,
+  CinematicLightingPreset,
+  MountedStudioDesign
+} from './types/engine';
+import { RAY_BASELINE_CONFIG, ENGINE_CATALOG } from './data/engineData';
+import { calculateCoordinatedSpecs } from './services/coordinationEngine';
+import { loadStoredPartOverrides, loadStoredTransOverrides } from './data/partModifications';
+import { Header } from './components/Header';
+import { StudioSidebar } from './components/StudioSidebar';
+import { TabDesignStudio } from './components/TabDesignStudio';
+import { Tab3DBlock } from './components/Tab3DBlock';
+import { TabRotatingAssembly } from './components/TabRotatingAssembly';
+import { TabValvetrain } from './components/TabValvetrain';
+import { TabInduction } from './components/TabInduction';
+import { TabIgnition } from './components/TabIgnition';
+import { TabTransmission } from './components/TabTransmission';
+import { TabDynoCurves } from './components/TabDynoCurves';
+import { TabMachineShop } from './components/TabMachineShop';
+import { TabTechnicalDrawings } from './components/TabTechnicalDrawings';
+import { TabEngConfig } from './components/TabEngConfig';
+import { TabEngineeringConfig } from './components/TabEngineeringConfig';
+import { TabMoreDrawings } from './components/TabMoreDrawings';
+import { TabDrawingMatrix } from './components/TabDrawingMatrix';
+import { MatrixComponentKey } from './data/manufacturingMatrix';
+import { EcosystemRegistryModal } from './components/EcosystemRegistryModal';
+import { AutoPartsStorePanel, ActiveStoreSelection } from './components/AutoPartsStorePanel';
+import { AutoTechKnowledgeDrawer } from './components/AutoTechKnowledgeDrawer';
+import { ErrorBoundary } from './components/ErrorBoundary';
+import { X } from 'lucide-react';
+
+// StoreEngineSpec has no color property; map OEM-family block paint/casting finish
+// explicitly here (flagged estimate for non-ENGINE_CATALOG store models).
+function resolveStoreFamilyColor(engine: StoreEngineSpec): number {
+  const make = engine.make.toLowerCase();
+  const family = engine.family.toLowerCase();
+  const pattern = engine.pattern.toLowerCase();
+  if (pattern.includes('ls') || family.includes('ls') || family.includes('lt') || family.includes('coyote') || make.includes('honda') || make.includes('bmw')) {
+    return 0x8a939e; // Cast aluminum block finish
+  }
+  if (make.includes('ford')) return 0x1e40af; // Ford Corporate Blue
+  if (make.includes('dodge') || make.includes('chrysler') || make.includes('mopar') || make.includes('plymouth')) {
+    return 0xea580c; // Mopar Street Hemi Orange
+  }
+  if (make.includes('toyota') || make.includes('nissan') || make.includes('subaru')) {
+    return 0x334155; // JDM iron/slate casting finish
+  }
+  if (make.includes('chevrolet') || make.includes('gm') || make.includes('pontiac')) {
+    return 0xd83b01; // Classic Chevy Orange
+  }
+  return 0x475569;
+}
+
+export default function App() {
+  const [config, setConfig] = useState<EngineConfig>(RAY_BASELINE_CONFIG);
+  const [selectedEngineId, setSelectedEngineId] = useState<string>('sbc_350_ray');
+  const [activeTab, setActiveTab] = useState<TabId>('block3d');
+  const [isRegistryOpen, setIsRegistryOpen] = useState<boolean>(false);
+  const [isPartsStoreOpen, setIsPartsStoreOpen] = useState<boolean>(false);
+  const [isKnowledgeOpen, setIsKnowledgeOpen] = useState<boolean>(false);
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState<boolean>(false);
+  const [archiveCount, setArchiveCount] = useState<number>(37);
+  const [activeStoreSelection, setActiveStoreSelection] = useState<ActiveStoreSelection | null>(null);
+  const [customEngineDrawing, setCustomEngineDrawing] = useState<TechDrawingSheet | null>(null);
+  const [transDrawingsById, setTransDrawingsById] = useState<Record<string, TechDrawingSheet>>({});
+  // Override baselines load from localStorage once, so overrides saved in
+  // Tab 13 survive a reload instead of resetting to empty.
+  const [transOverridesById, setTransOverridesById] = useState<Record<string, Partial<TransmissionItem>>>(() => loadStoredTransOverrides());
+  const [partOverrides, setPartOverrides] = useState<PartOverridesMap>(() => loadStoredPartOverrides());
+  const [selectedMatrixPart, setSelectedMatrixPart] = useState<MatrixComponentKey>('block');
+  const [designStudioSubPage, setDesignStudioSubPage] = useState<DesignStudioSubPageId>('3d_creator');
+  const [cinematicPreset, setCinematicPreset] = useState<CinematicLightingPreset>('dyno_cell');
+  const [cinematicLaunchNonce, setCinematicLaunchNonce] = useState<number>(0);
+  const [mountedStudioDesign, setMountedStudioDesign] = useState<MountedStudioDesign | null>(null);
+  const [studioDesignsHistory, setStudioDesignsHistory] = useState<MountedStudioDesign[]>([]);
+
+  const handleOpenMatrixForPart = (partKey: MatrixComponentKey) => {
+    setSelectedMatrixPart(partKey);
+    setActiveTab('drawingmatrix');
+  };
+
+  const handleSaveStudioDesign = (design: MountedStudioDesign) => {
+    setStudioDesignsHistory((prev) => [
+      design,
+      ...prev.filter((item) => item.drawingNumber !== design.drawingNumber)
+    ]);
+  };
+
+  const handleMountDesignToTestArea = (
+    design: MountedStudioDesign,
+    launchCinematic = false
+  ) => {
+    handleSaveStudioDesign(design);
+    if (design.configUpdates) {
+      handleUpdateConfig(design.configUpdates);
+    }
+    setCustomEngineDrawing(design.drawingSheet);
+    setMountedStudioDesign(design);
+    if (launchCinematic) {
+      setCinematicLaunchNonce((n) => n + 1);
+    }
+    setActiveTab('block3d');
+  };
+
+  // Global keyboard shortcut: '?' opens Auto Tech Knowledge Encyclopedia
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      const isTyping =
+        target &&
+        (target.tagName === 'INPUT' ||
+          target.tagName === 'SELECT' ||
+          target.tagName === 'TEXTAREA');
+      if (isTyping) return;
+
+      if (e.key === '?' || e.key === 'F1') {
+        e.preventDefault();
+        setIsKnowledgeOpen((prev) => !prev);
+      } else if (e.key === 'Escape') {
+        setIsKnowledgeOpen(false);
+        setIsPartsStoreOpen(false);
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, []);
+
+  // Single common source of truth: MODSIM coordination engine
+  const specs = useMemo(() => {
+    return calculateCoordinatedSpecs(config, transOverridesById);
+  }, [config, transOverridesById]);
+
+  const handleApplyTransDrawing = (transId: string, sheet: TechDrawingSheet | null) => {
+    if (!sheet) {
+      setTransDrawingsById((prev) => {
+        const next = { ...prev };
+        delete next[transId];
+        return next;
+      });
+      setTransOverridesById((prev) => {
+        const next = { ...prev };
+        delete next[transId];
+        return next;
+      });
+      return;
+    }
+
+    setTransDrawingsById((prev) => ({ ...prev, [transId]: sheet }));
+    const dims = sheet.dimensions;
+    if (dims) {
+      const override: Partial<TransmissionItem> = {};
+      if (Array.isArray(dims.ratios) && dims.ratios.length >= 2) {
+        override.ratios = dims.ratios.filter((n) => typeof n === 'number' && n > 0.2 && n < 8);
+      }
+      if (typeof dims.reverse === 'number' && dims.reverse > 0.5 && dims.reverse < 8) {
+        override.reverse = dims.reverse;
+      }
+      if (typeof dims.lengthInches === 'number' && dims.lengthInches > 12 && dims.lengthInches < 60) {
+        override.lengthInches = dims.lengthInches;
+      }
+      if (typeof dims.defaultStall === 'number' && dims.defaultStall >= 0 && dims.defaultStall <= 7000) {
+        override.defaultStall = dims.defaultStall;
+      }
+      if (typeof dims.nativePattern === 'string' && dims.nativePattern.trim()) {
+        override.nativePattern = dims.nativePattern.trim();
+      }
+      if (Object.keys(override).length > 0) {
+        setTransOverridesById((prev) => ({ ...prev, [transId]: override }));
+      }
+    }
+  };
+
+  const handleUpdateConfig = (newConfig: Partial<EngineConfig>) => {
+    setConfig((prev) => ({ ...prev, ...newConfig }));
+  };
+
+  const handleResetRay = () => {
+    setSelectedEngineId('sbc_350_ray');
+    setActiveStoreSelection(null);
+    setConfig(RAY_BASELINE_CONFIG);
+    setPartOverrides({});
+  };
+
+  const handleSelectEnginePreset = (engineId: string) => {
+    const catalogItem = ENGINE_CATALOG[engineId];
+    if (!catalogItem) return;
+
+    setSelectedEngineId(engineId);
+    setActiveStoreSelection(null);
+    const cyls = catalogItem.cylinders ?? 8;
+    handleUpdateConfig({
+      engineId: catalogItem.id,
+      engineName: catalogItem.name,
+      configLabel: catalogItem.configLabel ?? (cyls === 6 ? 'I6' : 'V8'),
+      color: catalogItem.color,
+      firingOrder: catalogItem.firingOrder,
+      pattern: catalogItem.pattern,
+      bellhousingPattern: catalogItem.pattern,
+      balance: catalogItem.balance,
+      flywheelTeeth: catalogItem.flywheelTeeth,
+      boreSpacing: catalogItem.boreSpacing,
+      valvetrainType: catalogItem.valvetrainType ?? (cyls === 6 ? 'DOHC' : 'OHV'),
+      blockMaterial: catalogItem.blockMaterial ?? (catalogItem.color === 0x8a939e ? 'aluminum' : 'iron'),
+      headMaterial: catalogItem.headMaterial ?? 'aluminum',
+      intakeValveIn: catalogItem.intakeValveIn,
+      exhaustValveIn: catalogItem.exhaustValveIn,
+      valveAngleDeg: catalogItem.valveAngleDeg,
+      bankAngleDeg: catalogItem.bankAngleDeg ?? (cyls === 6 ? 0 : 90),
+      bore: catalogItem.bore,
+      stroke: catalogItem.stroke,
+      rodLength: catalogItem.rodLength,
+      deckHeight: catalogItem.deckHeight,
+      chamberCc: catalogItem.chamberCc,
+      gasketThickness: catalogItem.gasketThickness,
+      deckClearance: catalogItem.deckClearance,
+      cylinders: cyls
+    });
+  };
+
+  const handleApplyStoreEngine = (
+    engine: StoreEngineSpec,
+    vehicle: StoreVehicleModel | null,
+    yearLabel: string,
+    tier: PartsGradeTier,
+    selectedParts: StorePartOption[]
+  ) => {
+    setActiveStoreSelection({
+      yearLabel,
+      vehicle,
+      engine,
+      tier,
+      selectedParts
+    });
+
+    const catalogItem = ENGINE_CATALOG[engine.id];
+    if (catalogItem) {
+      setSelectedEngineId(engine.id);
+    }
+
+    const tierAlloy =
+      tier === 'race_forged'
+        ? '2618'
+        : tier === 'oe_standard'
+        ? 'hypereutectic'
+        : '4032';
+
+    const tierRing =
+      tier === 'race_forged'
+        ? 'nitrous'
+        : tier === 'street_perf'
+        ? 'street_strip'
+        : 'street';
+
+    const isInlineLayout = engine.configLabel === 'I6' || engine.configLabel === 'I4';
+    const isDohcFamily =
+      catalogItem?.valvetrainType ??
+      (engine.configLabel === 'I6' || engine.family.toLowerCase().includes('dohc') || engine.family.toLowerCase().includes('coyote')
+        ? 'DOHC'
+        : 'OHV');
+
+    handleUpdateConfig({
+      engineId: engine.id,
+      engineName: engine.name,
+      configLabel: engine.configLabel,
+      color: catalogItem?.color ?? resolveStoreFamilyColor(engine),
+      firingOrder: engine.firingOrder,
+      pattern: engine.pattern,
+      bellhousingPattern: engine.pattern,
+      balance: catalogItem?.balance ?? 'Internal / Factory Balance',
+      flywheelTeeth: catalogItem?.flywheelTeeth ?? 'OEM Ring Gear',
+      boreSpacing: catalogItem?.boreSpacing,
+      valvetrainType: isDohcFamily,
+      blockMaterial: catalogItem?.blockMaterial ?? (resolveStoreFamilyColor(engine) === 0x8a939e ? 'aluminum' : 'iron'),
+      headMaterial: catalogItem?.headMaterial ?? 'aluminum',
+      intakeValveIn: catalogItem?.intakeValveIn,
+      exhaustValveIn: catalogItem?.exhaustValveIn,
+      valveAngleDeg: catalogItem?.valveAngleDeg,
+      bankAngleDeg: catalogItem?.bankAngleDeg ?? (isInlineLayout ? 0 : engine.configLabel === 'V6' ? 60 : 90),
+      bore: engine.bore,
+      stroke: engine.stroke,
+      rodLength: engine.rodLength,
+      deckHeight: engine.deckHeight,
+      deckClearance: engine.deckClearance,
+      gasketThickness: engine.gasketThickness,
+      chamberCc: engine.chamberCc,
+      pistonReliefCc: engine.pistonReliefCc,
+      cylinders: engine.cylinders,
+      pistonAlloy: tierAlloy,
+      ringApplication: tierRing,
+      selectedVehicle: vehicle ? vehicle.id : config.selectedVehicle,
+      selectedTrans: engine.recommendedTransId || config.selectedTrans
+    });
+
+    setIsPartsStoreOpen(false);
+  };
+
+  const handleUpdateStoreParts = (parts: StorePartOption[], tier: PartsGradeTier) => {
+    setActiveStoreSelection((prev) =>
+      prev
+        ? { ...prev, tier, selectedParts: parts }
+        : prev
+    );
+  };
+
+  const activeStoreLabel = activeStoreSelection
+    ? `${activeStoreSelection.yearLabel === 'ALL' ? '' : `${activeStoreSelection.yearLabel} `}${activeStoreSelection.engine.cid} CID (${activeStoreSelection.selectedParts.length} SKUs)`
+    : null;
+
+  return (
+    <div className="w-full h-screen print:h-auto flex flex-col bg-[#0d1014] text-slate-200 overflow-hidden print:overflow-visible">
+      {/* Clean Single-Row Studio Top Bar */}
+      <Header
+        selectedEngineId={selectedEngineId}
+        onSelectEnginePreset={handleSelectEnginePreset}
+        onResetRay={handleResetRay}
+        onOpenPartsStore={() => setIsPartsStoreOpen(true)}
+        onOpenKnowledge={() => setIsKnowledgeOpen(true)}
+        onToggleMobileSidebar={() => setMobileSidebarOpen((v) => !v)}
+        activeStoreLabel={activeStoreLabel}
+      />
+
+      {/* CAD Studio Split Shell: Left Workbench Rail + Right Engineering Viewport */}
+      <div className="flex-1 min-h-0 flex">
+        <StudioSidebar
+          activeTab={activeTab}
+          onSelectTab={setActiveTab}
+          specs={specs}
+          config={config}
+          activeStoreLabel={activeStoreLabel}
+          archiveCount={archiveCount}
+          onOpenPartsStore={() => setIsPartsStoreOpen(true)}
+          onOpenKnowledge={() => setIsKnowledgeOpen(true)}
+          onOpenRegistry={() => setIsRegistryOpen(true)}
+          mobileOpen={mobileSidebarOpen}
+          onCloseMobile={() => setMobileSidebarOpen(false)}
+        />
+
+        {/* Main Dynamic Workspace (14 Coordinated Workbenches) */}
+        <main
+          className={`flex-1 min-w-0 h-full ${
+            activeTab === 'block3d' ? 'overflow-hidden' : 'overflow-y-auto'
+          }`}
+        >
+          <ErrorBoundary
+            resetKey={activeTab}
+            fallbackTitle="Workbench Rendering Error"
+            onReset={() => setActiveTab('engconfig')}
+          >
+          {activeTab === 'designstudio' && (
+            <TabDesignStudio
+              config={config}
+              specs={specs}
+              onUpdateConfig={handleUpdateConfig}
+              activeSubPage={designStudioSubPage}
+              onChangeSubPage={setDesignStudioSubPage}
+              cinematicPreset={cinematicPreset}
+              onChangeCinematicPreset={setCinematicPreset}
+              mountedDesign={mountedStudioDesign}
+              studioDesigns={studioDesignsHistory}
+              onSaveStudioDesign={handleSaveStudioDesign}
+              onMountDesignToTestArea={handleMountDesignToTestArea}
+              onJumpToTab={setActiveTab}
+            />
+          )}
+
+          {activeTab === 'block3d' && (
+            <Tab3DBlock
+              config={config}
+              specs={specs}
+              onUpdateConfig={handleUpdateConfig}
+              onResetRay={handleResetRay}
+              activeStoreSelection={activeStoreSelection}
+              customEngineDrawing={customEngineDrawing}
+              onApplyEngineDrawing={setCustomEngineDrawing}
+              onOpenDrawingsTab={() => setActiveTab('drawings')}
+              onOpenMatrixForPart={handleOpenMatrixForPart}
+              cinematicPreset={cinematicPreset}
+              onChangeCinematicPreset={setCinematicPreset}
+              mountedDesign={mountedStudioDesign}
+              onUnmountDesign={() => setMountedStudioDesign(null)}
+              onOpenDesignStudio={(subPage) => {
+                if (subPage) setDesignStudioSubPage(subPage);
+                setActiveTab('designstudio');
+              }}
+              cinematicLaunchNonce={cinematicLaunchNonce}
+            />
+          )}
+
+          {activeTab === 'rotating' && (
+            <TabRotatingAssembly
+              config={config}
+              specs={specs}
+              onUpdateConfig={handleUpdateConfig}
+              onResetRay={handleResetRay}
+              activeStoreSelection={activeStoreSelection}
+              onApplyStoreEngine={handleApplyStoreEngine}
+              onUpdateStoreParts={handleUpdateStoreParts}
+            />
+          )}
+
+          {activeTab === 'valvetrain' && (
+            <TabValvetrain
+              config={config}
+              specs={specs}
+              onUpdateConfig={handleUpdateConfig}
+            />
+          )}
+
+          {activeTab === 'induction' && (
+            <TabInduction
+              config={config}
+              specs={specs}
+              onUpdateConfig={handleUpdateConfig}
+            />
+          )}
+
+          {activeTab === 'ignition' && (
+            <TabIgnition
+              config={config}
+              specs={specs}
+              onUpdateConfig={handleUpdateConfig}
+            />
+          )}
+
+          {activeTab === 'trans' && (
+            <TabTransmission
+              config={config}
+              specs={specs}
+              onUpdateConfig={handleUpdateConfig}
+              transDrawingsById={transDrawingsById}
+              transOverridesById={transOverridesById}
+              onApplyTransDrawing={handleApplyTransDrawing}
+              onOpenDrawingsTab={() => setActiveTab('drawings')}
+            />
+          )}
+
+          {activeTab === 'dyno' && (
+            <TabDynoCurves
+              config={config}
+              specs={specs}
+              onUpdateConfig={handleUpdateConfig}
+            />
+          )}
+
+          {activeTab === 'shop' && (
+            <TabMachineShop
+              config={config}
+              specs={specs}
+              onUpdateConfig={handleUpdateConfig}
+              onOpenRegistry={() => setIsRegistryOpen(true)}
+              activeStoreSelection={activeStoreSelection}
+            />
+          )}
+
+          {activeTab === 'drawings' && (
+            <TabTechnicalDrawings
+              config={config}
+              specs={specs}
+              onUpdateConfig={handleUpdateConfig}
+              activeStoreSelection={activeStoreSelection}
+              customEngineDrawing={customEngineDrawing}
+              onApplyEngineDrawing={setCustomEngineDrawing}
+              transDrawingsById={transDrawingsById}
+              transOverridesById={transOverridesById}
+              onApplyTransDrawing={handleApplyTransDrawing}
+              onJumpToTab={setActiveTab}
+              onOpenMatrixForPart={handleOpenMatrixForPart}
+            />
+          )}
+
+          {activeTab === 'engconfig' && (
+            <TabEngConfig
+              config={config}
+              specs={specs}
+              onUpdateConfig={handleUpdateConfig}
+            />
+          )}
+
+          {activeTab === 'modstudio' && (
+            <TabEngineeringConfig
+              config={config}
+              specs={specs}
+              onUpdateConfig={handleUpdateConfig}
+              partOverrides={partOverrides}
+              onUpdatePartOverrides={setPartOverrides}
+              transOverridesById={transOverridesById}
+              onUpdateTransOverrides={setTransOverridesById}
+            />
+          )}
+
+          {activeTab === 'drawings2' && (
+            <TabMoreDrawings
+              config={config}
+              specs={specs}
+              onUpdateConfig={handleUpdateConfig}
+              onApplyEngineDrawing={setCustomEngineDrawing}
+              onJumpToTab={setActiveTab}
+              onOpenMatrixForPart={handleOpenMatrixForPart}
+            />
+          )}
+
+          {activeTab === 'drawingmatrix' && (
+            <TabDrawingMatrix
+              config={config}
+              specs={specs}
+              onUpdateConfig={handleUpdateConfig}
+              selectedPartKey={selectedMatrixPart}
+              onSelectPartKey={setSelectedMatrixPart}
+              onJumpToTab={setActiveTab}
+            />
+          )}
+          </ErrorBoundary>
+        </main>
+      </div>
+
+      {/* Auto Parts Counter Modal Drawer (Accessible from Top Bar / Sidebar on Any Tab) */}
+      {isPartsStoreOpen && (
+        <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-3 sm:p-6">
+          <div className="relative w-full max-w-6xl max-h-[92vh] overflow-y-auto rounded-2xl shadow-2xl">
+            <button
+              onClick={() => setIsPartsStoreOpen(false)}
+              title="Close Auto Parts Store"
+              className="absolute top-3 right-3 z-10 p-1.5 rounded-lg bg-gray-900 border border-gray-700 text-gray-300 hover:text-white hover:border-orange-500 transition"
+            >
+              <X className="w-4 h-4" />
+            </button>
+            <AutoPartsStorePanel
+              config={config}
+              activeSelection={activeStoreSelection}
+              onApplyStoreEngine={handleApplyStoreEngine}
+              onUpdateStoreParts={handleUpdateStoreParts}
+              onResetRay={handleResetRay}
+              compact
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Global Automotive & Motor Technology Encyclopedia Drawer */}
+      <AutoTechKnowledgeDrawer
+        isOpen={isKnowledgeOpen}
+        onClose={() => setIsKnowledgeOpen(false)}
+        specs={specs}
+        config={config}
+        onJumpToTab={setActiveTab}
+      />
+
+      {/* Ray & Phoenix Studio Applet Access History Registry */}
+      <EcosystemRegistryModal
+        isOpen={isRegistryOpen}
+        onClose={() => setIsRegistryOpen(false)}
+        onLoadedCount={setArchiveCount}
+      />
+    </div>
+  );
+}
+
+
+===== FILE: src/main.tsx (320 bytes, md5 dfadccdd3029ea5fafd185b49231192b) =====
+
+import {createRoot} from 'react-dom/client';
+import App from './App.tsx';
+import {ErrorBoundary} from './components/ErrorBoundary.tsx';
+import './index.css';
+
+createRoot(document.getElementById('root')!).render(
+  <ErrorBoundary fallbackTitle="SBC 350 CAD Studio Failed to Initialize">
+    <App />
+  </ErrorBoundary>
+);
+
+
+===== FILE: src/index.css (1412 bytes, md5 0cd55f72931db952015709d3b4120a38) =====
+
+@import "tailwindcss";
+
+@layer base {
+  body {
+    background-color: #0d1014;
+    color: #e5e7eb;
+    font-family: "Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    overflow-x: hidden;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .font-mono {
+    font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+.blueprint-grid {
+  background-size: 24px 24px;
+  background-image: 
+    linear-gradient(to right, rgba(56, 189, 248, 0.05) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(56, 189, 248, 0.05) 1px, transparent 1px);
+}
+
+.cad-crosshair {
+  cursor: crosshair;
+}
+
+/* Custom Sleek Scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #14181c;
+}
+::-webkit-scrollbar-thumb {
+  background: #2e3740;
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #d83b01;
+}
+
+/* Print Styles for Machine Shop Engine Build Sheet */
+@media print {
+  body {
+    background: white !important;
+    color: black !important;
+  }
+  header, nav, button, .no-print {
+    display: none !important;
+  }
+  .print-only {
+    display: block !important;
+  }
+  .bg-chevyPanel, .bg-chevyDark {
+    background: white !important;
+    border-color: #ccc !important;
+    color: black !important;
+  }
+}
+

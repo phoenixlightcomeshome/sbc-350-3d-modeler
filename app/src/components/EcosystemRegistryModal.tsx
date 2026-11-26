@@ -33,7 +33,7 @@ interface EcosystemRegistryModalProps {
   onLoadedCount?: (count: number) => void;
 }
 
-export const APPLET_HISTORY_PATH = `${import.meta.env.BASE_URL}assets/aistudio/applet_access_history_9a35c213.json`;
+export const APPLET_HISTORY_PATH = '/assets/aistudio/applet_access_history_9a35c213.json';
 export const CURRENT_APPLET_ID = '8629f36c-907b-42ca-a68a-28f22675f11e';
 export const SIBLING_ENGINE_ID = '159edc09-c4b8-4b30-b667-dff9d50f6e2d';
 

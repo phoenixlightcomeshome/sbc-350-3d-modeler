@@ -395,16 +395,27 @@ export const SchematicEngineSVG: React.FC<SchematicEngineSVGProps> = ({
       {/* Cylinder Head + Finned Valve Cover */}
       <rect x="665" y="168" width="300" height="64" rx="2" fill="url(#sectionHatch)" stroke={p.stroke} strokeWidth="1.6" />
       <rect x="672" y="138" width="270" height="30" rx="4" fill={p.fillDark} stroke={p.stroke} strokeWidth="1.6" />
-      {/* Exhaust Header Flanges (4 ports) */}
+      {/* Exhaust Header Flanges (4 ports scaled with headerPrimaryIn) */}
       {[700, 775, 850, 925].map((px) => (
-        <circle key={px} cx={px} cy="206" r="14" fill={p.bg} stroke={p.accent} strokeWidth="1.6" />
+        <circle
+          key={px}
+          cx={px}
+          cy="206"
+          r={Math.round(12 + ((config.headerPrimaryIn ?? 1.625) - 1.5) * 9)}
+          fill={p.bg}
+          stroke={p.accent}
+          strokeWidth="1.6"
+        />
       ))}
 
-      {/* Intake & Holley 4150 Carburetor */}
+      {/* Intake & Carburetor */}
       <rect x="720" y="110" width="145" height="28" fill={p.fillSubtle} stroke={p.stroke} strokeWidth="1.5" />
-      <rect x="748" y="76" width="84" height="34" rx="2" fill={p.fillDark} stroke={p.accent} strokeWidth="1.6" />
-      <text x="790" y="96" textAnchor="middle" fill={p.stroke} fontSize="9.5" fontWeight="700" fontFamily="JetBrains Mono, monospace">
-        {config.carbCfm} CFM
+      <rect x="742" y="76" width="96" height="34" rx="2" fill={p.fillDark} stroke={p.accent} strokeWidth="1.6" />
+      <text x="790" y="92" textAnchor="middle" fill={p.stroke} fontSize="9" fontWeight="700" fontFamily="JetBrains Mono, monospace">
+        {config.carbCfm} CFM · {(config.carbVenturiIn ?? 1.375).toFixed(2)}"
+      </text>
+      <text x="790" y="104" textAnchor="middle" fill={p.dimLine} fontSize="8" fontFamily="JetBrains Mono, monospace">
+        {config.intakePortCc ?? 185}cc / {config.exhaustPortCc ?? 68}cc
       </text>
 
       {/* MSD HEI Distributor (Rear Right) */}

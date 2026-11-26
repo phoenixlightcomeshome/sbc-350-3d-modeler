@@ -5,14 +5,16 @@
 
 import React, { useState, useEffect } from 'react';
 import { CoordinatedSpecs, EngineConfig } from '../types/engine';
+import { SpecialModControlsStrip } from './SpecialModControlsStrip';
 import { Activity, Play, RotateCcw, Zap, Droplet, Gauge, Flame } from 'lucide-react';
 
 interface TabDynoCurvesProps {
   config: EngineConfig;
   specs: CoordinatedSpecs;
+  onUpdateConfig?: (newConfig: Partial<EngineConfig>) => void;
 }
 
-export const TabDynoCurves: React.FC<TabDynoCurvesProps> = ({ config, specs }) => {
+export const TabDynoCurves: React.FC<TabDynoCurvesProps> = ({ config, specs, onUpdateConfig }) => {
   const [isPulling, setIsPulling] = useState<boolean>(false);
   const [pullProgress, setPullProgress] = useState<number>(0);
   const [liveRpm, setLiveRpm] = useState<number>(2000);
@@ -63,6 +65,21 @@ export const TabDynoCurves: React.FC<TabDynoCurvesProps> = ({ config, specs }) =
   const maxRpm = 6500;
   const maxVal = Math.max(550, specs.peakHp * 1.15, specs.peakTq * 1.15);
 
+  // Peak RPMs read straight off the computed curve — the same rows the table
+  // renders — so the cards and markers always agree with the table. The
+  // catalog's rated peak (specs.hpPeakRpm) shapes the curve but is not the
+  // curve's peak, so it is not used for display here.
+  const hpPeakRow = specs.dynoCurve.reduce(
+    (best, row) => (row.hp > best.hp ? row : best),
+    specs.dynoCurve[0]
+  );
+  const tqPeakRow = specs.dynoCurve.reduce(
+    (best, row) => (row.tq > best.tq ? row : best),
+    specs.dynoCurve[0]
+  );
+  const curveHpPeakRpm = hpPeakRow ? hpPeakRow.rpm : specs.hpPeakRpm;
+  const curveTqPeakRpm = tqPeakRow ? tqPeakRow.rpm : specs.tqPeakRpm;
+
   const getX = (rpm: number) =>
     padding.left + ((rpm - minRpm) / (maxRpm - minRpm)) * (width - padding.left - padding.right);
   const getY = (val: number) =>
@@ -108,18 +125,27 @@ export const TabDynoCurves: React.FC<TabDynoCurvesProps> = ({ config, specs }) =
         </button>
       </div>
 
+      {onUpdateConfig && (
+        <SpecialModControlsStrip
+          config={config}
+          specs={specs}
+          onUpdateConfig={onUpdateConfig}
+          variant="compact"
+        />
+      )}
+
       {/* Hero Peak Dyno Metrics */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <div className="bg-[#181e24] p-4 rounded-xl border border-orange-500/40 relative overflow-hidden shadow-lg">
           <div className="text-[10px] text-orange-400 font-bold uppercase tracking-wider">PEAK HORSEPOWER</div>
           <div className="text-2xl sm:text-3xl font-black text-white mt-1 font-mono">{specs.peakHp} HP</div>
-          <div className="text-[10px] text-gray-400 mt-0.5">@ {specs.hpPeakRpm} RPM</div>
+          <div className="text-[10px] text-gray-400 mt-0.5">@ {curveHpPeakRpm} RPM</div>
         </div>
 
         <div className="bg-[#181e24] p-4 rounded-xl border border-amber-500/40 relative overflow-hidden shadow-lg">
           <div className="text-[10px] text-amber-400 font-bold uppercase tracking-wider">PEAK TORQUE</div>
           <div className="text-2xl sm:text-3xl font-black text-white mt-1 font-mono">{specs.peakTq} FT-LBS</div>
-          <div className="text-[10px] text-gray-400 mt-0.5">@ {specs.tqPeakRpm} RPM</div>
+          <div className="text-[10px] text-gray-400 mt-0.5">@ {curveTqPeakRpm} RPM</div>
         </div>
 
         <div className="bg-[#181e24] p-4 rounded-xl border border-cyan-500/40 relative overflow-hidden shadow-lg">
@@ -238,8 +264,8 @@ export const TabDynoCurves: React.FC<TabDynoCurvesProps> = ({ config, specs }) =
             <path d={hpPath} fill="none" stroke="#d83b01" strokeWidth="3.5" strokeLinecap="round" />
 
             {/* Peak Markers */}
-            <circle cx={getX(specs.hpPeakRpm)} cy={getY(specs.peakHp)} r="5" fill="#d83b01" stroke="#ffffff" strokeWidth="2" />
-            <circle cx={getX(specs.tqPeakRpm)} cy={getY(specs.peakTq)} r="5" fill="#e5a823" stroke="#ffffff" strokeWidth="2" />
+            <circle cx={getX(curveHpPeakRpm)} cy={getY(specs.peakHp)} r="5" fill="#d83b01" stroke="#ffffff" strokeWidth="2" />
+            <circle cx={getX(curveTqPeakRpm)} cy={getY(specs.peakTq)} r="5" fill="#e5a823" stroke="#ffffff" strokeWidth="2" />
           </svg>
         </div>
       </div>

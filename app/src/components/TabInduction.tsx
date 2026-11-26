@@ -6,7 +6,8 @@
 import React from 'react';
 import { EngineConfig, CoordinatedSpecs } from '../types/engine';
 import { INTAKE_MANIFOLDS } from '../data/engineData';
-import { Zap, Gauge, Droplet, CheckCircle2, AlertCircle, Layers } from 'lucide-react';
+import { SpecialModControlsStrip } from './SpecialModControlsStrip';
+import { Zap, Gauge, Droplet, CheckCircle2, AlertCircle } from 'lucide-react';
 
 interface TabInductionProps {
   config: EngineConfig;
@@ -19,9 +20,7 @@ export const TabInduction: React.FC<TabInductionProps> = ({
   specs,
   onUpdateConfig
 }) => {
-  const isMpfi = config.inductionDress === 'mpfi_cnp';
-  const effectiveCapacityCfm = isMpfi ? Math.max(config.carbCfm, 850) : config.carbCfm;
-  const isSufficient = effectiveCapacityCfm >= specs.peakCfmDemand;
+  const isCarbSufficient = specs.effectiveCarbCfm >= specs.peakCfmDemand;
 
   return (
     <div className="p-4 sm:p-6 max-w-7xl mx-auto w-full space-y-6 font-mono text-xs text-gray-200">
@@ -30,49 +29,36 @@ export const TabInduction: React.FC<TabInductionProps> = ({
         <div>
           <h2 className="text-base sm:text-lg font-bold text-white uppercase tracking-wider font-sans flex items-center gap-2">
             <Zap className="w-5 h-5 text-amber-500" />
-            INDUCTION, MANIFOLD AIRFLOW &amp; FUEL DELIVERY
+            INDUCTION, CARBURETION, AIR &amp; EXHAUST PORT AIRFLOW
           </h2>
           <p className="text-xs text-gray-400 mt-0.5 font-sans">
-            MODSIM airflow demand vs induction capacity for {specs.displacementCi} CID engine displacement.
+            MODSIM airflow demand vs carburetion, venturi bore, air cleaner, and cylinder head intake/exhaust porting for {specs.displacementCi} CID.
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex gap-2">
           <div className="bg-[#181e24] px-3 py-1.5 rounded-lg border border-gray-700 text-center">
             <div className="text-[10px] text-gray-400">ENGINE PEAK CFM DEMAND</div>
             <div className="text-base font-black text-cyan-400 font-mono">{specs.peakCfmDemand} CFM</div>
           </div>
           <div className={`px-3 py-1.5 rounded-lg border text-center ${
-            isSufficient
+            isCarbSufficient
               ? 'bg-emerald-950/40 border-emerald-500/50 text-emerald-300'
               : 'bg-amber-950/40 border-amber-500/50 text-amber-300'
           }`}>
-            <div className="text-[10px] font-bold">
-              {isMpfi ? '90MM TB FLOW RATING' : 'CARB CAPACITY'}
-            </div>
-            <div className="text-base font-black font-mono">{effectiveCapacityCfm} CFM</div>
+            <div className="text-[10px] font-bold">EFFECTIVE CARB FLOW</div>
+            <div className="text-base font-black font-mono">{specs.effectiveCarbCfm} CFM</div>
           </div>
         </div>
       </div>
 
-      {/* Active Dress Mode Notification Banner */}
-      <div className={`p-3 rounded-xl border flex flex-wrap items-center justify-between gap-2 ${
-        isMpfi
-          ? 'bg-emerald-950/30 border-emerald-500/50 text-emerald-200'
-          : 'bg-orange-950/30 border-orange-500/50 text-orange-200'
-      }`}>
-        <div className="flex items-center gap-2">
-          <Layers className="w-4 h-4 shrink-0 text-current" />
-          <span className="font-sans font-bold text-xs">
-            {isMpfi
-              ? 'Multi-Port Sequential EFI (MPFI) Active — 90mm Billet Throttle Body & 42 lb/hr Injectors'
-              : 'Holley 4150 Double-Pumper 4-Barrel Carburetor Active — Ray\'s Baseline'}
-          </span>
-        </div>
-        <div className="text-[11px] font-mono">
-          {isMpfi ? '+6% Peak HP Multiplier (Unchoked Flow)' : '650 CFM Holley Baseline Setup'}
-        </div>
-      </div>
+      {/* Special Carburetor Size, Air / Intake Port & Exhaust Port Workbench */}
+      <SpecialModControlsStrip
+        config={config}
+        specs={specs}
+        onUpdateConfig={onUpdateConfig}
+        variant="full"
+      />
 
       {/* Intake Manifold Architecture Selector */}
       <div className="space-y-2">
@@ -115,20 +101,16 @@ export const TabInduction: React.FC<TabInductionProps> = ({
         </div>
       </div>
 
-      {/* Carburetor CFM / Throttle Sizing & Target AFR */}
+      {/* Carburetor CFM & Target Air-Fuel Ratio (AFR) */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {/* Airflow Sizing */}
+        {/* Carburetor CFM Sizing */}
         <div className="bg-[#181e24] p-4 rounded-xl border border-gray-800 space-y-3">
           <div className="flex justify-between items-center">
-            <span className="text-gray-300 font-bold">
-              {isMpfi ? 'THROTTLE BODY / INDUCTION SIZING:' : 'CARBURETOR FLOW SIZING:'}
-            </span>
-            <span className="text-amber-400 font-bold text-sm font-mono">
-              {effectiveCapacityCfm} CFM
-            </span>
+            <span className="text-gray-300 font-bold">CARBURETOR FLOW SIZING:</span>
+            <span className="text-amber-400 font-bold text-sm font-mono">{config.carbCfm} CFM ({specs.effectiveCarbCfm} Eff)</span>
           </div>
           <div className="grid grid-cols-4 gap-2">
-            {[600, 650, 750, 900].map((cfm) => (
+            {[500, 650, 750, 900].map((cfm) => (
               <button
                 key={cfm}
                 onClick={() => onUpdateConfig({ carbCfm: cfm })}
@@ -139,29 +121,21 @@ export const TabInduction: React.FC<TabInductionProps> = ({
                 }`}
               >
                 <div className="text-xs">{cfm} CFM</div>
-                <div className="text-[9px] text-gray-400">
-                  {cfm === 650 ? "Ray's Baseline" : cfm === 900 ? "Dual-Quad" : ""}
-                </div>
+                <div className="text-[9px] text-gray-400">{cfm === 650 ? "Ray's Baseline" : cfm === 900 ? "Dual-Quad" : ""}</div>
               </button>
             ))}
           </div>
 
           <div className={`p-2.5 rounded-lg border flex items-start gap-2 ${
-            isSufficient
+            isCarbSufficient
               ? 'bg-emerald-950/30 border-emerald-500/30 text-emerald-300'
               : 'bg-amber-950/30 border-amber-500/30 text-amber-300'
           }`}>
-            {isSufficient ? (
-              <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5 text-emerald-400" />
-            ) : (
-              <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-amber-400" />
-            )}
+            {isCarbSufficient ? <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5 text-emerald-400" /> : <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-amber-400" />}
             <div className="text-[11px] leading-relaxed">
-              {isMpfi
-                ? `Sequential Multi-Point EFI Active: 90mm billet throttle body (${effectiveCapacityCfm} CFM rating) comfortably exceeds peak engine demand (${specs.peakCfmDemand} CFM) at ${specs.hpPeakRpm} RPM. Volumetric efficiency unchoked.`
-                : isSufficient
-                ? `Carburetor capacity (${config.carbCfm} CFM) exceeds peak engine demand (${specs.peakCfmDemand} CFM) at ${specs.hpPeakRpm} RPM. Volumetric efficiency unchoked.`
-                : `Carburetor capacity (${config.carbCfm} CFM) is slightly below theoretical peak engine demand (${specs.peakCfmDemand} CFM). Yields ultra-crisp street low-end throttle response.`}
+              {isCarbSufficient
+                ? `Effective capacity (${specs.effectiveCarbCfm} CFM) exceeds peak engine demand (${specs.peakCfmDemand} CFM) at ${specs.hpPeakRpm} RPM. Volumetric efficiency unchoked.`
+                : `Effective capacity (${specs.effectiveCarbCfm} CFM) is slightly below theoretical peak engine demand (${specs.peakCfmDemand} CFM). Yields crisp low-end booster signal.`}
             </div>
           </div>
         </div>

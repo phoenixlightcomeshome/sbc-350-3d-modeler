@@ -15,6 +15,7 @@ import {
   StoreVehicleModel
 } from '../types/engine';
 import { AutoPartsStorePanel, ActiveStoreSelection } from './AutoPartsStorePanel';
+import { SpecialModControlsStrip } from './SpecialModControlsStrip';
 import { Cpu, Gauge } from 'lucide-react';
 
 interface TabRotatingAssemblyProps {
@@ -88,6 +89,13 @@ export const TabRotatingAssembly: React.FC<TabRotatingAssemblyProps> = ({
         onApplyStoreEngine={onApplyStoreEngine}
         onUpdateStoreParts={onUpdateStoreParts}
         onResetRay={onResetRay}
+      />
+
+      <SpecialModControlsStrip
+        config={config}
+        specs={specs}
+        onUpdateConfig={onUpdateConfig}
+        variant="compact"
       />
 
       {/* Quick Combination Presets */}

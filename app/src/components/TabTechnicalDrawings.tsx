@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useMemo, useRef } from 'react';
+import React, { useState, useMemo, useRef, useEffect, useLayoutEffect } from 'react';
 import {
   EngineConfig,
   CoordinatedSpecs,
@@ -24,6 +24,7 @@ import {
   SchematicTransmissionSVG,
   BlueprintPaperTheme
 } from './SchematicBlueprints';
+import { MatrixComponentKey } from '../data/manufacturingMatrix';
 import {
   FileSpreadsheet,
   Search,
@@ -41,7 +42,8 @@ import {
   Sparkles,
   Image as ImageIcon,
   Wrench,
-  ShieldCheck
+  ShieldCheck,
+  X
 } from 'lucide-react';
 
 interface TabTechnicalDrawingsProps {
@@ -55,6 +57,79 @@ interface TabTechnicalDrawingsProps {
   transOverridesById: Record<string, Partial<TransmissionItem>>;
   onApplyTransDrawing: (transId: string, sheet: TechDrawingSheet | null) => void;
   onJumpToTab: (tab: TabId) => void;
+  onOpenMatrixForPart?: (partKey: MatrixComponentKey) => void;
+}
+
+const DIM_HIDDEN_ATTR = 'data-cad-dim-hidden';
+const DIM_PREV_DISPLAY_ATTR = 'data-cad-prev-display';
+const TITLE_BLOCK_REGEX =
+  /\b(DWG\s*NO|DRAWING\s*NO|TITLE|SCALE|PROJ|PROJECTION|SHEET|REV|APPROVED|MODSIM|HOOPS)\b/i;
+const DIMENSION_TEXT_REGEX =
+  /\d+(\.\d+)?\s*("|″|in\b|mm\b|cc\b|°|:1\b|CID\b|OAL\b|RPM\b|PSI\b|FT-?LB\b)|\b(BORE|STROKE|DECK|QUENCH|ROD\s*C-?TO-?C|VALVE\s*LIFT|CHAMBER|GASKET|SCR\b|DCR\b|OAL\b|R\/S\b|CLEARANCE|TORQUE|RING\s*GAP)\b/i;
+
+function isTitleBlockGroup(el: Element, drawingNumber: string, title: string): boolean {
+  const idClass = `${el.getAttribute('id') || ''} ${el.getAttribute('class') || ''}`;
+  if (/title[-_]?block|header[-_]?bar|border/i.test(idClass)) return true;
+  const texts = Array.from(el.querySelectorAll('text'));
+  return texts.some((t) => {
+    const content = (t.textContent || '').trim();
+    return (
+      TITLE_BLOCK_REGEX.test(content) ||
+      (drawingNumber.length > 0 && content.includes(drawingNumber)) ||
+      (title.length > 3 && content.includes(title))
+    );
+  });
+}
+
+function hideSvgElement(el: SVGElement): void {
+  if (el.getAttribute(DIM_HIDDEN_ATTR) === 'true') return;
+  const prevDisplay = el.style.display || '';
+  el.setAttribute(DIM_PREV_DISPLAY_ATTR, prevDisplay);
+  el.setAttribute(DIM_HIDDEN_ATTR, 'true');
+  el.style.display = 'none';
+}
+
+function restoreSvgElements(svg: SVGSVGElement): void {
+  const hidden = svg.querySelectorAll(`[${DIM_HIDDEN_ATTR}="true"]`);
+  hidden.forEach((node) => {
+    if (node instanceof SVGElement) {
+      const prev = node.getAttribute(DIM_PREV_DISPLAY_ATTR) || '';
+      node.style.display = prev;
+      node.removeAttribute(DIM_HIDDEN_ATTR);
+      node.removeAttribute(DIM_PREV_DISPLAY_ATTR);
+    }
+  });
+}
+
+async function parseApiJson<T>(res: Response, endpointLabel: string): Promise<T> {
+  const rawText = await res.text();
+  const contentType = res.headers.get('content-type') || '';
+  const trimmed = rawText.trim();
+  const looksJson =
+    contentType.toLowerCase().includes('application/json') ||
+    trimmed.startsWith('{') ||
+    trimmed.startsWith('[');
+
+  if (!looksJson) {
+    throw new Error(
+      `Server-only feature (${endpointLabel}) is unavailable in this static build (HTTP ${res.status}). Built-in verified CAD & BOM sheets remain fully functional.`
+    );
+  }
+
+  let parsed: T & { error?: string };
+  try {
+    parsed = JSON.parse(rawText) as T & { error?: string };
+  } catch {
+    throw new Error(
+      `Invalid response from ${endpointLabel} (HTTP ${res.status}). Built-in CAD specs remain available.`
+    );
+  }
+
+  if (!res.ok) {
+    throw new Error(parsed.error || `${endpointLabel} failed (${res.status}).`);
+  }
+
+  return parsed;
 }
 
 export const TabTechnicalDrawings: React.FC<TabTechnicalDrawingsProps> = ({
@@ -67,12 +142,15 @@ export const TabTechnicalDrawings: React.FC<TabTechnicalDrawingsProps> = ({
   transDrawingsById,
   transOverridesById,
   onApplyTransDrawing,
-  onJumpToTab
+  onJumpToTab,
+  onOpenMatrixForPart
 }) => {
   const [domain, setDomain] = useState<'engine' | 'transmission'>('engine');
   const [visualMode, setVisualMode] = useState<'schematic' | 'diagram'>('schematic');
+  const [showDimensions, setShowDimensions] = useState<boolean>(true);
   const [paperTheme, setPaperTheme] = useState<BlueprintPaperTheme>('blueprint');
   const [diagramZoom, setDiagramZoom] = useState<number>(1);
+  const [diagramImgError, setDiagramImgError] = useState<boolean>(false);
   const [rowFilter, setRowFilter] = useState<string>('ALL');
   const [calloutFilter, setCalloutFilter] = useState<string>('');
   const [selectedCallout, setSelectedCallout] = useState<TechDrawingCallout | null>(null);
@@ -106,15 +184,168 @@ export const TabTechnicalDrawings: React.FC<TabTechnicalDrawingsProps> = ({
       ? customEngineDrawing || builtInEngineSheet
       : transDrawingsById[currentTrans.id] || builtInTransSheet;
 
+  const hasStagedForDomain = Boolean(stagedSheet && stagedSheet.domain === domain);
+  const hasCustomForDomain =
+    domain === 'engine'
+      ? Boolean(customEngineDrawing)
+      : Boolean(transDrawingsById[currentTrans.id]);
+
   const displayedSheet =
     stagedSheet && stagedSheet.domain === domain ? stagedSheet : activeSavedSheet;
 
-  const hasReferenceImage = Boolean(displayedSheet.referenceImageUrl);
+  const schematicSheet = useMemo(
+    () => (showDimensions ? displayedSheet : { ...displayedSheet, callouts: [] }),
+    [showDimensions, displayedSheet]
+  );
 
+  const effectiveReferenceImageUrl = useMemo(() => {
+    if (displayedSheet.referenceImageUrl) return displayedSheet.referenceImageUrl;
+    if (domain === 'transmission' && currentTrans.id === 'mopar_a500_42re') {
+      return A500_42RE_REFERENCE_IMAGE;
+    }
+    return undefined;
+  }, [displayedSheet.referenceImageUrl, domain, currentTrans.id]);
+
+  const hasReferenceImage = Boolean(effectiveReferenceImageUrl);
+
+  useEffect(() => {
+    setDiagramImgError(false);
+  }, [effectiveReferenceImageUrl, domain, visualMode]);
+
+  // Keep inspected callout synchronized with the current displayedSheet callouts
   const activeInspectCallout = useMemo(() => {
-    if (selectedCallout) return selectedCallout;
+    if (selectedCallout) {
+      const refreshed =
+        displayedSheet.callouts.find(
+          (c) =>
+            c.indexCode === selectedCallout.indexCode && c.partName === selectedCallout.partName
+        ) || displayedSheet.callouts.find((c) => c.indexCode === selectedCallout.indexCode);
+      if (refreshed) return refreshed;
+    }
     return displayedSheet.callouts[0] || null;
   }, [selectedCallout, displayedSheet]);
+
+  // Gate ALL dimension annotation/callout rendering inside the SVG schematic on showDimensions
+  useLayoutEffect(() => {
+    const svg = svgRef.current;
+    if (!svg || visualMode !== 'schematic') return;
+
+    restoreSvgElements(svg);
+    if (showDimensions) return;
+
+    const titleGroups = new Set<Element>();
+    svg.querySelectorAll('g').forEach((g) => {
+      if (isTitleBlockGroup(g, displayedSheet.drawingNumber, displayedSheet.title)) {
+        titleGroups.add(g);
+      }
+    });
+
+    const insideTitleBlock = (el: Element): boolean => {
+      let cur: Element | null = el;
+      while (cur && cur !== svg) {
+        if (titleGroups.has(cur)) return true;
+        cur = cur.parentElement;
+      }
+      return false;
+    };
+
+    // 1. Hide explicitly marked dimension/callout/annotation groups or elements
+    svg
+      .querySelectorAll(
+        '[data-dimension], [data-callout], [class*="dimension" i], [class*="callout" i], [class*="annotation" i], [class*="leader" i], [id*="dimension" i], [id*="callout" i], [id*="annotation" i]'
+      )
+      .forEach((node) => {
+        if (node instanceof SVGElement && !insideTitleBlock(node)) {
+          hideSvgElement(node);
+        }
+      });
+
+    // 2. Hide arrowed dimension lines & callout leader lines
+    svg
+      .querySelectorAll('line[marker-end], line[marker-start], path[marker-end], path[marker-start], polyline[marker-end], polyline[marker-start]')
+      .forEach((node) => {
+        if (node instanceof SVGElement && !insideTitleBlock(node)) {
+          hideSvgElement(node);
+          const parent = node.parentElement;
+          if (
+            parent &&
+            parent !== (svg as unknown as HTMLElement) &&
+            parent.tagName.toLowerCase() === 'g' &&
+            !insideTitleBlock(parent) &&
+            parent.querySelectorAll('rect, path').length <= 4 &&
+            parent.querySelectorAll('text').length >= 1
+          ) {
+            hideSvgElement(parent as unknown as SVGElement);
+          }
+        }
+      });
+
+    // 3. Hide static callout balloon groups (small circle + short index text)
+    svg.querySelectorAll('g').forEach((g) => {
+      if (insideTitleBlock(g) || g.getAttribute(DIM_HIDDEN_ATTR) === 'true') return;
+      const circles = g.querySelectorAll('circle');
+      const texts = g.querySelectorAll('text');
+      const largeRects = Array.from(g.querySelectorAll('rect')).filter(
+        (r) => Number(r.getAttribute('width') || 0) > 120
+      );
+      if (circles.length === 1 && texts.length === 1 && largeRects.length === 0) {
+        const radius = Number(circles[0].getAttribute('r') || 0);
+        const label = (texts[0].textContent || '').trim();
+        if (radius > 0 && radius <= 22 && label.length > 0 && label.length <= 5) {
+          hideSvgElement(g);
+        }
+      }
+    });
+
+    // 4. Hide dimension / measurement <text> elements and compact dimension-line wrapper <g>s
+    svg.querySelectorAll('text').forEach((textEl) => {
+      if (insideTitleBlock(textEl) || textEl.getAttribute(DIM_HIDDEN_ATTR) === 'true') return;
+      const content = (textEl.textContent || '').trim();
+      if (!content) return;
+      if (
+        TITLE_BLOCK_REGEX.test(content) ||
+        (displayedSheet.drawingNumber && content.includes(displayedSheet.drawingNumber)) ||
+        (displayedSheet.title && content === displayedSheet.title)
+      ) {
+        return;
+      }
+
+      if (DIMENSION_TEXT_REGEX.test(content)) {
+        hideSvgElement(textEl);
+        const parent = textEl.parentElement;
+        if (
+          parent &&
+          parent !== (svg as unknown as HTMLElement) &&
+          parent.tagName.toLowerCase() === 'g' &&
+          !insideTitleBlock(parent)
+        ) {
+          const largeShapes = Array.from(parent.querySelectorAll('rect, circle, ellipse')).filter(
+            (shape) => {
+              const w = Number(shape.getAttribute('width') || 0);
+              const r = Number(shape.getAttribute('r') || 0);
+              return w > 140 || r > 28;
+            }
+          );
+          if (largeShapes.length === 0 && parent.children.length <= 10) {
+            hideSvgElement(parent as unknown as SVGElement);
+          }
+        }
+      }
+    });
+
+    return () => {
+      if (svgRef.current) {
+        restoreSvgElements(svgRef.current);
+      }
+    };
+  }, [
+    showDimensions,
+    visualMode,
+    domain,
+    paperTheme,
+    displayedSheet,
+    currentTrans.id
+  ]);
 
   const rowsAvailable = useMemo(() => {
     const set = new Set<string>();
@@ -124,10 +355,13 @@ export const TabTechnicalDrawings: React.FC<TabTechnicalDrawingsProps> = ({
     return ['ALL', ...Array.from(set).sort()];
   }, [displayedSheet]);
 
+  const effectiveRowFilter = rowsAvailable.includes(rowFilter) ? rowFilter : 'ALL';
+
   const filteredCallouts = useMemo(() => {
     const q = calloutFilter.trim().toLowerCase();
     return displayedSheet.callouts.filter((c) => {
-      const matchesRow = rowFilter === 'ALL' || c.row.toUpperCase() === rowFilter;
+      const matchesRow =
+        effectiveRowFilter === 'ALL' || (c.row || '').toUpperCase() === effectiveRowFilter;
       if (!q) return matchesRow;
       return (
         matchesRow &&
@@ -135,19 +369,38 @@ export const TabTechnicalDrawings: React.FC<TabTechnicalDrawingsProps> = ({
           c.indexCode.toLowerCase().includes(q) ||
           (c.partNumber || '').toLowerCase().includes(q) ||
           (c.clearanceSpec || '').toLowerCase().includes(q) ||
+          (c.torqueSpec || '').toLowerCase().includes(q) ||
+          (c.material || '').toLowerCase().includes(q) ||
+          (c.notes || '').toLowerCase().includes(q) ||
           c.targetSubassembly.toLowerCase().includes(q))
       );
     });
-  }, [displayedSheet, rowFilter, calloutFilter]);
+  }, [displayedSheet, effectiveRowFilter, calloutFilter]);
 
   const handleSelectDomain = (nextDomain: 'engine' | 'transmission') => {
     setDomain(nextDomain);
     setSelectedCallout(null);
     setRowFilter('ALL');
+    setCalloutFilter('');
+    setDiagramZoom(1);
+    setDiagramImgError(false);
     setErrorMsg(null);
     setStatusMsg(null);
-    if (nextDomain === 'transmission' && currentTrans.id === 'mopar_a500_42re') {
-      // Keep user's selected mode, or make diagram toggle immediately obvious
+
+    const nextSavedSheet =
+      nextDomain === 'engine'
+        ? customEngineDrawing || builtInEngineSheet
+        : transDrawingsById[currentTrans.id] || builtInTransSheet;
+    const nextStaged = stagedSheet && stagedSheet.domain === nextDomain ? stagedSheet : null;
+    const nextSheet = nextStaged || nextSavedSheet;
+    const nextHasDiagram = Boolean(
+      nextSheet.referenceImageUrl ||
+        (nextDomain === 'transmission' && currentTrans.id === 'mopar_a500_42re')
+    );
+
+    if (visualMode === 'diagram' && !nextHasDiagram) {
+      setVisualMode('schematic');
+      setShowDimensions(true);
     }
   };
 
@@ -185,19 +438,37 @@ export const TabTechnicalDrawings: React.FC<TabTechnicalDrawingsProps> = ({
         })
       });
 
-      const payload = (await res.json()) as { sheet?: TechDrawingSheet; error?: string };
-      if (!res.ok || !payload.sheet) {
-        throw new Error(payload.error || `Online lookup failed (${res.status})`);
+      const payload = await parseApiJson<{ sheet?: TechDrawingSheet; error?: string }>(
+        res,
+        '/api/specs/lookup'
+      );
+
+      if (!payload.sheet || !Array.isArray(payload.sheet.callouts)) {
+        throw new Error(
+          payload.error || `Online lookup returned incomplete sheet data (${res.status}).`
+        );
       }
 
-      setStagedSheet(payload.sheet);
-      setSelectedCallout(payload.sheet.callouts[0] || null);
+      const normalizedSheet: TechDrawingSheet = {
+        ...payload.sheet,
+        domain: payload.sheet.domain || domain
+      };
+
+      setStagedSheet(normalizedSheet);
+      setSelectedCallout(normalizedSheet.callouts[0] || null);
       setRowFilter('ALL');
+      setCalloutFilter('');
       setStatusMsg(
-        `Loaded ${payload.sheet.callouts.length} real-world callouts for "${payload.sheet.title}". Apply to commit into live CAD & 3D.`
+        `Loaded ${normalizedSheet.callouts.length} real-world callouts for "${normalizedSheet.title}". Click "Apply Pulled Specs to 3D" to commit into live CAD & 3D.`
       );
     } catch (err: unknown) {
-      setErrorMsg(err instanceof Error ? err.message : 'Unable to fetch online specs.');
+      const msg =
+        err instanceof TypeError
+          ? 'Online spec lookup (/api/specs/lookup) could not reach the backend API server. Built-in verified CAD & BOM sheets remain fully functional.'
+          : err instanceof Error
+          ? err.message
+          : 'Unable to fetch online specs.';
+      setErrorMsg(msg);
     } finally {
       setIsLookingUp(false);
     }
@@ -209,6 +480,7 @@ export const TabTechnicalDrawings: React.FC<TabTechnicalDrawingsProps> = ({
     label: string,
     hintDomain?: 'engine' | 'transmission'
   ) => {
+    const targetDomain = hintDomain || domain;
     setIsParsingDiagram(true);
     setErrorMsg(null);
     setStatusMsg(null);
@@ -219,32 +491,65 @@ export const TabTechnicalDrawings: React.FC<TabTechnicalDrawingsProps> = ({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          domain: hintDomain || domain,
+          domain: targetDomain,
           imageBase64: base64,
           mimeType,
           unitHint: label
         })
       });
 
-      const payload = (await res.json()) as { sheet?: TechDrawingSheet; error?: string };
-      if (!res.ok || !payload.sheet) {
-        throw new Error(payload.error || `Diagram extraction failed (${res.status})`);
+      const payload = await parseApiJson<{ sheet?: TechDrawingSheet; error?: string }>(
+        res,
+        '/api/specs/parse-diagram'
+      );
+
+      if (!payload.sheet || !Array.isArray(payload.sheet.callouts)) {
+        throw new Error(payload.error || `Diagram extraction failed (${res.status}).`);
       }
 
       const nextSheet: TechDrawingSheet = {
         ...payload.sheet,
+        domain: payload.sheet.domain || targetDomain,
         referenceImageUrl: dataUrl
       };
       setDomain(nextSheet.domain);
       setStagedSheet(nextSheet);
       setVisualMode('diagram');
+      setDiagramZoom(1);
+      setDiagramImgError(false);
       setSelectedCallout(nextSheet.callouts[0] || null);
       setRowFilter('ALL');
+      setCalloutFilter('');
       setStatusMsg(
-        `Extracted ${nextSheet.callouts.length} labeled components from "${label}". Switch between Schematic & Part Diagram views anytime.`
+        `Extracted ${nextSheet.callouts.length} labeled components from "${label}". Switch between Dimensioned CAD & Part Catalog Diagram views anytime.`
       );
     } catch (err: unknown) {
-      setErrorMsg(err instanceof Error ? err.message : 'Failed to parse uploaded technical drawing.');
+      const baseSheet =
+        targetDomain === 'engine'
+          ? customEngineDrawing || builtInEngineSheet
+          : transDrawingsById[currentTrans.id] || builtInTransSheet;
+      const localSheet: TechDrawingSheet = {
+        ...baseSheet,
+        domain: targetDomain,
+        referenceImageUrl: dataUrl,
+        sourceLabel: `${baseSheet.sourceLabel} · Uploaded Image (${label})`
+      };
+      setDomain(targetDomain);
+      setStagedSheet(localSheet);
+      setVisualMode('diagram');
+      setDiagramZoom(1);
+      setDiagramImgError(false);
+      setRowFilter('ALL');
+
+      const reason =
+        err instanceof TypeError
+          ? 'Server-only AI diagram parsing (/api/specs/parse-diagram) could not reach the backend server.'
+          : err instanceof Error
+          ? err.message
+          : 'Failed to parse uploaded technical drawing.';
+      setErrorMsg(
+        `${reason} Your uploaded image "${label}" has been loaded locally in Part Catalog Diagram view alongside the existing BOM callouts.`
+      );
     } finally {
       setIsParsingDiagram(false);
     }
@@ -252,43 +557,77 @@ export const TabTechnicalDrawings: React.FC<TabTechnicalDrawingsProps> = ({
 
   const handleUploadFile = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
+    e.target.value = '';
     if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      setErrorMsg('Please select a valid image file (PNG, JPG, WebP, or GIF) to upload.');
+      return;
+    }
+
     const reader = new FileReader();
     reader.onload = () => {
       if (typeof reader.result === 'string') {
         void parseDiagramDataUrl(reader.result, file.type || 'image/jpeg', file.name);
       }
     };
+    reader.onerror = () => {
+      setErrorMsg(`Unable to read "${file.name}". Please verify the image file and try again.`);
+    };
     reader.readAsDataURL(file);
-    e.target.value = '';
   };
 
-  const handleLoadA500Diagram = async () => {
-    onUpdateConfig({ selectedTrans: 'mopar_a500_42re' });
+  const handleLoadA500Diagram = () => {
+    const a500Trans = TRANSMISSIONS_DB.mopar_a500_42re;
+    onUpdateConfig({
+      selectedTrans: 'mopar_a500_42re',
+      stallSpeed: a500Trans?.defaultStall || config.stallSpeed
+    });
     setStagedSheet(null);
     setDomain('transmission');
     setVisualMode('diagram');
     setDiagramZoom(1);
+    setDiagramImgError(false);
     setSelectedCallout(null);
+    setRowFilter('ALL');
+    setCalloutFilter('');
     setErrorMsg(null);
-    setStatusMsg('Loaded Chrysler 40RH / 42RH / 42RE / 44RE (A500) Exploded Catalog Diagram & CAD Schematic.');
+    setStatusMsg(
+      'Loaded Chrysler 40RH / 42RH / 42RE / 44RE (A500) Exploded Catalog Diagram & CAD Schematic.'
+    );
   };
 
   const handleApplyTo3D = () => {
     const targetSheet = displayedSheet;
+    const applyingStaged = Boolean(stagedSheet && stagedSheet.domain === domain);
+
     if (targetSheet.domain === 'engine') {
-      onApplyEngineDrawing(targetSheet);
+      if (applyingStaged || customEngineDrawing) {
+        onApplyEngineDrawing(targetSheet);
+      }
       const dims = targetSheet.dimensions;
       if (dims) {
         const updates: Partial<EngineConfig> = {};
         if (typeof dims.bore === 'number' && dims.bore > 2 && dims.bore < 6) updates.bore = dims.bore;
         if (typeof dims.stroke === 'number' && dims.stroke > 2 && dims.stroke < 6) updates.stroke = dims.stroke;
-        if (typeof dims.rodLength === 'number' && dims.rodLength > 4 && dims.rodLength < 8) updates.rodLength = dims.rodLength;
-        if (typeof dims.deckHeight === 'number' && dims.deckHeight > 7 && dims.deckHeight < 12) updates.deckHeight = dims.deckHeight;
-        if (typeof dims.deckClearance === 'number' && dims.deckClearance >= 0 && dims.deckClearance < 0.2) {
+        if (typeof dims.rodLength === 'number' && dims.rodLength > 4 && dims.rodLength < 8) {
+          updates.rodLength = dims.rodLength;
+        }
+        if (typeof dims.deckHeight === 'number' && dims.deckHeight > 7 && dims.deckHeight < 12) {
+          updates.deckHeight = dims.deckHeight;
+        }
+        if (
+          typeof dims.deckClearance === 'number' &&
+          dims.deckClearance >= 0 &&
+          dims.deckClearance < 0.2
+        ) {
           updates.deckClearance = dims.deckClearance;
         }
-        if (typeof dims.gasketThickness === 'number' && dims.gasketThickness > 0.01 && dims.gasketThickness < 0.15) {
+        if (
+          typeof dims.gasketThickness === 'number' &&
+          dims.gasketThickness > 0.01 &&
+          dims.gasketThickness < 0.15
+        ) {
           updates.gasketThickness = dims.gasketThickness;
         }
         if (typeof dims.chamberCc === 'number' && dims.chamberCc > 30 && dims.chamberCc < 140) {
@@ -299,26 +638,68 @@ export const TabTechnicalDrawings: React.FC<TabTechnicalDrawingsProps> = ({
         }
       }
     } else {
-      onApplyTransDrawing(currentTrans.id, targetSheet);
+      if (applyingStaged || transDrawingsById[currentTrans.id]) {
+        onApplyTransDrawing(currentTrans.id, targetSheet);
+      }
       if (targetSheet.dimensions?.defaultStall && currentTrans.type === 'Automatic') {
         onUpdateConfig({ stallSpeed: targetSheet.dimensions.defaultStall });
       }
     }
+
     setStagedSheet(null);
-    setStatusMsg(`Applied "${targetSheet.title}" specs & BOM callouts to the live 3D ${targetSheet.domain} model.`);
+    setErrorMsg(null);
+    setStatusMsg(
+      applyingStaged
+        ? `Applied "${targetSheet.title}" specs & BOM callouts to the live 3D ${targetSheet.domain} model.`
+        : `Live "${targetSheet.title}" CAD sheet & BOM tolerances are synced with the 3D ${targetSheet.domain} model.`
+    );
+  };
+
+  const handleDiscardStaged = () => {
+    setStagedSheet(null);
+    setSelectedCallout(null);
+    setRowFilter('ALL');
+    setCalloutFilter('');
+    setDiagramZoom(1);
+    setDiagramImgError(false);
+    setErrorMsg(null);
+    setStatusMsg('Discarded staged preview sheet and restored the active CAD drawing.');
+  };
+
+  const handleRestoreLiveSheet = () => {
+    if (domain === 'engine') {
+      onApplyEngineDrawing(null);
+    } else {
+      onApplyTransDrawing(currentTrans.id, null);
+    }
+    setStagedSheet(null);
+    setSelectedCallout(null);
+    setRowFilter('ALL');
+    setCalloutFilter('');
+    setDiagramZoom(1);
+    setDiagramImgError(false);
+    setErrorMsg(null);
+    setStatusMsg(`Restored live parametric baseline CAD sheet for ${domain}.`);
   };
 
   const handleExportSvg = () => {
     if (!svgRef.current) return;
     const serializer = new XMLSerializer();
-    const source = serializer.serializeToString(svgRef.current);
+    let source = serializer.serializeToString(svgRef.current);
+    if (!source.includes('xmlns="http://www.w3.org/2000/svg"')) {
+      source = source.replace('<svg', '<svg xmlns="http://www.w3.org/2000/svg"');
+    }
     const blob = new Blob([source], { type: 'image/svg+xml;charset=utf-8' });
     const url = URL.createObjectURL(blob);
+    const filename = `${displayedSheet.drawingNumber.replace(/[^a-zA-Z0-9_-]/g, '_')}.svg`;
     const link = document.createElement('a');
     link.href = url;
-    link.download = `${displayedSheet.drawingNumber.replace(/[^a-zA-Z0-9_-]/g, '_')}.svg`;
+    link.download = filename;
+    document.body.appendChild(link);
     link.click();
-    URL.revokeObjectURL(url);
+    link.remove();
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+    setStatusMsg(`Exported dimensioned blueprint SVG (${filename}).`);
   };
 
   const dimensionStripItems =
@@ -383,9 +764,19 @@ export const TabTechnicalDrawings: React.FC<TabTechnicalDrawingsProps> = ({
       {/* Workbench Header & Controls */}
       <div className="flex flex-wrap items-center justify-between gap-4 pb-4 border-b border-slate-800">
         <div>
-          <h2 className="text-base sm:text-lg font-bold text-white tracking-tight flex items-center gap-2">
+          <h2 className="text-base sm:text-lg font-bold text-white tracking-tight flex items-center gap-2 flex-wrap">
             <FileSpreadsheet className="w-5 h-5 text-cyan-400" />
             <span>Technical Drawing Description &amp; Dimensioned Schematics</span>
+            {hasStagedForDomain && (
+              <span className="px-2 py-0.5 rounded bg-amber-500/20 border border-amber-500/50 text-amber-300 text-[10px] font-mono">
+                STAGED PREVIEW
+              </span>
+            )}
+            {!hasStagedForDomain && hasCustomForDomain && (
+              <span className="px-2 py-0.5 rounded bg-emerald-500/20 border border-emerald-500/50 text-emerald-300 text-[10px] font-mono">
+                CUSTOM APPLIED
+              </span>
+            )}
           </h2>
           <div className="flex flex-wrap items-center gap-2 text-xs text-slate-400 mt-1">
             <span className="font-mono text-cyan-300 font-semibold">{displayedSheet.drawingNumber}</span>
@@ -397,7 +788,7 @@ export const TabTechnicalDrawings: React.FC<TabTechnicalDrawingsProps> = ({
         </div>
 
         {/* Interactive Assembly, View & Paper Controls */}
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2 no-print">
           {/* Domain Selector */}
           <div className="flex items-center gap-1 p-1 bg-[#12161c] border border-slate-800 rounded-lg">
             <button
@@ -424,26 +815,65 @@ export const TabTechnicalDrawings: React.FC<TabTechnicalDrawingsProps> = ({
             </button>
           </div>
 
-          {/* Schematic vs Part Diagram Toggle */}
-          <div className="flex items-center gap-1 p-1 bg-[#12161c] border border-slate-800 rounded-lg">
+          {/* Schematic vs Part Diagram Segmented Control */}
+          <div
+            role="group"
+            aria-label="Technical drawing view mode"
+            className="flex items-center gap-1 p-1 bg-[#12161c] border border-slate-800 rounded-lg"
+          >
             <button
               type="button"
-              onClick={() => setVisualMode('schematic')}
-              className={`px-3 py-1.5 rounded-md text-xs font-medium transition whitespace-nowrap ${
+              onClick={() => {
+                if (visualMode !== 'schematic') {
+                  setVisualMode('schematic');
+                  setShowDimensions(true);
+                } else {
+                  setShowDimensions((prev) => !prev);
+                }
+              }}
+              aria-pressed={visualMode === 'schematic' && showDimensions}
+              aria-label={
                 visualMode === 'schematic'
-                  ? 'bg-cyan-500 text-slate-950 font-semibold'
-                  : 'text-slate-400 hover:text-white'
+                  ? showDimensions
+                    ? 'Dimensioned CAD active with dimension annotations on. Click to hide dimensions.'
+                    : 'Dimensioned CAD dimensions hidden. Click to show dimensions.'
+                  : 'Switch to Dimensioned CAD schematic with dimension annotations on.'
+              }
+              className={`px-3 py-1.5 rounded-md text-xs transition whitespace-nowrap flex items-center gap-1.5 ${
+                visualMode === 'schematic' && showDimensions
+                  ? 'bg-cyan-500 text-slate-950 font-semibold shadow-sm'
+                  : visualMode === 'schematic' && !showDimensions
+                  ? 'bg-slate-800 text-amber-300 border border-amber-500/50 font-semibold hover:bg-slate-700'
+                  : 'text-slate-400 hover:text-white font-medium'
               }`}
             >
-              Dimensioned CAD
+              <span>Dimensioned CAD</span>
+              {visualMode === 'schematic' && (
+                <span
+                  className={`px-1.5 py-0.5 rounded text-[10px] font-mono leading-none ${
+                    showDimensions
+                      ? 'bg-slate-950/20 text-slate-950'
+                      : 'bg-amber-500/20 text-amber-200'
+                  }`}
+                >
+                  {showDimensions ? 'ON' : 'OFF'}
+                </span>
+              )}
             </button>
             <button
               type="button"
+              disabled={visualMode === 'diagram'}
               onClick={() => setVisualMode('diagram')}
-              className={`px-3 py-1.5 rounded-md text-xs font-medium transition whitespace-nowrap ${
+              aria-pressed={visualMode === 'diagram'}
+              aria-label={
                 visualMode === 'diagram'
-                  ? 'bg-cyan-500 text-slate-950 font-semibold'
-                  : 'text-slate-400 hover:text-white'
+                  ? 'Part Catalog Diagram (current view)'
+                  : 'Switch to Part Catalog Diagram view'
+              }
+              className={`px-3 py-1.5 rounded-md text-xs transition whitespace-nowrap ${
+                visualMode === 'diagram'
+                  ? 'bg-cyan-500 text-slate-950 font-semibold shadow-sm cursor-default'
+                  : 'text-slate-400 hover:text-white font-medium'
               }`}
             >
               Part Catalog Diagram
@@ -480,6 +910,19 @@ export const TabTechnicalDrawings: React.FC<TabTechnicalDrawingsProps> = ({
             <Printer className="w-3.5 h-3.5" />
             <span>Print</span>
           </button>
+
+          {onOpenMatrixForPart && (
+            <button
+              type="button"
+              onClick={() =>
+                onOpenMatrixForPart(domain === 'transmission' ? 'bellhousing' : 'block')
+              }
+              className="no-print px-3 py-2 rounded-lg border border-orange-500/60 bg-orange-600/15 hover:bg-orange-600/25 text-orange-200 text-xs font-semibold flex items-center gap-1.5 transition whitespace-nowrap"
+            >
+              <Box className="w-3.5 h-3.5 text-orange-400" />
+              <span>3D Part &amp; MFG Matrix</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -501,7 +944,14 @@ export const TabTechnicalDrawings: React.FC<TabTechnicalDrawingsProps> = ({
                       selectedTrans: chosen.id,
                       stallSpeed: chosen.defaultStall || config.stallSpeed
                     });
+                    setStagedSheet(null);
                     setSelectedCallout(null);
+                    setRowFilter('ALL');
+                    setCalloutFilter('');
+                    setDiagramZoom(1);
+                    setDiagramImgError(false);
+                    setErrorMsg(null);
+                    setStatusMsg(null);
                   }
                 }}
                 className="bg-[#0d1014] border border-slate-700 focus:border-cyan-400 rounded-md px-2.5 py-1.5 text-xs text-white font-medium max-w-[300px]"
@@ -515,7 +965,10 @@ export const TabTechnicalDrawings: React.FC<TabTechnicalDrawingsProps> = ({
             </div>
           )}
 
-          <form onSubmit={handleOnlineLookup} className="flex-1 flex flex-wrap sm:flex-nowrap items-center gap-2 min-w-[260px]">
+          <form
+            onSubmit={handleOnlineLookup}
+            className="flex-1 flex flex-wrap sm:flex-nowrap items-center gap-2 min-w-[260px]"
+          >
             <div className="relative flex-1 min-w-[200px]">
               <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
               <input
@@ -535,7 +988,11 @@ export const TabTechnicalDrawings: React.FC<TabTechnicalDrawingsProps> = ({
               disabled={isLookingUp || isParsingDiagram}
               className="px-3.5 py-1.5 rounded-md bg-cyan-500 hover:bg-cyan-400 disabled:opacity-50 text-slate-950 font-semibold text-xs flex items-center gap-1.5 transition whitespace-nowrap"
             >
-              {isLookingUp ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
+              {isLookingUp ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              ) : (
+                <Sparkles className="w-3.5 h-3.5" />
+              )}
               <span>{isLookingUp ? 'Searching...' : 'Pull Online Specs'}</span>
             </button>
           </form>
@@ -552,7 +1009,7 @@ export const TabTechnicalDrawings: React.FC<TabTechnicalDrawingsProps> = ({
               type="button"
               disabled={isLookingUp || isParsingDiagram}
               onClick={() => fileInputRef.current?.click()}
-              className="px-3 py-1.5 rounded-md border border-slate-700 bg-[#0d1014] hover:border-orange-400 text-slate-200 hover:text-white text-xs font-medium flex items-center gap-1.5 transition whitespace-nowrap"
+              className="px-3 py-1.5 rounded-md border border-slate-700 bg-[#0d1014] hover:border-orange-400 disabled:opacity-50 text-slate-200 hover:text-white text-xs font-medium flex items-center gap-1.5 transition whitespace-nowrap"
             >
               {isParsingDiagram ? (
                 <Loader2 className="w-3.5 h-3.5 animate-spin text-orange-400" />
@@ -564,35 +1021,58 @@ export const TabTechnicalDrawings: React.FC<TabTechnicalDrawingsProps> = ({
 
             <button
               type="button"
+              disabled={isLookingUp || isParsingDiagram}
               onClick={handleLoadA500Diagram}
-              className="px-3 py-1.5 rounded-md border border-slate-700 bg-[#0d1014] hover:border-cyan-400 text-cyan-300 text-xs font-medium flex items-center gap-1.5 transition whitespace-nowrap"
+              className="px-3 py-1.5 rounded-md border border-slate-700 bg-[#0d1014] hover:border-cyan-400 disabled:opacity-50 text-cyan-300 text-xs font-medium flex items-center gap-1.5 transition whitespace-nowrap"
             >
               <ImageIcon className="w-3.5 h-3.5" />
               <span>View A500 / 42RE Diagram</span>
             </button>
 
+            {hasStagedForDomain && (
+              <button
+                type="button"
+                onClick={handleDiscardStaged}
+                className="px-3 py-1.5 rounded-md border border-amber-500/50 bg-[#0d1014] hover:border-amber-400 text-amber-300 hover:text-white text-xs font-medium flex items-center gap-1.5 transition whitespace-nowrap"
+              >
+                <X className="w-3.5 h-3.5" />
+                <span>Discard Staged</span>
+              </button>
+            )}
+
+            {hasCustomForDomain && (
+              <button
+                type="button"
+                onClick={handleRestoreLiveSheet}
+                className="px-3 py-1.5 rounded-md border border-slate-700 bg-[#0d1014] hover:border-slate-500 text-slate-300 hover:text-white text-xs font-medium flex items-center gap-1.5 transition whitespace-nowrap"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+                <span>Restore Live Sheet</span>
+              </button>
+            )}
+
             <button
               type="button"
               onClick={handleApplyTo3D}
               className={`px-3.5 py-1.5 rounded-md font-semibold text-xs flex items-center gap-1.5 transition whitespace-nowrap ${
-                stagedSheet
+                hasStagedForDomain
                   ? 'bg-emerald-500 hover:bg-emerald-400 text-slate-950'
                   : 'bg-orange-600 hover:bg-orange-500 text-white'
               }`}
             >
               <CheckCircle2 className="w-3.5 h-3.5" />
-              <span>{stagedSheet ? 'Apply Pulled Specs to 3D' : 'Sync Sheet to 3D Model'}</span>
+              <span>{hasStagedForDomain ? 'Apply Pulled Specs to 3D' : 'Sync Sheet to 3D Model'}</span>
             </button>
           </div>
         </div>
 
         {errorMsg && (
-          <div className="p-2.5 rounded-lg bg-red-950/60 border border-red-500/50 text-red-200 flex items-center gap-2">
-            <AlertTriangle className="w-4 h-4 text-red-400 shrink-0" />
+          <div className="p-2.5 rounded-lg bg-red-950/60 border border-red-500/50 text-red-200 flex items-start gap-2">
+            <AlertTriangle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
             <span>{errorMsg}</span>
           </div>
         )}
-        {statusMsg && !errorMsg && (
+        {statusMsg && (
           <div className="p-2.5 rounded-lg bg-emerald-950/50 border border-emerald-500/40 text-emerald-200">
             {statusMsg}
           </div>
@@ -602,32 +1082,56 @@ export const TabTechnicalDrawings: React.FC<TabTechnicalDrawingsProps> = ({
       {/* Primary Focal Anchor: Dimensioned Schematic / Catalog Diagram + Selected Callout Spec Panel */}
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-5 items-stretch">
         {/* Left / Main Technical Drawing Stage (9 cols on XL) */}
-        <div className="xl:col-span-9 bg-[#091628] border border-slate-800 rounded-xl overflow-hidden flex flex-col">
+        <div
+          className={`xl:col-span-9 border border-slate-800 rounded-xl overflow-hidden flex flex-col ${
+            visualMode === 'schematic' && paperTheme === 'vellum' ? 'bg-[#f4efe6]' : 'bg-[#091628]'
+          }`}
+        >
           {visualMode === 'schematic' ? (
-            <div className="w-full overflow-x-auto">
-              {domain === 'engine' ? (
-                <SchematicEngineSVG
-                  config={config}
-                  specs={specs}
-                  sheet={displayedSheet}
-                  selectedTarget={activeInspectCallout?.targetSubassembly || null}
-                  onSelectCallout={(c) => setSelectedCallout(c)}
-                  paperTheme={paperTheme}
-                  svgRef={svgRef}
-                />
-              ) : (
-                <SchematicTransmissionSVG
-                  transmission={currentTrans}
-                  sheet={displayedSheet}
-                  selectedTarget={activeInspectCallout?.targetSubassembly || null}
-                  onSelectCallout={(c) => setSelectedCallout(c)}
-                  paperTheme={paperTheme}
-                  svgRef={svgRef}
-                />
+            <div className="w-full flex flex-col">
+              {!showDimensions && (
+                <div className="px-4 py-2 bg-amber-950/85 border-b border-amber-500/40 text-amber-200 flex flex-wrap items-center justify-between gap-2 no-print">
+                  <span className="font-mono text-[11px] font-semibold">
+                    Dimensions hidden — click Dimensioned CAD to show them
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setShowDimensions(true)}
+                    className="px-2.5 py-1 rounded bg-amber-500/20 hover:bg-amber-500/35 border border-amber-400/50 text-amber-100 text-[11px] font-semibold transition"
+                  >
+                    Show Dimensions
+                  </button>
+                </div>
               )}
+              <div className="w-full overflow-x-auto">
+                {domain === 'engine' ? (
+                  <SchematicEngineSVG
+                    config={config}
+                    specs={specs}
+                    sheet={schematicSheet}
+                    selectedTarget={
+                      showDimensions ? activeInspectCallout?.targetSubassembly || null : null
+                    }
+                    onSelectCallout={(c) => setSelectedCallout(c)}
+                    paperTheme={paperTheme}
+                    svgRef={svgRef}
+                  />
+                ) : (
+                  <SchematicTransmissionSVG
+                    transmission={currentTrans}
+                    sheet={schematicSheet}
+                    selectedTarget={
+                      showDimensions ? activeInspectCallout?.targetSubassembly || null : null
+                    }
+                    onSelectCallout={(c) => setSelectedCallout(c)}
+                    paperTheme={paperTheme}
+                    svgRef={svgRef}
+                  />
+                )}
+              </div>
             </div>
           ) : (
-            <div className="flex-1 flex flex-col min-h-[460px]">
+            <div className="flex-1 flex flex-col min-h-[460px] bg-[#091628]">
               {/* Diagram Viewer Toolbar */}
               <div className="px-4 py-2.5 bg-[#0d1014] border-b border-slate-800 flex flex-wrap items-center justify-between gap-2">
                 <span className="font-mono text-slate-300">
@@ -635,11 +1139,11 @@ export const TabTechnicalDrawings: React.FC<TabTechnicalDrawingsProps> = ({
                     ? `Exploded Parts Catalog Sheet · ${displayedSheet.drawingNumber}`
                     : 'No uploaded catalog bitmap for this unit — upload an image or view Dimensioned CAD Schematic'}
                 </span>
-                {hasReferenceImage && (
+                {hasReferenceImage && !diagramImgError && (
                   <div className="flex items-center gap-1.5">
                     <button
                       type="button"
-                      onClick={() => setDiagramZoom((z) => Math.max(0.75, +(z - 0.25).toFixed(2)))}
+                      onClick={() => setDiagramZoom((z) => Math.max(0.5, +(z - 0.25).toFixed(2)))}
                       className="p-1.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-200"
                       aria-label="Zoom out diagram"
                     >
@@ -669,48 +1173,101 @@ export const TabTechnicalDrawings: React.FC<TabTechnicalDrawingsProps> = ({
               </div>
 
               {/* Diagram Image Canvas or Guided Fallback */}
-              <div className="flex-1 overflow-auto bg-[#0b1320] flex items-center justify-center p-4">
-                {hasReferenceImage ? (
-                  <div className="bg-white rounded-lg p-2 shadow-xl overflow-auto max-h-[540px]">
+              <div className="flex-1 overflow-auto bg-[#0b1320] p-4 max-h-[580px]">
+                {hasReferenceImage && !diagramImgError ? (
+                  <div
+                    className="bg-white rounded-lg p-2 shadow-xl mx-auto"
+                    style={{
+                      width: diagramZoom === 1 ? 'fit-content' : `${Math.round(diagramZoom * 100)}%`,
+                      maxWidth: diagramZoom === 1 ? '100%' : 'none'
+                    }}
+                  >
                     <img
-                      src={displayedSheet.referenceImageUrl}
+                      src={effectiveReferenceImageUrl}
                       alt={`${displayedSheet.title} technical parts diagram`}
                       referrerPolicy="no-referrer"
-                      style={{ transform: `scale(${diagramZoom})`, transformOrigin: 'top center' }}
-                      className="max-w-full h-auto object-contain transition-transform"
+                      onError={() => setDiagramImgError(true)}
+                      className={
+                        diagramZoom === 1
+                          ? 'max-w-full max-h-[520px] w-auto h-auto object-contain block mx-auto'
+                          : 'w-full h-auto object-contain block'
+                      }
                     />
                   </div>
+                ) : hasReferenceImage && diagramImgError ? (
+                  <div className="h-full min-h-[400px] flex items-center justify-center">
+                    <div className="max-w-lg text-center space-y-3 p-6 border border-slate-800 rounded-xl bg-[#12161c]">
+                      <AlertTriangle className="w-10 h-10 text-amber-400 mx-auto" />
+                      <h3 className="text-sm font-bold text-white">
+                        Unable to Load External Catalog Diagram Image
+                      </h3>
+                      <p className="text-xs text-slate-400 leading-relaxed">
+                        The reference bitmap could not be loaded (network offline or blocked by external host). You can retry loading, upload a local image from disk, or inspect the built-in Dimensioned CAD Schematic.
+                      </p>
+                      <div className="flex flex-wrap justify-center gap-2 pt-1">
+                        <button
+                          type="button"
+                          onClick={() => setDiagramImgError(false)}
+                          className="px-3.5 py-2 rounded-md border border-slate-700 bg-[#0d1014] hover:border-cyan-400 text-cyan-300 font-medium"
+                        >
+                          Retry Image
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => fileInputRef.current?.click()}
+                          className="px-3.5 py-2 rounded-md bg-orange-600 hover:bg-orange-500 text-white font-semibold"
+                        >
+                          Upload Local Image
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setVisualMode('schematic');
+                            setShowDimensions(true);
+                          }}
+                          className="px-3.5 py-2 rounded-md border border-slate-700 bg-[#0d1014] hover:text-white text-slate-300 font-medium"
+                        >
+                          View CAD Schematic
+                        </button>
+                      </div>
+                    </div>
+                  </div>
                 ) : (
-                  <div className="max-w-lg text-center space-y-3 p-6 border border-slate-800 rounded-xl bg-[#12161c]">
-                    <ImageIcon className="w-10 h-10 text-cyan-400 mx-auto" />
-                    <h3 className="text-sm font-bold text-white">
-                      Dimensioned Vector CAD Active — No Catalog Bitmap Attached Yet
-                    </h3>
-                    <p className="text-xs text-slate-400 leading-relaxed">
-                      Upload any scanned factory exploded parts diagram or shop manual sheet above, load the Chrysler A500 / 42RE reference sheet, or switch to the parametric Dimensioned CAD view.
-                    </p>
-                    <div className="flex flex-wrap justify-center gap-2 pt-1">
-                      <button
-                        type="button"
-                        onClick={() => fileInputRef.current?.click()}
-                        className="px-3.5 py-2 rounded-md bg-orange-600 hover:bg-orange-500 text-white font-semibold"
-                      >
-                        Upload Diagram Image
-                      </button>
-                      <button
-                        type="button"
-                        onClick={handleLoadA500Diagram}
-                        className="px-3.5 py-2 rounded-md border border-slate-700 bg-[#0d1014] hover:border-cyan-400 text-cyan-300 font-medium"
-                      >
-                        Load A500 / 42RE Diagram
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setVisualMode('schematic')}
-                        className="px-3.5 py-2 rounded-md border border-slate-700 bg-[#0d1014] hover:text-white text-slate-300 font-medium"
-                      >
-                        View CAD Schematic
-                      </button>
+                  <div className="h-full min-h-[400px] flex items-center justify-center">
+                    <div className="max-w-lg text-center space-y-3 p-6 border border-slate-800 rounded-xl bg-[#12161c]">
+                      <ImageIcon className="w-10 h-10 text-cyan-400 mx-auto" />
+                      <h3 className="text-sm font-bold text-white">
+                        Dimensioned Vector CAD Active — No Catalog Bitmap Attached Yet
+                      </h3>
+                      <p className="text-xs text-slate-400 leading-relaxed">
+                        Upload any scanned factory exploded parts diagram or shop manual sheet above, load the Chrysler A500 / 42RE reference sheet, or switch to the parametric Dimensioned CAD view.
+                      </p>
+                      <div className="flex flex-wrap justify-center gap-2 pt-1">
+                        <button
+                          type="button"
+                          onClick={() => fileInputRef.current?.click()}
+                          className="px-3.5 py-2 rounded-md bg-orange-600 hover:bg-orange-500 text-white font-semibold"
+                        >
+                          Upload Diagram Image
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleLoadA500Diagram}
+                          className="px-3.5 py-2 rounded-md border border-slate-700 bg-[#0d1014] hover:border-cyan-400 text-cyan-300 font-medium"
+                        >
+                          Load A500 / 42RE Diagram
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setVisualMode('schematic');
+                            setShowDimensions(true);
+                          }}
+                          className="px-3.5 py-2 rounded-md border border-slate-700 bg-[#0d1014] hover:text-white text-slate-300 font-medium"
+                        >
+                          View CAD Schematic
+                        </button>
+                      </div>
                     </div>
                   </div>
                 )}
@@ -771,7 +1328,9 @@ export const TabTechnicalDrawings: React.FC<TabTechnicalDrawingsProps> = ({
 
                 {activeInspectCallout.notes && (
                   <div className="space-y-0.5">
-                    <div className="text-[11px] font-semibold text-slate-400">Assembly &amp; Inspection Notes</div>
+                    <div className="text-[11px] font-semibold text-slate-400">
+                      Assembly &amp; Inspection Notes
+                    </div>
                     <p className="text-slate-300 leading-relaxed">{activeInspectCallout.notes}</p>
                   </div>
                 )}
@@ -779,7 +1338,9 @@ export const TabTechnicalDrawings: React.FC<TabTechnicalDrawingsProps> = ({
 
               {displayedSheet.sourceUrls && displayedSheet.sourceUrls.length > 0 && (
                 <div className="pt-2 border-t border-slate-800 space-y-1">
-                  <div className="text-[11px] font-semibold text-sky-400">Online Verification Sources</div>
+                  <div className="text-[11px] font-semibold text-sky-400">
+                    Online Verification Sources
+                  </div>
                   {displayedSheet.sourceUrls.slice(0, 3).map((src) => (
                     <a
                       key={src.uri}
@@ -801,7 +1362,7 @@ export const TabTechnicalDrawings: React.FC<TabTechnicalDrawingsProps> = ({
             </div>
           )}
 
-          <div className="pt-3 border-t border-slate-800 space-y-2">
+          <div className="pt-3 border-t border-slate-800 space-y-2 no-print">
             <button
               type="button"
               onClick={() => onJumpToTab(domain === 'engine' ? 'block3d' : 'trans')}
@@ -838,6 +1399,9 @@ export const TabTechnicalDrawings: React.FC<TabTechnicalDrawingsProps> = ({
           <div>
             <h3 className="text-sm font-bold text-white">
               Component Dimension, Clearance &amp; Torque Description Schedule
+              <span className="ml-2 text-xs font-mono font-normal text-slate-400">
+                ({filteredCallouts.length} of {displayedSheet.callouts.length})
+              </span>
             </h3>
             <p className="text-xs text-slate-400 mt-0.5">{displayedSheet.unitSummary}</p>
           </div>
@@ -850,7 +1414,7 @@ export const TabTechnicalDrawings: React.FC<TabTechnicalDrawingsProps> = ({
                   type="button"
                   onClick={() => setRowFilter(r)}
                   className={`px-2.5 py-1 rounded text-[11px] font-medium transition ${
-                    rowFilter === r
+                    effectiveRowFilter === r
                       ? 'bg-orange-600 text-white font-semibold'
                       : 'text-slate-400 hover:text-white'
                   }`}
@@ -884,37 +1448,70 @@ export const TabTechnicalDrawings: React.FC<TabTechnicalDrawingsProps> = ({
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800/80">
-              {filteredCallouts.map((c, idx) => {
-                const isSelected = activeInspectCallout?.indexCode === c.indexCode && activeInspectCallout?.partName === c.partName;
-                return (
-                  <tr
-                    key={`${c.indexCode}_${idx}`}
-                    onClick={() => setSelectedCallout(c)}
-                    className={`cursor-pointer transition ${
-                      isSelected ? 'bg-orange-950/40 text-white' : 'hover:bg-slate-800/50 text-slate-300'
-                    }`}
-                  >
-                    <td className="py-2.5 px-3 font-mono font-bold text-cyan-300 whitespace-nowrap tabular-nums">
-                      {c.indexCode}
-                    </td>
-                    <td className="py-2.5 px-3 font-mono text-slate-400 whitespace-nowrap">{c.row}</td>
-                    <td className="py-2.5 px-3">
-                      <div className="font-semibold text-white">{c.partName}</div>
-                      {c.notes && <div className="text-[11px] text-slate-400 mt-0.5">{c.notes}</div>}
-                    </td>
-                    <td className="py-2.5 px-3 font-mono text-amber-300 whitespace-nowrap">
-                      {c.partNumber || '—'}
-                    </td>
-                    <td className="py-2.5 px-3 font-mono text-emerald-300 tabular-nums">
-                      {c.clearanceSpec || 'OEM Standard'}
-                    </td>
-                    <td className="py-2.5 px-3 font-mono text-slate-200 tabular-nums">
-                      {c.torqueSpec || 'Factory Spec'}
-                    </td>
-                    <td className="py-2.5 px-3 text-slate-400">{c.material || '—'}</td>
-                  </tr>
-                );
-              })}
+              {filteredCallouts.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="py-8 px-4 text-center text-slate-400">
+                    <p>No component callouts match the active row or search filter.</p>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setRowFilter('ALL');
+                        setCalloutFilter('');
+                      }}
+                      className="mt-2.5 px-3 py-1.5 rounded-md bg-slate-800 hover:bg-slate-700 text-cyan-300 font-medium text-xs"
+                    >
+                      Clear Filters
+                    </button>
+                  </td>
+                </tr>
+              ) : (
+                filteredCallouts.map((c, idx) => {
+                  const isSelected =
+                    activeInspectCallout?.indexCode === c.indexCode &&
+                    activeInspectCallout?.partName === c.partName;
+                  return (
+                    <tr
+                      key={`${c.indexCode}_${idx}`}
+                      tabIndex={0}
+                      onClick={() => setSelectedCallout(c)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault();
+                          setSelectedCallout(c);
+                        }
+                      }}
+                      className={`cursor-pointer transition outline-none focus-visible:ring-1 focus-visible:ring-cyan-400 ${
+                        isSelected
+                          ? 'bg-orange-950/40 text-white'
+                          : 'hover:bg-slate-800/50 text-slate-300'
+                      }`}
+                    >
+                      <td className="py-2.5 px-3 font-mono font-bold text-cyan-300 whitespace-nowrap tabular-nums">
+                        {c.indexCode}
+                      </td>
+                      <td className="py-2.5 px-3 font-mono text-slate-400 whitespace-nowrap">
+                        {c.row}
+                      </td>
+                      <td className="py-2.5 px-3">
+                        <div className="font-semibold text-white">{c.partName}</div>
+                        {c.notes && (
+                          <div className="text-[11px] text-slate-400 mt-0.5">{c.notes}</div>
+                        )}
+                      </td>
+                      <td className="py-2.5 px-3 font-mono text-amber-300 whitespace-nowrap">
+                        {c.partNumber || '—'}
+                      </td>
+                      <td className="py-2.5 px-3 font-mono text-emerald-300 tabular-nums">
+                        {c.clearanceSpec || 'OEM Standard'}
+                      </td>
+                      <td className="py-2.5 px-3 font-mono text-slate-200 tabular-nums">
+                        {c.torqueSpec || 'Factory Spec'}
+                      </td>
+                      <td className="py-2.5 px-3 text-slate-400">{c.material || '—'}</td>
+                    </tr>
+                  );
+                })
+              )}
             </tbody>
           </table>
         </div>

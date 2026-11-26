@@ -1,0 +1,599 @@
+# cluster-11-aerospace.txt — SBC 350 v16 aerospace matrix + page spec, cluster 11 of 12
+# Source: goal hidden_files, verified on disk Nov 26, 2026 (md5-matched copies home). Paste ONE cluster per builder message, in order, AFTER clusters 01-08.
+# Files in this cluster: 2
+
+===== FILE: src/data/aerospaceMatrix.ts (37153 bytes, md5 5aa509246efc6c363c4fe93336c2e71c) =====
+
+/**
+ * @license
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+export type AerospaceConfidenceFlag =
+  | 'VERIFIED_REF'
+  | 'ESTIMATE'
+  | 'VENDOR_CLAIM'
+  | 'NEEDS_MEASUREMENT';
+
+export interface AerospaceMaterialRow {
+  id: string;
+  material: string;
+  uts: string;
+  yieldStrength: string;
+  density: string;
+  maxServiceTemp: string;
+  mainAerospaceUses: string;
+  additionalNotes: string;
+  confidence: AerospaceConfidenceFlag;
+  sourceRef: string;
+}
+
+export interface AerospaceProcessRow {
+  id: string;
+  process: string;
+  whatItDoesAndUse: string;
+  tolerance: string;
+  surfaceFinishRa: string;
+  postProcessingAndQualification: string;
+  confidence: AerospaceConfidenceFlag;
+  sourceRef: string;
+}
+
+export interface Iso2768LinearRow {
+  nominalSizeRangeMm: string;
+  classF: string;
+  classM: string;
+  classC: string;
+  sourceRef: string;
+}
+
+export interface AerospaceStandardRow {
+  id: string;
+  standard: string;
+  fullTitleAndScope: string;
+  appNotes: string;
+  confidence: AerospaceConfidenceFlag;
+  sourceRef: string;
+}
+
+export interface AerospaceDesignMethodEntry {
+  id: string;
+  topic: string;
+  summary: string;
+  keyRulesOrDetails: string[];
+  confidence: AerospaceConfidenceFlag;
+  sourceRef: string;
+}
+
+export interface AerospaceCaseStudyItem {
+  id: string;
+  name: string;
+  processOrBasis: string;
+  reportedMetrics: string;
+  statusFlag: 'OEM_CLAIM' | 'DESIGN_EXPLORATION_NOT_PRODUCTION' | 'SECONDARY_COMPILATION';
+  notes: string;
+  sourceRef: string;
+}
+
+export interface ToleranceContrastRow {
+  aspect: string;
+  aerospaceContext: string;
+  automotiveContext: string;
+  keyTakeaway: string;
+  confidence: AerospaceConfidenceFlag;
+  sourceRef: string;
+}
+
+export interface AerospaceAuditFlagItem {
+  id: string;
+  category: 'ESTIMATE_OR_VENDOR_CLAIM' | 'UNAVAILABLE_NO_SINGLE_VALUE' | 'CONFLICT' | 'METHOD_LIMIT';
+  subject: string;
+  detail: string;
+  actionRequired: string;
+  sourceRef: string;
+}
+
+export interface AerospaceMatrixCatalog {
+  reportDate: string;
+  reportScopeNote: string;
+  materials: AerospaceMaterialRow[];
+  processes: AerospaceProcessRow[];
+  standardsStack: AerospaceStandardRow[];
+  iso2768LinearTable: Iso2768LinearRow[];
+  designMethods: AerospaceDesignMethodEntry[];
+  caseStudies: AerospaceCaseStudyItem[];
+  toleranceContrast: ToleranceContrastRow[];
+  auditFlags: AerospaceAuditFlagItem[];
+}
+
+export const AEROSPACE_MATRIX_CATALOG: AerospaceMatrixCatalog = {
+  reportDate: '2026-11-26',
+  reportScopeNote:
+    'Built exclusively from aerospace-matrix-research-20261126.txt (index-sourced on 2026-11-26; no live-browser check or full paywalled standard text read). Typical values are not design minimums/allowables; verify against AMS/ASTM/MMPDS and mill certificates before design use[cite: 20].',
+
+  materials: [
+    {
+      id: 'ti_6al_4v_annealed',
+      material: 'Ti-6Al-4V, annealed (Grade 5, UNS R56400; AMS 4911 sheet / AMS 4928 bar)',
+      uts: '895 MPa (130 ksi) min; ~950 MPa (138 ksi) typ.[cite: 20]',
+      yieldStrength: '828 MPa (120 ksi) min; ~880 MPa (128 ksi) typ. (0.2% offset)[cite: 20]',
+      density: '4.43 g/cm³ (0.160 lb/in³)[cite: 20]',
+      maxServiceTemp: '~400 °C (752 °F) typ.; usable to ~427 °C (800 °F) (definitions/allowables vary; [ESTIMATE] to verify exact rating basis)[cite: 20]',
+      mainAerospaceUses: 'Airframe structure, fasteners, brackets, engine fan/compressor parts, landing-gear parts[cite: 20]',
+      additionalNotes: 'Modulus 114 GPa (16.5 Msi); UpMet datasheet notes data are for information only and not for design purposes[cite: 20]',
+      confidence: 'VERIFIED_REF',
+      sourceRef: 'aerospace-matrix-research-20261126.txt §1 (UpMet, SSG Mfg, Engineer Underground, Noramark)[cite: 20]'
+    },
+    {
+      id: 'ti_6al_4v_sta',
+      material: 'Ti-6Al-4V, solution-treated & aged (STA)',
+      uts: '~1,100 MPa (160 ksi) [ESTIMATE — verify exact AMS/temper specification][cite: 20]',
+      yieldStrength: '~1,000 MPa (145 ksi) [ESTIMATE — verify exact AMS/temper specification][cite: 20]',
+      density: '4.43 g/cm³ (0.160 lb/in³)[cite: 20]',
+      maxServiceTemp: '~400 °C (verify exact definition/allowable) [ESTIMATE][cite: 20]',
+      mainAerospaceUses: 'Higher-strength fittings/fasteners (section ≤ ~25 mm)[cite: 20]',
+      additionalNotes: 'Modulus 114 GPa (16.5 Msi); verify section thickness limits and AMS spec[cite: 20]',
+      confidence: 'ESTIMATE',
+      sourceRef: 'aerospace-matrix-research-20261126.txt §1 (UpMet, SSG Mfg, Engineer Underground, Noramark)[cite: 20]'
+    },
+    {
+      id: 'inconel_718_aged',
+      material: 'Inconel 718, aged (UNS N07718; AMS 5662/5663)',
+      uts: '1,240 MPa (180 ksi) min; ~1,375 MPa (200 ksi) typ.[cite: 20]',
+      yieldStrength: '1,035 MPa (150 ksi) min; ~1,100 MPa (160 ksi) typ. (0.2% offset)[cite: 20]',
+      density: '8.19 g/cm³ (0.296 lb/in³)[cite: 20]',
+      maxServiceTemp: 'Structural strength to ~650 °C (1,200 °F); creep-rupture to ~700 °C (1,300 °F)[cite: 20]',
+      mainAerospaceUses: 'Turbine disks, shafts, fasteners, springs, casings — hot-section structural parts[cite: 20]',
+      additionalNotes: 'Modulus ~200 GPa; do not extrapolate 718 to 980 °C under structural load[cite: 20]',
+      confidence: 'VERIFIED_REF',
+      sourceRef: 'aerospace-matrix-research-20261126.txt §1 (Special Metals, Noramark, HiTempAlloys)[cite: 20]'
+    },
+    {
+      id: 'inconel_625_annealed',
+      material: 'Inconel 625, annealed (UNS N06625; AMS 5599/5666 family)',
+      uts: '827 MPa (120 ksi) min; ~930 MPa (135 ksi) typ.[cite: 20]',
+      yieldStrength: '414 MPa (60 ksi) min; ~490–520 MPa (71–75 ksi) typ.[cite: 20]',
+      density: '8.44 g/cm³ (0.305 lb/in³)[cite: 20]',
+      maxServiceTemp: 'Oxidation resistance ~980 °C (1,800 °F); sustained-load ceiling ~650 °C (not highest-strength choice)[cite: 20]',
+      mainAerospaceUses: 'Ducting, bellows, heat exchangers, exhaust, weld overlay, seawater/corrosion parts[cite: 20]',
+      additionalNotes: 'Modulus ~207 GPa; sources vary 540–982 °C when mixing oxidation, sustained-load, and short-term limits[cite: 20]',
+      confidence: 'VERIFIED_REF',
+      sourceRef: 'aerospace-matrix-research-20261126.txt §1 (Noramark, HiTempAlloys)[cite: 20]'
+    },
+    {
+      id: 'al_7075_t6',
+      material: 'Al 7075-T6',
+      uts: '572 MPa (83 ksi) typ. (typical value, not a guaranteed design allowable)[cite: 20]',
+      yieldStrength: '503 MPa (73 ksi) typ. (typical value, not a guaranteed design allowable)[cite: 20]',
+      density: '2.81 g/cm³ (0.102 lb/in³)[cite: 20]',
+      maxServiceTemp: 'No single published max service temp in consulted sources (temperature capability depends on strength-retention curve; [ESTIMATE] / NEEDS RAY\'S MEASUREMENT for application limits)[cite: 20]',
+      mainAerospaceUses: 'Wing spars, fuselage fittings, landing-gear components, highly stressed brackets[cite: 20]',
+      additionalNotes: 'Modulus 71.7 GPa; effectively non-weldable by fusion (hot cracking); SCC-susceptible (T73/T7351 trade ~10–15% yield for SCC resistance)[cite: 20]',
+      confidence: 'VERIFIED_REF',
+      sourceRef: 'aerospace-matrix-research-20261126.txt §1 & §5 flags (Manufacturing Processes, LK Prototype)[cite: 20]'
+    },
+    {
+      id: 'al_6061_t6',
+      material: 'Al 6061-T6',
+      uts: '310 MPa (45 ksi) typ.; 290 MPa min (ASTM B209)[cite: 20]',
+      yieldStrength: '276 MPa (40 ksi) typ. (270–276 MPa across sources)[cite: 20]',
+      density: '2.70 g/cm³ (0.098 lb/in³)[cite: 20]',
+      maxServiceTemp: 'No single published max service temp in consulted sources (strength retention is temperature-dependent; [ESTIMATE] / NEEDS RAY\'S MEASUREMENT for application limits)[cite: 20]',
+      mainAerospaceUses: 'Brackets, housings, welded frames, secondary structure, fixtures[cite: 20]',
+      additionalNotes: 'Modulus 68.9 GPa; welds readily (4043/5356) but HAZ softens[cite: 20]',
+      confidence: 'VERIFIED_REF',
+      sourceRef: 'aerospace-matrix-research-20261126.txt §1 & §5 flags (Manufacturing Processes, LK Prototype)[cite: 20]'
+    },
+    {
+      id: 'cfrp_ud_laminate',
+      material: 'CFRP, unidirectional laminate ~60% fibre vol. (epoxy matrix; e.g. Toray T700/T800 prepreg)',
+      uts: '1,500–2,500 MPa (fibre-direction UD laminate; fibre alone T700 4,900 MPa, T800 5,880 MPa, T1100 6,600 MPa)[cite: 20]',
+      yieldStrength: 'N/A — brittle / linear to failure (no metal-like yield strength; do not quote a yield value)[cite: 20]',
+      density: '1.55–1.65 g/cm³[cite: 20]',
+      maxServiceTemp: 'Epoxy matrix ~120–180 °C cure/service range; BMI matrix ~230 °C continuous[cite: 20]',
+      mainAerospaceUses: 'Boeing 787 fuselage barrels, A350 wing box/fuselage, spars, skins, stabilisers, floor beams[cite: 20]',
+      additionalNotes: 'Anisotropic (strong along fibre, weak across); 1.5–2.0% failure strain (std modulus); compression-after-impact can drop 40–60%[cite: 20]',
+      confidence: 'VERIFIED_REF',
+      sourceRef: 'aerospace-matrix-research-20261126.txt §1 (Mat.meche.ai, SME, AeroBook)[cite: 20]'
+    },
+    {
+      id: 'mg_az31b_h24',
+      material: 'Mg AZ31B-H24 (wrought, ASTM B107)',
+      uts: '285 MPa (41 ksi)[cite: 20]',
+      yieldStrength: '200 MPa (29 ksi)[cite: 20]',
+      density: '1.78 g/cm³ (0.064 lb/in³)[cite: 20]',
+      maxServiceTemp: 'Properties degrade above ~150 °C (no single max service temp published in consulted sources; [ESTIMATE] / NEEDS RAY\'S MEASUREMENT for design limit)[cite: 20]',
+      mainAerospaceUses: 'Sheet/plate brackets, housings, helicopter/satellite secondary structure, damping fixtures[cite: 20]',
+      additionalNotes: 'Modulus 45 GPa (AZ31 reference); temperature/corrosion controls required[cite: 20]',
+      confidence: 'VERIFIED_REF',
+      sourceRef: 'aerospace-matrix-research-20261126.txt §1 & §5 flags (Digital Machine)[cite: 20]'
+    },
+    {
+      id: 'mg_az91d_f',
+      material: 'Mg AZ91D (die-cast, F temper)',
+      uts: '230–250 MPa[cite: 20]',
+      yieldStrength: '150–160 MPa[cite: 20]',
+      density: '1.81 g/cm³[cite: 20]',
+      maxServiceTemp: '~150 °C class (AZ grades; no single value sourced; [ESTIMATE] / NEEDS RAY\'S MEASUREMENT for application limit)[cite: 20]',
+      mainAerospaceUses: 'Die-cast housings, covers, brackets[cite: 20]',
+      additionalNotes: 'Verify casting/temper allowables and corrosion protection[cite: 20]',
+      confidence: 'VERIFIED_REF',
+      sourceRef: 'aerospace-matrix-research-20261126.txt §1 & §5 flags (Le-Creator)[cite: 20]'
+    },
+    {
+      id: 'mg_we43_t6',
+      material: 'Mg WE43-T6 (rare-earth, cast/wrought)',
+      uts: '250–280 MPa[cite: 20]',
+      yieldStrength: '165–195 MPa in most sources; 220 MPa in one comparative table [CONFLICT — use 165–220 MPa range until verified][cite: 20]',
+      density: '1.80–1.84 g/cm³ (1.84 g/cm³ in cited WE43 datasheet)[cite: 20]',
+      maxServiceTemp: '250–300 °C (creep-resistant)[cite: 20]',
+      mainAerospaceUses: 'Helicopter gearbox/transmission housings, APU housings, engine casings[cite: 20]',
+      additionalNotes: 'Rare-earth creep-resistant magnesium; verify exact cast/wrought allowables[cite: 20]',
+      confidence: 'ESTIMATE',
+      sourceRef: 'aerospace-matrix-research-20261126.txt §1 & §5 flags (Metal.kushmar, Casting-China, FabDigit)[cite: 20]'
+    }
+  ],
+
+  processes: [
+    {
+      id: 'lpbf_slm_dmls',
+      process: 'Laser Powder Bed Fusion (LPBF / SLM / DMLS)',
+      whatItDoesAndUse: 'Builds complex Ti-6Al-4V, Inconel, AlSi10Mg flight parts (e.g., GE LEAP fuel-nozzle tip, Airbus A350 Ti bracket); >99.7% density achievable[cite: 20]',
+      tolerance: '±0.05–0.10 mm XY; ±0.10–0.20 mm Z; ±0.05–0.20 mm per 100 mm (vendor range; [VENDOR_CLAIM] / [ESTIMATE] for specific shop figures; post-machined ±0.003–0.01 mm [VENDOR_CLAIM])[cite: 20]',
+      surfaceFinishRa: 'As-built 6–15 µm up-facing, 15–35 µm down-facing/overhang; 10–25 µm general; post-machined Ra 0.4–1.6 µm [VENDOR_CLAIM] / [ESTIMATE][cite: 20]',
+      postProcessingAndQualification: '20–60 µm layer thickness; stress relief + HIP (HIP can shift dimensions — finish-machine after HIP); support removal; CNC machining on critical faces; NASA-STD-6030 / AMS 7003 / MSFC-SPEC-3717[cite: 20]',
+      confidence: 'ESTIMATE',
+      sourceRef: 'aerospace-matrix-research-20261126.txt §2 (Zorapid, Yiguproto, Raise3D, NASA-STD-6030, AMS 7003)[cite: 20]'
+    },
+    {
+      id: 'ded_am',
+      process: 'Directed Energy Deposition (DED — laser/wire/arc powder or wire)',
+      whatItDoesAndUse: 'Large near-net shapes, adding features to forgings, repair; NASA rocket-engine parts, bimetallic parts[cite: 20]',
+      tolerance: 'No single published tolerance found in consulted sources (coarser than LPBF per NASA comparison; allow heavy machining stock; [NEEDS_MEASUREMENT] / [ESTIMATE])[cite: 20]',
+      surfaceFinishRa: 'Higher than LPBF as-built (no single published Ra found in consulted sources; [NEEDS_MEASUREMENT] / [ESTIMATE])[cite: 20]',
+      postProcessingAndQualification: 'High deposition rate, multi-axis, multi-material; higher heat input/residual stress than LPBF; ~1 mm wall achievable with LP-DED/LW-DED (NASA); qualify per NASA-STD-6030 (wire & blown-powder DED)[cite: 20]',
+      confidence: 'ESTIMATE',
+      sourceRef: 'aerospace-matrix-research-20261126.txt §2 (NASA MSFC Gradl & Ely 2022, JANNAF 2024, NASA-STD-6030)[cite: 20]'
+    },
+    {
+      id: 'cnc_5_axis',
+      process: '5-Axis CNC Machining',
+      whatItDoesAndUse: 'Wing ribs, bulkheads, landing-gear brackets, engine mounts, impellers, housings from billet/forging/extrusion[cite: 20]',
+      tolerance: 'Standard shop ±0.05 mm; contoured profile 0.05–0.10 mm; IT6–IT7 ≈ ±0.008–0.015 mm [VENDOR_CLAIM]; ±0.005 mm single-shop claim [VENDOR_CLAIM][cite: 20]',
+      surfaceFinishRa: 'As-machined 0.8–1.6 µm standard; 1.6–3.2 µm non-critical; 0.2–0.8 µm fine (seal/bearing/fatigue fillets); 0.4–0.8 µm contoured simultaneous finish [ESTIMATE] / [VENDOR_CLAIM][cite: 20]',
+      postProcessingAndQualification: 'Single setup reduces re-fixture error; wrought properties + full material/process traceability[cite: 20]',
+      confidence: 'ESTIMATE',
+      sourceRef: 'aerospace-matrix-research-20261126.txt §2 & §5 (Noramark, SolidCAM, CISRI-ATM, GL CNC)[cite: 20]'
+    },
+    {
+      id: 'superplastic_forming',
+      process: 'Superplastic Forming (SPF)',
+      whatItDoesAndUse: 'Complex Ti/Al sheet airframe parts, near-net shape, high strains at elevated temperature, low/no residual stress, die-accurate[cite: 20]',
+      tolerance: 'No single published tolerance found (takes on die dimensions with small thickness variations; unconstrained inner sheets can show large variance; [NEEDS_MEASUREMENT] / [ESTIMATE])[cite: 20]',
+      surfaceFinishRa: 'Not published as a single Ra (sheet surface retained without machining marks; [NEEDS_MEASUREMENT])[cite: 20]',
+      postProcessingAndQualification: 'Often combined with diffusion bonding (SPF/DB) for multi-sheet sandwich or integrally stiffened Ti structure[cite: 20]',
+      confidence: 'ESTIMATE',
+      sourceRef: 'aerospace-matrix-research-20261126.txt §2 (Univ. of Washington, IC SAM 2023)[cite: 20]'
+    },
+    {
+      id: 'diffusion_bonding',
+      process: 'Diffusion Bonding (DB)',
+      whatItDoesAndUse: 'Solid-state joining, mainly Ti-6Al-4V (oxide dissolves); DB/SPF sandwich structures[cite: 20]',
+      tolerance: 'No single published dimensional tolerance (joint is metallurgical; [NEEDS_MEASUREMENT])[cite: 20]',
+      surfaceFinishRa: 'N/A (internal solid-state joint)[cite: 20]',
+      postProcessingAndQualification: 'Conducted at 50–70% of melting point in UW study on Ti alloys (incl. Ti-6Al-4V, Ti-6242); difficult for Al due to oxide without interlayer/vacuum cleaning[cite: 20]',
+      confidence: 'ESTIMATE',
+      sourceRef: 'aerospace-matrix-research-20261126.txt §2 (Univ. of Washington, ScienceDirect)[cite: 20]'
+    },
+    {
+      id: 'friction_stir_welding',
+      process: 'Friction Stir Welding (FSW)',
+      whatItDoesAndUse: 'Solid-state joining of Al alloys; NASA SLS core-stage tanks (Al 2219), Shuttle external tank, Orion[cite: 20]',
+      tolerance: 'No single published joint tolerance (fit-up/gap control is process-specific; much lower distortion than fusion welding; [NEEDS_MEASUREMENT])[cite: 20]',
+      surfaceFinishRa: 'Forged/smooth weld appearance vs fusion weld; no single Ra published in consulted sources [NEEDS_MEASUREMENT][cite: 20]',
+      postProcessingAndQualification: 'No melting (avoids fusion porosity/hot cracking/solidification defects) and retains more parent strength; SLS 27.5 ft dia. tanks / 22 ft barrels[cite: 20]',
+      confidence: 'VERIFIED_REF',
+      sourceRef: 'aerospace-matrix-research-20261126.txt §2 (NASA SLS / Marshall Star, SAE 2017-01-2148)[cite: 20]'
+    },
+    {
+      id: 'near_net_forging',
+      process: 'Precision / Near-Net-Shape (NNS) Forging',
+      whatItDoesAndUse: 'Ti structural fittings, disks, landing-gear parts; strong fatigue performance and directional grain flow[cite: 20]',
+      tolerance: 'As-forged tolerance not published as a single value; finish-machined to ±0.005 mm class [VENDOR_CLAIM]; NNS machining allowance 1.0–3.0 mm/face (2–5 mm in one source) vs 10–15 mm conventional [VENDOR_CLAIM][cite: 20]',
+      surfaceFinishRa: 'Final Ra 0.4–0.8 µm (16–32 µin) after finish machining [VENDOR_CLAIM][cite: 20]',
+      postProcessingAndQualification: 'Buy-to-fly reported as 3.5:1–4.2:1 for NNS forging [VENDOR_CLAIM] vs 9:1–12:1 (12:1–15:1 in one report) for conventional machining from solid[cite: 20]',
+      confidence: 'VENDOR_CLAIM',
+      sourceRef: 'aerospace-matrix-research-20261126.txt §2 (ForceBeyond, Rolls-Royce/Norsk Titanium report)[cite: 20]'
+    }
+  ],
+
+  standardsStack: [
+    {
+      id: 'as9100d',
+      standard: 'AS9100D (SAE, 2016-09-20; IAQG)',
+      fullTitleAndScope: 'Quality Management Systems — Requirements for Aviation, Space, and Defense Organizations (ISO 9001:2015 plus risk/configuration management, counterfeit-parts prevention, product safety, FAI, supplier control)[cite: 20]',
+      appNotes: 'Certifiable QMS (verify via IAQG OASIS); AS9110C = MRO, AS9120B = distributors[cite: 20]',
+      confidence: 'VERIFIED_REF',
+      sourceRef: 'aerospace-matrix-research-20261126.txt §3 (PrecisionAM)[cite: 20]'
+    },
+    {
+      id: 'as9102c',
+      standard: 'AS9102C (SAE, rev. June 2023)',
+      fullTitleAndScope: 'First Article Inspection Requirement: Form 1 (part-number accountability), Form 2 (product accountability — materials, special processes, certs), Form 3 (characteristic accountability — drawing characteristics vs measured values)[cite: 20]',
+      appNotes: 'Required at first production, after changes, or after production lapse; satisfies AS9100 §8.5.1.3 production-process verification[cite: 20]',
+      confidence: 'VERIFIED_REF',
+      sourceRef: 'aerospace-matrix-research-20261126.txt §3 (PrecisionAM)[cite: 20]'
+    },
+    {
+      id: 'as9103',
+      standard: 'AS9103',
+      fullTitleAndScope: 'Variation Management of Key Characteristics: identifying key characteristics, control plans, and monitoring variation through production[cite: 20]',
+      appNotes: 'Companion standard to AS9102[cite: 20]',
+      confidence: 'VERIFIED_REF',
+      sourceRef: 'aerospace-matrix-research-20261126.txt §3 (PrecisionAM)[cite: 20]'
+    },
+    {
+      id: 'as9145',
+      standard: 'AS9145 (2016)',
+      fullTitleAndScope: 'Requirements for APQP & Production Part Approval Process (PPAP): phased APQP from concept to production validation, with PPAP Phase 4 deliverables (design records, PFMEA, control plan, MSA, initial process studies)[cite: 20]',
+      appNotes: 'Aerospace counterpart to automotive APQP/PPAP (IATF 16949)[cite: 20]',
+      confidence: 'VERIFIED_REF',
+      sourceRef: 'aerospace-matrix-research-20261126.txt §3 (PrecisionAM)[cite: 20]'
+    },
+    {
+      id: 'nadcap',
+      standard: 'Nadcap (est. 1990, SAE; PRI)',
+      fullTitleAndScope: 'Industry-managed accreditation for SPECIAL PROCESSES (heat treating / AMS 2750 pyrometry, chemical processing, NDT / NAS 410 personnel, welding, coatings, composites, materials testing, machining)[cite: 20]',
+      appNotes: 'Process- and facility-specific (verify in PRI eAuditNet); requires AS9100 or equivalent QMS first[cite: 20]',
+      confidence: 'VERIFIED_REF',
+      sourceRef: 'aerospace-matrix-research-20261126.txt §3 (Wikipedia, NimbleMfg, Carbon.ms)[cite: 20]'
+    },
+    {
+      id: 'ams_specs',
+      standard: 'AMS (SAE Aerospace Material Specifications)',
+      fullTitleAndScope: 'Specifies chemistry, mechanical properties, processing, and testing per alloy/form/temper (e.g., AMS 4911 Ti-6Al-4V sheet/plate annealed, AMS 4928 Ti-6Al-4V bar/forgings annealed, AMS 4965 STA bar, AMS 5662/5663/5664 Inconel 718 bar, AMS 5596/5597 718 sheet, AMS 7003 Rev A AM process controls, AMS 2750 pyrometry, AMS 2774 Ni heat treat)[cite: 20]',
+      appNotes: 'Quote AMS + temper on drawings (parallel ASTM specs include B348/B265, B637/B670, B209)[cite: 20]',
+      confidence: 'VERIFIED_REF',
+      sourceRef: 'aerospace-matrix-research-20261126.txt §3 (PrecisionAM)[cite: 20]'
+    },
+    {
+      id: 'mil_specs',
+      standard: 'MIL Specs (US DoD / ASSIST)',
+      fullTitleAndScope: 'Includes MIL-STD-130 (identification marking), MIL-A-8625 / MIL-PRF-8625 (anodic coatings for Al: Type I chromic, Type II sulfuric, Type III hardcoat; Class 1 undyed, Class 2 dyed), MIL-DTL-5541 (chemical conversion coatings on Al: Type I hexavalent, Type II trivalent; Class 1A max corrosion, Class 3 low electrical resistance), MIL-DTL-81706 (conversion-coating materials)[cite: 20]',
+      appNotes: 'Many MIL specs are cancelled/superseded by AMS equivalents (e.g., MIL-PRF-8625; AMS 2469/2471/2473/2474); cite revision on drawing[cite: 20]',
+      confidence: 'VERIFIED_REF',
+      sourceRef: 'aerospace-matrix-research-20261126.txt §3 (FabDigit, AnoPro)[cite: 20]'
+    },
+    {
+      id: 'asme_y14_5',
+      standard: 'ASME Y14.5-2018 (R2024)',
+      fullTitleAndScope: 'Dimensioning and Tolerancing: GD&T language, feature control frames, and datum reference frames across form, orientation, location, profile, and runout[cite: 20]',
+      appNotes: 'Governs how tolerances are expressed/interpreted on US aerospace drawings, not numeric tolerance values themselves; characteristic count is intentionally omitted here due to source variation[cite: 20]',
+      confidence: 'VERIFIED_REF',
+      sourceRef: 'aerospace-matrix-research-20261126.txt §3 & §5 (PrecisionAM)[cite: 20]'
+    },
+    {
+      id: 'iso_2768',
+      standard: 'ISO 2768-1:1989 (Part 2 withdrawn 2021, replaced by ISO 22081:2021)',
+      fullTitleAndScope: 'General tolerances for linear/angular dimensions without individual tolerances: classes f (fine), m (medium), c (coarse), v (very coarse) when invoked in title block (e.g., ISO 2768-mK)[cite: 20]',
+      appNotes: 'A new single-part ISO 2768 was reported at publication stage in Oct 2026 — verify current status before citing; explicit callouts override general tolerances[cite: 20]',
+      confidence: 'VERIFIED_REF',
+      sourceRef: 'aerospace-matrix-research-20261126.txt §3 (Calibr.pro, Makerverse, Wevolver)[cite: 20]'
+    },
+    {
+      id: 'iso_286_1',
+      standard: 'ISO 286-1:2010',
+      fullTitleAndScope: 'Limits and fits: ISO code system for linear sizes (holes/shafts, tolerance grades and fundamental deviations)[cite: 20]',
+      appNotes: 'Use for mating fits; ISO 2768 does not guarantee functional fit[cite: 20]',
+      confidence: 'VERIFIED_REF',
+      sourceRef: 'aerospace-matrix-research-20261126.txt §3 (PrecisionAM)[cite: 20]'
+    },
+    {
+      id: 'asme_b46_1',
+      standard: 'ASME B46.1',
+      fullTitleAndScope: 'Surface Texture (roughness, waviness, lay): measurement and reporting of Ra and related surface parameters[cite: 20]',
+      appNotes: 'Cite alongside roughness values on drawings[cite: 20]',
+      confidence: 'VERIFIED_REF',
+      sourceRef: 'aerospace-matrix-research-20261126.txt §3 (PrecisionAM)[cite: 20]'
+    },
+    {
+      id: 'nasa_std_6030',
+      standard: 'NASA-STD-6030 (21 Apr 2021) + NASA-STD-6033',
+      fullTitleAndScope: 'Additive Manufacturing Requirements for Spaceflight Systems (+ Equipment & Facility Control): covers L-PBF, wire & blown-powder DED (metal), and polymer AM across Classes A (high consequence), B (high reliability), and C (negligible consequence)[cite: 20]',
+      appNotes: 'Earlier MSFC-STD-3716 / MSFC-SPEC-3717 still appear in program requirements[cite: 20]',
+      confidence: 'VERIFIED_REF',
+      sourceRef: 'aerospace-matrix-research-20261126.txt §3 (NASA NTRS, AerospaceSourcing, DSIAC)[cite: 20]'
+    },
+    {
+      id: 'cfr_14_25_571',
+      standard: '14 CFR 25.571 (+ AC 25.571-1D)',
+      fullTitleAndScope: 'Damage-tolerance and fatigue evaluation of transport-category aircraft structure against fatigue, corrosion, manufacturing defects, or accidental damage[cite: 20]',
+      appNotes: 'Airworthiness evaluation rule rather than a shop manufacturing standard[cite: 20]',
+      confidence: 'VERIFIED_REF',
+      sourceRef: 'aerospace-matrix-research-20261126.txt §3 & §4 (14 CFR 25.571, AC 25.571-1)[cite: 20]'
+    }
+  ],
+
+  iso2768LinearTable: [
+    { nominalSizeRangeMm: '0.5–3 mm', classF: '±0.05 mm', classM: '±0.10 mm', classC: '±0.20 mm', sourceRef: 'aerospace-matrix-research-20261126.txt §3 (Calibr.pro, Makerverse, Wevolver)[cite: 20]' },
+    { nominalSizeRangeMm: '3–6 mm', classF: '±0.05 mm', classM: '±0.10 mm', classC: '±0.30 mm', sourceRef: 'aerospace-matrix-research-20261126.txt §3 (Calibr.pro, Makerverse, Wevolver)[cite: 20]' },
+    { nominalSizeRangeMm: '6–30 mm', classF: '±0.10 mm', classM: '±0.20 mm', classC: '±0.50 mm', sourceRef: 'aerospace-matrix-research-20261126.txt §3 (Calibr.pro, Makerverse, Wevolver)[cite: 20]' },
+    { nominalSizeRangeMm: '30–120 mm', classF: '±0.15 mm', classM: '±0.30 mm', classC: '±0.80 mm', sourceRef: 'aerospace-matrix-research-20261126.txt §3 (Calibr.pro, Makerverse, Wevolver)[cite: 20]' },
+    { nominalSizeRangeMm: '120–400 mm', classF: '±0.20 mm', classM: '±0.50 mm', classC: '±1.20 mm', sourceRef: 'aerospace-matrix-research-20261126.txt §3 (Calibr.pro, Makerverse, Wevolver)[cite: 20]' },
+    { nominalSizeRangeMm: '400–1000 mm', classF: '±0.30 mm', classM: '±0.80 mm', classC: '±2.00 mm', sourceRef: 'aerospace-matrix-research-20261126.txt §3 (Calibr.pro, Makerverse, Wevolver)[cite: 20]' }
+  ],
+
+  designMethods: [
+    {
+      id: 'topo_vs_generative',
+      topic: 'Topology Optimisation vs. Generative Design',
+      summary: 'Topology optimisation uses FEA (commonly SIMP) within a design space and load/constraint set to keep material along load paths and remove non-load-bearing material; generative design is a broader approach that explores candidate geometries from goals, constraints, and manufacturing rules[cite: 20].',
+      keyRulesOrDetails: [
+        'Optimised meshes are not finished engineering drawings and require human reconstruction, FEA verification, and manufacturability review[cite: 20].',
+        'Organic geometries typically rely on AM or multi-axis machining/redesign for production[cite: 20].'
+      ],
+      confidence: 'VERIFIED_REF',
+      sourceRef: 'aerospace-matrix-research-20261126.txt §4 (CompositesWorld, FabFlow)[cite: 20]'
+    },
+    {
+      id: 'lightweighting_principles',
+      topic: 'Lightweighting Principles',
+      summary: 'Structural mass reduction relies on specific strength/stiffness, load-path consolidation, buy-to-fly reduction, sandwich/integrally stiffened designs, and failure-mode-appropriate material selection[cite: 20].',
+      keyRulesOrDetails: [
+        'Specific strength and specific stiffness drive material choices (CFRP, Ti-6Al-4V, Al 7075); modulus vs. geometry governs stiffness (Al 6061 vs. 7075 modulus differs ~4% while yield differs ~82%)[cite: 20].',
+        'Consolidating parts or using monolithic composite barrels reduces joint/fastener count (e.g., 787 one-piece barrels vs. built-up sheet/fasteners)[cite: 20].',
+        'Buy-to-fly ratio compares raw stock mass to finished part mass; near-net forging or AM reduces waste where qualified[cite: 20].',
+        'Match material to failure mode and environment (CFRP tension skins, Ti hot/fatigue structure, Mg only where temperature and corrosion are controlled)[cite: 20].'
+      ],
+      confidence: 'VERIFIED_REF',
+      sourceRef: 'aerospace-matrix-research-20261126.txt §2 & §4 (SME, Mat.meche.ai, ForceBeyond)[cite: 20]'
+    },
+    {
+      id: 'damage_tolerance_vs_safe_life',
+      topic: 'Fatigue, Damage Tolerance vs. Safe-Life (14 CFR 25.571)',
+      summary: '14 CFR 25.571 requires evaluation so catastrophic failure from fatigue, corrosion, manufacturing defects, or accidental damage is avoided over operational life[cite: 20].',
+      keyRulesOrDetails: [
+        'Damage-tolerance route: assumes an initial flaw of maximum probable size, establishes crack-growth behavior/inspection intervals before reaching critical size, and defines a Limit of Validity (LOV)[cite: 20].',
+        'Safe-life route: used where damage tolerance is impractical (such as certain landing-gear or engine-mount elements), showing resistance to repeated loads with scatter factors and retiring parts before expected cracking[cite: 20].',
+        'Surface roughness initiates fatigue cracks, driving finer surface finishes on fatigue-critical fillets and HIP + surface machining on AM fatigue parts[cite: 20].'
+      ],
+      confidence: 'VERIFIED_REF',
+      sourceRef: 'aerospace-matrix-research-20261126.txt §4 (14 CFR 25.571, AC 25.571-1)[cite: 20]'
+    },
+    {
+      id: 'hot_section_temperature_ladder',
+      topic: 'Hot-Section Temperature Ladder & Thermal Management',
+      summary: 'Gas temperatures in hot sections can exceed base superalloy melting points (~1,230–1,315 °C), requiring alloy selection, internal/film cooling, and thermal barrier coatings (TBCs)[cite: 20].',
+      keyRulesOrDetails: [
+        'Lower/moderate metal temperature band: Al alloys (temperature-derated; single max service temp not published in report) and Ti-6Al-4V (~400 °C typ. / ~427 °C note)[cite: 20].',
+        'Intermediate/warm structural band: Mg WE43-T6 (~250–300 °C creep-resistant) and Inconel 718 (structural strength to ~650 °C; creep-rupture to ~700 °C)[cite: 20].',
+        'High-temperature / hot-section band: Inconel 625 shows oxidation resistance to ~980 °C but load-limited to ~650 °C; extreme gas temperatures (>1,500–1,650 °C) require high-temp alloys/single-crystal superalloys plus cooling and TBC (TBC alone credited with ~165–200 °C metal temp reduction; combined cooling + TBC >300 °C)[cite: 20].'
+      ],
+      confidence: 'VERIFIED_REF',
+      sourceRef: 'aerospace-matrix-research-20261126.txt §1 & §4 (ORNL, NIMS, HiTempAlloys)[cite: 20]'
+    }
+  ],
+
+  caseStudies: [
+    {
+      id: 'ge_leap_fuel_nozzle',
+      name: 'GE Aviation / CFM LEAP Fuel-Nozzle Tip',
+      processOrBasis: 'LPBF (cobalt-chrome)[cite: 20]',
+      reportedMetrics: '20 welded/brazed parts consolidated into 1 part; 25% lighter; 5× more durable; 30% more cost-efficient; FAA-certified; 30,000th nozzle milestone[cite: 20]',
+      statusFlag: 'OEM_CLAIM',
+      notes: 'Published OEM/milestone figures (GE); treat durability/cost/mass improvements as OEM claims rather than independent test data[cite: 20].',
+      sourceRef: 'aerospace-matrix-research-20261126.txt §4 (GE News, GE Aerospace)[cite: 20]'
+    },
+    {
+      id: 'airbus_a350_ti_bracket',
+      name: 'Airbus A350 XWB Titanium Cabin Bracket',
+      processOrBasis: 'Topology-optimised + LPBF[cite: 20]',
+      reportedMetrics: '30% lighter than cast/milled predecessor; secondary compilation notes >1,000 AM parts per A350 and 70+ bracket types[cite: 20]',
+      statusFlag: 'SECONDARY_COMPILATION',
+      notes: 'Production example in report; a separate CompositesWorld 30% weight / 30% performance / 50% cost statement is a general claim rather than a single-part measurement[cite: 20].',
+      sourceRef: 'aerospace-matrix-research-20261126.txt §4 (ResearchSquare, Canadian Metalworking, CompositesWorld)[cite: 20]'
+    },
+    {
+      id: 'airbus_a320_bionic_partition',
+      name: 'Airbus A320 "Bionic Partition"',
+      processOrBasis: 'Generative/topology exploration (Autodesk/The Living; Scalmalloy + Ti)[cite: 20]',
+      reportedMetrics: '45% lighter (30 kg saved per partition)[cite: 20]',
+      statusFlag: 'DESIGN_EXPLORATION_NOT_PRODUCTION',
+      notes: 'DESIGN EXPLORATION ONLY — NOT a production in-service part[cite: 20].',
+      sourceRef: 'aerospace-matrix-research-20261126.txt §4 (Canadian Metalworking, FabFlow)[cite: 20]'
+    }
+  ],
+
+  toleranceContrast: [
+    {
+      aspect: 'Governing Standards & General Tolerances',
+      aerospaceContext: 'Drawing + contract via ASME Y14.5 GD&T; ISO 2768-m (e.g., 50 mm → ±0.3 mm; 6–30 mm → ±0.2 mm; 120–400 mm → ±0.5 mm) applies only to non-critical dimensions when invoked[cite: 20]',
+      automotiveContext: 'No single universal tolerance standard table in report; functional shop ranges often cited around ±0.02–0.05 mm, with ±0.005 in (±0.127 mm) non-critical vs. ±0.0005 in (±0.013 mm) aftermarket runner claims in a single trade article [VENDOR_CLAIM][cite: 20]',
+      keyTakeaway: 'General tolerances are much looser than critical machined tolerances; avoid treating shop quotes as universal standards[cite: 20].',
+      confidence: 'ESTIMATE',
+      sourceRef: 'aerospace-matrix-research-20261126.txt §3 & §5 (Makerverse, GL CNC, The Machine Daily)[cite: 20]'
+    },
+    {
+      aspect: 'Quality System, Traceability & Inspection',
+      aerospaceContext: 'AS9100D + AS9102C FAI (Forms 1–3) + Nadcap special-process control + full material/lot traceability[cite: 20]',
+      automotiveContext: 'IATF 16949 / APQP / PPAP control plans and statistical/sampling inspection in high-volume production[cite: 20]',
+      keyTakeaway: 'Traceability, special-process accreditation, first-article inspection, and fatigue justification distinguish aerospace practice beyond raw tolerance numbers[cite: 20].',
+      confidence: 'VERIFIED_REF',
+      sourceRef: 'aerospace-matrix-research-20261126.txt §3 & §5 (PrecisionAM, GL CNC)[cite: 20]'
+    }
+  ],
+
+  auditFlags: [
+    {
+      id: 'flag_vendor_claims',
+      category: 'ESTIMATE_OR_VENDOR_CLAIM',
+      subject: 'Single-shop tolerances, Ra bands, buy-to-fly & OEM/trade claims',
+      detail: 'Includes ±0.005 mm 5-axis CNC claims, LPBF/CNC/forging Ra bands from vendors, NNS forging 3.5:1–4.2:1 buy-to-fly and machining allowances, GE LEAP durability/cost/mass claims, A350 30/30/50 statement, 0.5-mile SLS FSW figure, 7075/6061 ~138 MPa fatigue at 10^7 cycles, and single-crystal 9× life[cite: 20].',
+      actionRequired: 'Label [VENDOR_CLAIM] or [ESTIMATE]; verify against independent data, specifications, or physical measurements [NEEDS RAY\'S MEASUREMENT][cite: 20].',
+      sourceRef: 'aerospace-matrix-research-20261126.txt §2, §4 & §5 flags[cite: 20]'
+    },
+    {
+      id: 'flag_unavailable_values',
+      category: 'UNAVAILABLE_NO_SINGLE_VALUE',
+      subject: 'Unpublished single-value metrics in consulted report',
+      detail: 'No single published number in report for DED tolerance/as-built Ra, SPF/DB tolerances, precision-forging as-forged tolerance, single max service temp for 6061-T6/7075-T6 or AZ31/AZ91, or CFRP yield strength (brittle/anisotropic — no yield point)[cite: 20].',
+      actionRequired: 'Do not invent single numbers; display derating/anisotropy notes and flag [ESTIMATE] or [NEEDS RAY\'S MEASUREMENT][cite: 20].',
+      sourceRef: 'aerospace-matrix-research-20261126.txt §1, §2 & §5 flags[cite: 20]'
+    },
+    {
+      id: 'flag_conflicts',
+      category: 'CONFLICT',
+      subject: 'Reported value differences across sources',
+      detail: 'Mg WE43-T6 yield strength 165–195 MPa in most sources vs. 220 MPa in one comparative table; Ti-6Al-4V max service temp ~400 °C vs. ~427 °C; Al 6061-T6 yield 270 vs. 276 MPa[cite: 20].',
+      actionRequired: 'Show ranges or conflicting figures explicitly and verify against the controlling specification[cite: 20].',
+      sourceRef: 'aerospace-matrix-research-20261126.txt §1 & §5 flags[cite: 20]'
+    },
+    {
+      id: 'flag_method_limit',
+      category: 'METHOD_LIMIT',
+      subject: 'Index-sourced secondary report without full paywalled standards or MMPDS',
+      detail: 'Report was compiled from search results on 2026-11-26 without reading full paywalled SAE/ASME/ISO/ASTM standards or MMPDS design allowables[cite: 20].',
+      actionRequired: 'Verify AMS/ASTM/ISO/ASME specs and MMPDS allowables plus mill certs and physical measurements [NEEDS RAY\'S MEASUREMENT] before design commitment[cite: 20].',
+      sourceRef: 'aerospace-matrix-research-20261126.txt header & §5 flags[cite: 20]'
+    }
+  ]
+};
+
+===== FILE: docs/AEROSPACE-PAGE-SPEC.md (2017 bytes, md5 73fb79c01590f45841a0a0190a2127d2) =====
+
+# Aerospace Matrix page — spec for the v16 build (Ray's word, Nov 26, 2026)
+
+## Where it lives
+A SEPARATE page inside the SBC 350 design areas of the app — not a tab buried
+inside another view, not a popup. It sits alongside the existing design-studio
+pages, reachable from the app's home/design areas.
+
+## Tabs (multiple, one per area)
+1. **Materials** — the 10 alloys/composites from aerospaceMatrix.ts
+   (Ti-6Al-4V annealed and STA, Inconel 718/625, 7075-T6, 6061-T6, CFRP
+   laminate, three magnesium alloys) with UTS, yield, density, max service
+   temperature, and uses. Includes the family filter and the two-material
+   compare tool with computed specific strength.
+2. **Processes** — LPBF, DED, 5-axis CNC, superplastic forming, diffusion
+   bonding, friction stir welding, near-net forging, with tolerances,
+   finishes, and qualification notes.
+3. **Standards** — the 13-standard stack (AS9100D, AS9102C, AS9103, AS9145,
+   Nadcap, AMS, MIL, ASME Y14.5, ISO 2768 with its tolerance table, ISO 286,
+   ASME B46.1, NASA-STD-6030, 14 CFR 25.571).
+4. **Design Methods** — topology optimisation vs generative design, GE LEAP
+   nozzle and A350 bracket examples (flagged as OEM claims), A320 bionic
+   partition marked as a DESIGN EXPLORATION not production, lightweighting
+   principles, damage tolerance vs safe-life, hot-section temperature ladder.
+5. **Tolerance contrast** — aerospace vs automotive tolerance contrast, plus
+   the flags section carrying every conflict, unpublished value, and vendor
+   claim from the data.
+
+## Rules
+- Data comes ONLY from src/data/aerospaceMatrix.ts. No values from memory.
+- Vendor-claimed values stay flagged [VENDOR_CLAIM]; unverified values stay
+  flagged [ESTIMATE] / NEEDING RAY'S MEASUREMENT.
+- Do NOT state a characteristic count for ASME Y14.5 (sources conflict).
+- The page is read-only data presentation + compare tool. It does not change
+  the engine model. NC export rules still apply (locked until Ray supplies
+  tool/feed/speed/depth/units).
+

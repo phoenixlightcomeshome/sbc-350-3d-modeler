@@ -10,8 +10,12 @@ import * as THREE from 'three';
  */
 export interface ProceduralTextureSet {
   castIronBump: THREE.CanvasTexture;
+  castIronNormal: THREE.CanvasTexture;
   crosshatchHone: THREE.CanvasTexture;
   machinedSwirl: THREE.CanvasTexture;
+  machinedNormal: THREE.CanvasTexture;
+  boltThreadBump: THREE.CanvasTexture;
+  pistonSkirtMoly: THREE.CanvasTexture;
   harmonicTimingTape: THREE.CanvasTexture;
   blueprintScaleMap: THREE.CanvasTexture;
   braidedSteelMap: THREE.CanvasTexture;
@@ -44,23 +48,69 @@ export function createProceduralTextureSet(maxAnisotropy: number): ProceduralTex
   castIronBump.repeat.set(4, 4);
   castIronBump.anisotropy = maxAnisotropy;
 
-  // 2. 45-degree cylinder bore plateau crosshatch hone pattern
+  // 1B. Sand-Cast Tangent-Space Normal Map derived from granular heightfield
+  const castNormCanvas = document.createElement('canvas');
+  castNormCanvas.width = 256;
+  castNormCanvas.height = 256;
+  const cnCtx = castNormCanvas.getContext('2d')!;
+  const cnData = cnCtx.createImageData(256, 256);
+  for (let y = 0; y < 256; y++) {
+    for (let x = 0; x < 256; x++) {
+      const idx = (y * 256 + x) * 4;
+      const idxR = (y * 256 + ((x + 1) & 255)) * 4;
+      const idxD = (((y + 1) & 255) * 256 + x) * 4;
+      const hL = imgData.data[idx] / 255;
+      const hR = imgData.data[idxR] / 255;
+      const hD = imgData.data[idxD] / 255;
+      const dx = (hL - hR) * 2.2;
+      const dy = (hL - hD) * 2.2;
+      const dz = 1.0;
+      const invLen = 1 / Math.sqrt(dx * dx + dy * dy + dz * dz);
+      cnData.data[idx] = Math.floor((dx * invLen * 0.5 + 0.5) * 255);
+      cnData.data[idx + 1] = Math.floor((dy * invLen * 0.5 + 0.5) * 255);
+      cnData.data[idx + 2] = Math.floor((dz * invLen * 0.5 + 0.5) * 255);
+      cnData.data[idx + 3] = 255;
+    }
+  }
+  cnCtx.putImageData(cnData, 0, 0);
+  const castIronNormal = new THREE.CanvasTexture(castNormCanvas);
+  castIronNormal.wrapS = THREE.RepeatWrapping;
+  castIronNormal.wrapT = THREE.RepeatWrapping;
+  castIronNormal.repeat.set(5, 5);
+  castIronNormal.anisotropy = maxAnisotropy;
+
+  // 2. High-DPI 45-degree cylinder bore CBN plateau crosshatch hone pattern
   const honeCanvas = document.createElement('canvas');
-  honeCanvas.width = 256;
-  honeCanvas.height = 256;
+  honeCanvas.width = 512;
+  honeCanvas.height = 512;
   const honeCtx = honeCanvas.getContext('2d')!;
-  honeCtx.fillStyle = '#64748b';
-  honeCtx.fillRect(0, 0, 256, 256);
-  honeCtx.strokeStyle = 'rgba(226, 232, 240, 0.35)';
-  honeCtx.lineWidth = 1.2;
-  for (let i = -256; i < 512; i += 10) {
+  const honeGrad = honeCtx.createLinearGradient(0, 0, 0, 512);
+  honeGrad.addColorStop(0, '#788496');
+  honeGrad.addColorStop(0.15, '#94a3b8');
+  honeGrad.addColorStop(0.5, '#64748b');
+  honeGrad.addColorStop(0.85, '#8592a3');
+  honeGrad.addColorStop(1, '#586475');
+  honeCtx.fillStyle = honeGrad;
+  honeCtx.fillRect(0, 0, 512, 512);
+  honeCtx.strokeStyle = 'rgba(241, 245, 249, 0.42)';
+  honeCtx.lineWidth = 1.4;
+  for (let i = -512; i < 1024; i += 14) {
     honeCtx.beginPath();
     honeCtx.moveTo(i, 0);
-    honeCtx.lineTo(i + 256, 256);
+    honeCtx.lineTo(i + 512, 512);
     honeCtx.stroke();
     honeCtx.beginPath();
-    honeCtx.moveTo(i + 256, 0);
-    honeCtx.lineTo(i, 256);
+    honeCtx.moveTo(i + 512, 0);
+    honeCtx.lineTo(i, 512);
+    honeCtx.stroke();
+  }
+  // Fine secondary plateau polish grooves
+  honeCtx.strokeStyle = 'rgba(15, 23, 42, 0.18)';
+  honeCtx.lineWidth = 0.8;
+  for (let i = -512; i < 1024; i += 28) {
+    honeCtx.beginPath();
+    honeCtx.moveTo(i + 7, 0);
+    honeCtx.lineTo(i + 519, 512);
     honeCtx.stroke();
   }
   const crosshatchHone = new THREE.CanvasTexture(honeCanvas);
@@ -90,6 +140,79 @@ export function createProceduralTextureSet(maxAnisotropy: number): ProceduralTex
   machinedSwirl.wrapT = THREE.RepeatWrapping;
   machinedSwirl.repeat.set(2, 2);
   machinedSwirl.anisotropy = maxAnisotropy;
+
+  // 3B. CNC Fly-Cut Normal Map for Realistic Grazing Specular Highlights
+  const mnCanvas = document.createElement('canvas');
+  mnCanvas.width = 256;
+  mnCanvas.height = 256;
+  const mnCtx = mnCanvas.getContext('2d')!;
+  const mnImg = mnCtx.createImageData(256, 256);
+  for (let y = 0; y < 256; y++) {
+    for (let x = 0; x < 256; x++) {
+      const idx = (y * 256 + x) * 4;
+      const dist = Math.hypot(x - 128, y - 128);
+      const groove = Math.sin(dist * 0.95) * 0.25 + Math.sin(y * 1.4) * 0.12;
+      const dx = ((x - 128) / Math.max(1, dist)) * groove;
+      const dy = ((y - 128) / Math.max(1, dist)) * groove;
+      const dz = 1.0;
+      const invLen = 1 / Math.sqrt(dx * dx + dy * dy + dz * dz);
+      mnImg.data[idx] = Math.floor((dx * invLen * 0.5 + 0.5) * 255);
+      mnImg.data[idx + 1] = Math.floor((dy * invLen * 0.5 + 0.5) * 255);
+      mnImg.data[idx + 2] = Math.floor((dz * invLen * 0.5 + 0.5) * 255);
+      mnImg.data[idx + 3] = 255;
+    }
+  }
+  mnCtx.putImageData(mnImg, 0, 0);
+  const machinedNormal = new THREE.CanvasTexture(mnCanvas);
+  machinedNormal.wrapS = THREE.RepeatWrapping;
+  machinedNormal.wrapT = THREE.RepeatWrapping;
+  machinedNormal.repeat.set(3, 3);
+  machinedNormal.anisotropy = maxAnisotropy;
+
+  // 3C. Helical Fastener Thread Bump Map
+  const thCanvas = document.createElement('canvas');
+  thCanvas.width = 128;
+  thCanvas.height = 128;
+  const thCtx = thCanvas.getContext('2d')!;
+  thCtx.fillStyle = '#404040';
+  thCtx.fillRect(0, 0, 128, 128);
+  for (let y = -32; y < 160; y += 8) {
+    thCtx.strokeStyle = '#e5e5e5';
+    thCtx.lineWidth = 3.2;
+    thCtx.beginPath();
+    thCtx.moveTo(0, y);
+    thCtx.lineTo(128, y + 12);
+    thCtx.stroke();
+  }
+  const boltThreadBump = new THREE.CanvasTexture(thCanvas);
+  boltThreadBump.wrapS = THREE.RepeatWrapping;
+  boltThreadBump.wrapT = THREE.RepeatWrapping;
+  boltThreadBump.repeat.set(1, 5);
+  boltThreadBump.anisotropy = maxAnisotropy;
+
+  // 3D. Forged Piston PTFE/Moly Skirt Coating Map
+  const skCanvas = document.createElement('canvas');
+  skCanvas.width = 256;
+  skCanvas.height = 256;
+  const skCtx = skCanvas.getContext('2d')!;
+  skCtx.fillStyle = '#d8dee6';
+  skCtx.fillRect(0, 0, 256, 256);
+  skCtx.fillStyle = '#262b33';
+  skCtx.fillRect(28, 118, 72, 112);
+  skCtx.fillRect(156, 118, 72, 112);
+  skCtx.strokeStyle = '#475569';
+  skCtx.lineWidth = 2;
+  for (let l = 126; l < 224; l += 8) {
+    skCtx.beginPath();
+    skCtx.moveTo(32, l);
+    skCtx.lineTo(96, l);
+    skCtx.moveTo(160, l);
+    skCtx.lineTo(224, l);
+    skCtx.stroke();
+  }
+  const pistonSkirtMoly = new THREE.CanvasTexture(skCanvas);
+  pistonSkirtMoly.colorSpace = THREE.SRGBColorSpace;
+  pistonSkirtMoly.anisotropy = maxAnisotropy;
 
   // 4. SFI Harmonic Balancer Timing Degree Tape (0-50 BTDC / ATDC)
   const tapeCanvas = document.createElement('canvas');
@@ -241,8 +364,12 @@ export function createProceduralTextureSet(maxAnisotropy: number): ProceduralTex
 
   return {
     castIronBump,
+    castIronNormal,
     crosshatchHone,
     machinedSwirl,
+    machinedNormal,
+    boltThreadBump,
+    pistonSkirtMoly,
     harmonicTimingTape,
     blueprintScaleMap,
     braidedSteelMap,
@@ -250,8 +377,12 @@ export function createProceduralTextureSet(maxAnisotropy: number): ProceduralTex
     radiatorCoreMap,
     dispose: () => {
       castIronBump.dispose();
+      castIronNormal.dispose();
       crosshatchHone.dispose();
       machinedSwirl.dispose();
+      machinedNormal.dispose();
+      boltThreadBump.dispose();
+      pistonSkirtMoly.dispose();
       harmonicTimingTape.dispose();
       blueprintScaleMap.dispose();
       braidedSteelMap.dispose();
@@ -270,28 +401,47 @@ export function createARP12PointBolt(
   mat: THREE.Material
 ): THREE.Group {
   const g = new THREE.Group();
+  // Hardened chamfered washer
   const washer = new THREE.Mesh(
-    new THREE.CylinderGeometry(radius * 1.95, radius * 2.05, radius * 0.28, 18),
+    new THREE.CylinderGeometry(radius * 1.98, radius * 2.08, radius * 0.28, 20),
     mat
   );
   washer.position.y = -radius * 0.14;
-  // 12-point flange head
+  // 12-point flange seat + scalloped 12-pt wrenching head
+  const flange = new THREE.Mesh(
+    new THREE.CylinderGeometry(radius * 1.48, radius * 1.82, radius * 0.24, 18),
+    mat
+  );
+  flange.position.y = radius * 0.10;
   const head12 = new THREE.Mesh(
-    new THREE.CylinderGeometry(radius * 1.45, radius * 1.5, radius * 0.95, 12),
+    new THREE.CylinderGeometry(radius * 1.38, radius * 1.44, radius * 0.85, 12),
     mat
   );
-  head12.position.y = radius * 0.45;
+  head12.position.y = radius * 0.58;
   const collar = new THREE.Mesh(
-    new THREE.CylinderGeometry(radius * 1.15, radius * 1.45, radius * 0.22, 12),
+    new THREE.CylinderGeometry(radius * 1.05, radius * 1.38, radius * 0.2, 12),
     mat
   );
-  collar.position.y = radius * 1.02;
+  collar.position.y = radius * 1.08;
+  // Undercut shank + rolled thread ribs on lower 65%
   const shank = new THREE.Mesh(
-    new THREE.CylinderGeometry(radius, radius, shankLength, 12),
+    new THREE.CylinderGeometry(radius * 0.96, radius * 0.96, shankLength, 14),
     mat
   );
   shank.position.y = -shankLength / 2 - radius * 0.28;
-  g.add(washer, head12, collar, shank);
+  const threadPitch = Math.max(0.032, radius * 0.42);
+  const threadStart = -shankLength * 0.36 - radius * 0.28;
+  const threadEnd = -shankLength - radius * 0.24;
+  for (let ty = threadStart; ty >= threadEnd; ty -= threadPitch) {
+    const rib = new THREE.Mesh(
+      new THREE.TorusGeometry(radius * 0.96, radius * 0.085, 6, 12),
+      mat
+    );
+    rib.rotation.x = Math.PI / 2;
+    rib.position.y = ty;
+    g.add(rib);
+  }
+  g.add(washer, flange, head12, collar, shank);
   return g;
 }
 
@@ -458,30 +608,39 @@ export function createHBeamConnectingRod(
   const rodGroup = new THREE.Group();
 
   // Origin (0,0,0) = Big-End Crankpin Center; Small-End Wrist Pin Center = (0, centerToCenter, 0)
-  // 1. Forged H-Beam Shank Flanges + Recessed Web
-  const beamLen = Math.max(0.6, centerToCenter - bigEndRadius * 0.7 - smallEndRadius * 0.7);
-  const beamMidY = bigEndRadius * 0.7 + beamLen / 2;
+  // 1. Tapered Forged H-Beam Shank Flanges + Recessed Web + CNC Pocket Ribs
+  const beamLen = Math.max(0.6, centerToCenter - bigEndRadius * 0.72 - smallEndRadius * 0.72);
+  const beamMidY = bigEndRadius * 0.72 + beamLen / 2;
 
   const web = new THREE.Mesh(
-    new THREE.BoxGeometry(0.18, beamLen, 0.14),
+    new THREE.BoxGeometry(0.18, beamLen, 0.11),
     rodMat
   );
   web.position.y = beamMidY;
   rodGroup.add(web);
 
-  // Left & Right H-beam structural flanges
-  [-0.14, 0.14].forEach((xOff) => {
+  // Tapered Left & Right H-beam structural flanges (wider near big end)
+  [-0.14, 0.14].forEach((xOff, sIdx) => {
     const flange = new THREE.Mesh(
-      new THREE.BoxGeometry(0.08, beamLen, 0.34),
+      new THREE.BoxGeometry(0.085, beamLen, 0.36),
       rodMat
     );
     flange.position.set(xOff, beamMidY, 0);
+    flange.rotation.z = (sIdx === 0 ? -1 : 1) * 0.032;
     rodGroup.add(flange);
   });
 
-  // 2. Small-End Eye & Bronze Bushing
+  // Big-End Transitional Shoulder Gussets + Center Oil Squirt Boss
+  [-0.22, 0.22].forEach((gx) => {
+    const gusset = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.38, 0.34), rodMat);
+    gusset.position.set(gx, bigEndRadius * 1.18, 0);
+    gusset.rotation.z = gx > 0 ? -0.35 : 0.35;
+    rodGroup.add(gusset);
+  });
+
+  // 2. Small-End Eye, Bronze Bushing + Top Pin Oiling Hole
   const smallEnd = new THREE.Mesh(
-    new THREE.CylinderGeometry(smallEndRadius * 1.45, smallEndRadius * 1.45, 0.42, 20),
+    new THREE.CylinderGeometry(smallEndRadius * 1.48, smallEndRadius * 1.48, 0.42, 24),
     rodMat
   );
   smallEnd.rotation.x = Math.PI / 2;
@@ -489,16 +648,23 @@ export function createHBeamConnectingRod(
   rodGroup.add(smallEnd);
 
   const bushing = new THREE.Mesh(
-    new THREE.CylinderGeometry(smallEndRadius * 1.05, smallEndRadius * 1.05, 0.44, 16, 1, true),
+    new THREE.CylinderGeometry(smallEndRadius * 1.06, smallEndRadius * 1.06, 0.44, 20, 1, true),
     bronzeMat
   );
   bushing.rotation.x = Math.PI / 2;
   bushing.position.y = centerToCenter;
   rodGroup.add(bushing);
 
-  // 3. Big-End Housing + Split Cap
+  const oilHoleRim = new THREE.Mesh(
+    new THREE.CylinderGeometry(smallEndRadius * 0.22, smallEndRadius * 0.22, 0.08, 12),
+    boltMat
+  );
+  oilHoleRim.position.set(0, centerToCenter + smallEndRadius * 1.45, 0);
+  rodGroup.add(oilHoleRim);
+
+  // 3. Big-End Housing + Split Precision Cap + Copper-Lead Bearing Shell Liner
   const bigHousing = new THREE.Mesh(
-    new THREE.CylinderGeometry(bigEndRadius * 1.42, bigEndRadius * 1.42, 0.46, 24, 1, false, -Math.PI * 0.1, Math.PI * 1.2),
+    new THREE.CylinderGeometry(bigEndRadius * 1.42, bigEndRadius * 1.42, 0.46, 28, 1, false, -Math.PI * 0.1, Math.PI * 1.2),
     rodMat
   );
   bigHousing.rotation.x = Math.PI / 2;
@@ -506,20 +672,37 @@ export function createHBeamConnectingRod(
   rodGroup.add(bigHousing);
 
   const bigCap = new THREE.Mesh(
-    new THREE.CylinderGeometry(bigEndRadius * 1.42, bigEndRadius * 1.42, 0.46, 24),
+    new THREE.CylinderGeometry(bigEndRadius * 1.42, bigEndRadius * 1.42, 0.46, 28),
     rodMat
   );
   bigCap.rotation.x = Math.PI / 2;
   rodGroup.add(bigCap);
 
-  // Bolt bosses + Twin ARP 12-pt cap screws
+  // Clevite Tri-Metal Bearing Shell inside Big-End Bore + Oil Groove
+  const bearingShell = new THREE.Mesh(
+    new THREE.CylinderGeometry(bigEndRadius * 1.01, bigEndRadius * 1.01, 0.40, 24, 1, true),
+    bronzeMat
+  );
+  bearingShell.rotation.x = Math.PI / 2;
+  rodGroup.add(bearingShell);
+
+  // Parting-line witness seam + cap stiffening rib
+  const capRib = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.22, 0.48), rodMat);
+  capRib.position.set(0, -bigEndRadius * 1.46, 0);
+  rodGroup.add(capRib);
+
+  // Bolt bosses + Twin ARP 2000 12-pt cap screws + cap dowel collars
   [-bigEndRadius * 1.32, bigEndRadius * 1.32].forEach((xOff) => {
-    const boss = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.56, 0.42), rodMat);
+    const boss = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.58, 0.44), rodMat);
     boss.position.set(xOff, -0.05, 0);
     rodGroup.add(boss);
 
-    const bolt = createARP12PointBolt(0.065, 0.52, boltMat);
-    bolt.position.set(xOff, -0.34, 0);
+    const partingSeam = new THREE.Mesh(new THREE.BoxGeometry(0.30, 0.025, 0.47), boltMat);
+    partingSeam.position.set(xOff, 0, 0);
+    rodGroup.add(partingSeam);
+
+    const bolt = createARP12PointBolt(0.068, 0.54, boltMat);
+    bolt.position.set(xOff, -0.35, 0);
     bolt.rotation.x = Math.PI;
     rodGroup.add(bolt);
   });
@@ -565,17 +748,17 @@ export function createRollerRockerGroup(
 ): THREE.Group {
   const g = new THREE.Group();
   const shape = new THREE.Shape();
-  shape.moveTo(-0.45, -0.14);
+  shape.moveTo(-0.46, -0.14);
   shape.lineTo(0.45, -0.1);
-  shape.lineTo(0.52, 0.08);
-  shape.lineTo(0.1, 0.18);
-  shape.lineTo(-0.38, 0.14);
+  shape.lineTo(0.54, 0.08);
+  shape.lineTo(0.1, 0.19);
+  shape.lineTo(-0.38, 0.15);
   shape.closePath();
 
   const bodyGeo = new THREE.ExtrudeGeometry(shape, {
     depth: 0.28,
     bevelEnabled: true,
-    bevelThickness: 0.03,
+    bevelThickness: 0.032,
     bevelSize: 0.025,
     bevelSegments: 2
   });
@@ -583,20 +766,44 @@ export function createRollerRockerGroup(
   const body = new THREE.Mesh(bodyGeo, bodyMat);
   g.add(body);
 
-  // Fulcrum trunnion + polylock nut
-  const trunnion = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.11, 0.36, 12), steelMat);
+  // Side CNC lightening pocket ribs + pushrod cup socket
+  const pushrodCup = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.09, 0.07, 0.12, 12),
+    steelMat
+  );
+  pushrodCup.position.set(-0.34, -0.12, 0);
+  g.add(pushrodCup);
+
+  // Trunnion needle-bearing shaft + twin retaining snap rings
+  const trunnion = new THREE.Mesh(new THREE.CylinderGeometry(0.115, 0.115, 0.38, 16), steelMat);
   trunnion.rotation.x = Math.PI / 2;
   g.add(trunnion);
 
-  const polylock = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 0.22, 6), steelMat);
+  [-0.19, 0.19].forEach((sz) => {
+    const snapRing = new THREE.Mesh(new THREE.TorusGeometry(0.115, 0.018, 8, 16), steelMat);
+    snapRing.position.z = sz;
+    g.add(snapRing);
+  });
+
+  // Stepped Billet Polylock + internal Allen set screw
+  const polylock = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 0.24, 6), steelMat);
   polylock.position.y = 0.22;
   g.add(polylock);
 
-  // Roller tip wheel
-  const rollerTip = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 0.24, 14), steelMat);
+  const setScrew = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.055, 0.08, 6), steelMat);
+  setScrew.position.y = 0.35;
+  g.add(setScrew);
+
+  // Roller tip wheel + hardened dowel axle pin + side tip forks
+  const rollerTip = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.11, 0.22, 18), steelMat);
   rollerTip.rotation.x = Math.PI / 2;
-  rollerTip.position.set(0.46, -0.05, 0);
+  rollerTip.position.set(0.47, -0.05, 0);
   g.add(rollerTip);
+
+  const tipAxle = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.045, 0.31, 12), steelMat);
+  tipAxle.rotation.x = Math.PI / 2;
+  tipAxle.position.set(0.47, -0.05, 0);
+  g.add(tipAxle);
 
   return g;
 }
@@ -1270,89 +1477,172 @@ export function createHolley4150CarburetorGroup(
   brassMat: THREE.Material,
   redMat: THREE.Material,
   blueMat: THREE.Material,
-  braidedMat: THREE.Material
+  braidedMat: THREE.Material,
+  options?: {
+    style?: '2bbl' | '4150_dp' | '4500_dominator' | 'dual_quad' | 'mpfi_tb';
+    venturiRatio?: number;
+    cfm?: number;
+    airBonus?: number;
+  }
 ): THREE.Group {
   const g = new THREE.Group();
+  const style = options?.style || '4150_dp';
+  const isTwoBbl = style === '2bbl';
+  const isDominator = style === '4500_dominator';
+  const isEfiTb = style === 'mpfi_tb';
+  const ventScale = THREE.MathUtils.clamp(options?.venturiRatio ?? 1.0, 0.85, 1.32);
+  const bodyScale = isDominator ? 1.18 : isTwoBbl ? 0.84 : 1.0;
 
-  // 1" CNC Billet Open 4-Hole Carburetor Spacer + Base Gasket
-  const spacer = new THREE.Mesh(new THREE.BoxGeometry(2.05, 0.36, 2.15), alumMat);
+  // 1" CNC Billet Open Carburetor Spacer + Base Gasket
+  const spacer = new THREE.Mesh(
+    new THREE.BoxGeometry(2.05 * bodyScale, 0.36, (isTwoBbl ? 1.45 : 2.15) * bodyScale),
+    alumMat
+  );
   spacer.position.y = -0.68;
   g.add(spacer);
 
   // Throttle Base Plate & Linkage Arm
-  const basePlate = new THREE.Mesh(new THREE.BoxGeometry(2.08, 0.24, 2.18), darkMat);
+  const basePlate = new THREE.Mesh(
+    new THREE.BoxGeometry(2.08 * bodyScale, 0.24, (isTwoBbl ? 1.48 : 2.18) * bodyScale),
+    darkMat
+  );
   basePlate.position.y = -0.38;
   g.add(basePlate);
 
   const throttleLever = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.65, 0.42), goldZincMat);
-  throttleLever.position.set(-1.12, -0.35, -0.15);
+  throttleLever.position.set(-1.12 * bodyScale, -0.35, -0.15);
   g.add(throttleLever);
 
-  // Dichromate Main Carburetor Body + Choke Air Horn
-  const mainBody = new THREE.Mesh(new THREE.BoxGeometry(1.78, 0.96, 1.72), goldZincMat);
-  mainBody.position.y = 0.22;
+  // Main Carburetor / Throttle Body Casting + Air Horn
+  const bodyMat = isEfiTb ? alumMat : goldZincMat;
+  const mainBody = new THREE.Mesh(
+    new THREE.BoxGeometry(1.78 * bodyScale, isEfiTb ? 0.64 : 0.96, (isTwoBbl ? 1.12 : 1.72) * bodyScale),
+    bodyMat
+  );
+  mainBody.position.y = isEfiTb ? 0.08 : 0.22;
   g.add(mainBody);
 
+  const hornR = 1.04 * bodyScale * (0.94 + (ventScale - 1) * 0.28);
   const airHorn = new THREE.Mesh(
-    new THREE.CylinderGeometry(1.04, 1.12, 0.42, 24),
+    new THREE.CylinderGeometry(hornR, hornR * 1.08, 0.42, 24),
     alumMat
   );
-  airHorn.position.y = 0.88;
+  airHorn.position.y = isEfiTb ? 0.56 : 0.88;
   g.add(airHorn);
 
-  // 4 Internal Venturi Barrels visible from above
-  [-0.38, 0.38].forEach((vx) => {
-    [-0.36, 0.36].forEach((vz) => {
+  // Optional Velocity Stack / Cold-Air Ring when scoop >= +30 CFM
+  if ((options?.airBonus ?? 15) >= 30) {
+    const scoopRing = new THREE.Mesh(
+      new THREE.TorusGeometry(hornR * 1.02, 0.11, 10, 28),
+      blueMat
+    );
+    scoopRing.rotation.x = Math.PI / 2;
+    scoopRing.position.y = (isEfiTb ? 0.78 : 1.12);
+    g.add(scoopRing);
+  }
+
+  // Venturi Barrels + Center Discharge Booster Rings (2 for 2BBL, 4 for 4BBL/Dominator)
+  const vxList = [-0.38 * bodyScale, 0.38 * bodyScale];
+  const vzList = isTwoBbl ? [0] : [-0.36 * bodyScale, 0.36 * bodyScale];
+  const barrelR = THREE.MathUtils.clamp(0.28 * ventScale * (isDominator ? 1.12 : 1.0), 0.21, 0.41);
+  vxList.forEach((vx) => {
+    vzList.forEach((vz) => {
       const venturi = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.28, 0.28, 0.16, 16),
+        new THREE.CylinderGeometry(barrelR, barrelR, 0.18, 20),
         darkMat
       );
-      venturi.position.set(vx, 1.04, vz);
+      venturi.position.set(vx, isEfiTb ? 0.74 : 1.04, vz);
       g.add(venturi);
+
+      if (!isEfiTb) {
+        const booster = new THREE.Mesh(
+          new THREE.TorusGeometry(barrelR * 0.45, 0.03, 8, 16),
+          brassMat
+        );
+        booster.rotation.x = Math.PI / 2;
+        booster.position.set(vx, 1.12, vz);
+        g.add(booster);
+      }
     });
   });
 
-  // Front & Rear Metering Blocks + Center-Hung Fuel Bowls + Brass Sight Plugs
-  [-1.02, 1.02].forEach((mz) => {
-    const metering = new THREE.Mesh(new THREE.BoxGeometry(1.76, 0.88, 0.28), alumMat);
-    metering.position.set(0, 0.18, mz);
+  if (isEfiTb) {
+    // TPS Sensor + IAC Motor on Billet EFI Throttle Body
+    const tpsBox = new THREE.Mesh(new THREE.BoxGeometry(0.45, 0.36, 0.42), darkMat);
+    tpsBox.position.set(1.12, 0.04, 0.15);
+    g.add(tpsBox);
+    const fuelReg = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.22, 0.38, 12), redMat);
+    fuelReg.position.set(0.95, 0.12, -0.72);
+    g.add(fuelReg);
+    return g;
+  }
+
+  // Metering Blocks & Center-Hung Fuel Bowls (Single front bowl for 2BBL, dual for 4BBL)
+  const bowlOffsets = isTwoBbl ? [0.98] : [-1.46, 1.46];
+  const meterOffsets = isTwoBbl ? [0.64] : [-1.02, 1.02];
+
+  meterOffsets.forEach((mz) => {
+    const metering = new THREE.Mesh(new THREE.BoxGeometry(1.78 * bodyScale, 0.90, 0.28), alumMat);
+    metering.position.set(0, 0.18, mz * bodyScale);
     g.add(metering);
+
+    [-0.92 * bodyScale, 0.92 * bodyScale].forEach((ix) => {
+      const idleScrew = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 0.18, 8), brassMat);
+      idleScrew.rotation.z = Math.PI / 2;
+      idleScrew.position.set(ix, -0.04, mz * bodyScale);
+      g.add(idleScrew);
+    });
   });
 
-  [-1.46, 1.46].forEach((bz, idx) => {
-    const bowl = new THREE.Mesh(new THREE.BoxGeometry(1.62, 0.86, 0.62), goldZincMat);
-    bowl.position.set(0, 0.14, bz);
+  bowlOffsets.forEach((bz, idx) => {
+    const zPos = bz * bodyScale;
+    const bowl = new THREE.Mesh(new THREE.BoxGeometry(1.62 * bodyScale, 0.86, 0.62), goldZincMat);
+    bowl.position.set(0, 0.14, zPos);
     g.add(bowl);
 
-    // Brass fuel level sight plug
+    [-0.65 * bodyScale, 0.65 * bodyScale].forEach((fx) => {
+      [-0.25, 0.45].forEach((fy) => {
+        const bowlBolt = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.055, 0.1, 6), alumMat);
+        bowlBolt.rotation.x = Math.PI / 2;
+        bowlBolt.position.set(fx, fy, zPos + (idx === 0 && !isTwoBbl ? -0.32 : 0.32));
+        g.add(bowlBolt);
+      });
+    });
+
     const sightPlug = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.11, 0.12, 6), brassMat);
     sightPlug.rotation.z = Math.PI / 2;
-    sightPlug.position.set(-0.84, 0.18, bz);
+    sightPlug.position.set(-0.84 * bodyScale, 0.18, zPos);
     g.add(sightPlug);
 
-    // Red/Blue -6 AN Dual-Feed Inlet Fitting on Passenger Side of Each Bowl
     const anInlet = new THREE.Mesh(
       new THREE.CylinderGeometry(0.16, 0.16, 0.34, 6),
       idx === 0 ? redMat : blueMat
     );
     anInlet.rotation.z = Math.PI / 2;
-    anInlet.position.set(0.95, 0.26, bz);
+    anInlet.position.set(0.95 * bodyScale, 0.26, zPos);
     g.add(anInlet);
   });
 
-  // Braided Dual-Feed Fuel Log linking Front & Rear Bowls + Inline Pressure Gauge
-  const logCurve = new THREE.CatmullRomCurve3([
-    new THREE.Vector3(1.12, 0.26, -1.46),
-    new THREE.Vector3(1.22, 0.26, 0),
-    new THREE.Vector3(1.12, 0.26, 1.46)
-  ]);
-  const fuelLog = new THREE.Mesh(new THREE.TubeGeometry(logCurve, 16, 0.085, 8, false), braidedMat);
-  g.add(fuelLog);
+  if (!isTwoBbl) {
+    // Braided Dual-Feed Fuel Log linking Front & Rear Bowls + Inline Pressure Gauge
+    const logCurve = new THREE.CatmullRomCurve3([
+      new THREE.Vector3(1.12 * bodyScale, 0.26, -1.46 * bodyScale),
+      new THREE.Vector3(1.22 * bodyScale, 0.26, 0),
+      new THREE.Vector3(1.12 * bodyScale, 0.26, 1.46 * bodyScale)
+    ]);
+    const fuelLog = new THREE.Mesh(new THREE.TubeGeometry(logCurve, 16, 0.085, 8, false), braidedMat);
+    g.add(fuelLog);
 
-  const gaugeBody = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.28, 0.16, 18), alumMat);
-  gaugeBody.rotation.z = Math.PI / 2;
-  gaugeBody.position.set(1.36, 0.36, 0);
-  g.add(gaugeBody);
+    const gaugeBody = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.28, 0.16, 20), alumMat);
+    gaugeBody.rotation.z = Math.PI / 2;
+    gaugeBody.position.set(1.36 * bodyScale, 0.36, 0);
+    g.add(gaugeBody);
+
+    const gaugeBezel = new THREE.Mesh(new THREE.TorusGeometry(0.26, 0.03, 8, 20), darkMat);
+    gaugeBezel.rotation.y = Math.PI / 2;
+    gaugeBezel.position.set(1.44 * bodyScale, 0.36, 0);
+    g.add(gaugeBezel);
+  }
 
   return g;
 }
@@ -1421,5 +1711,146 @@ export function createEngineTestStandGroup(
 
   return g;
 }
+
+/**
+ * Generates a Forged Slipper-Skirt Performance Piston with Ring Grooves, Valve Reliefs,
+ * PTFE Moly Skirt Coating Pads, Hollow Wrist Pin & Spiralox Retaining Clips.
+ */
+export function createDetailedPistonAssembly(
+  outerRadius: number,
+  pistonMat: THREE.Material,
+  darkMat: THREE.Material,
+  topRingMat: THREE.Material,
+  secondRingMat: THREE.Material,
+  oilRingMat: THREE.Material,
+  pinMat: THREE.Material,
+  clipMat: THREE.Material
+): THREE.Group {
+  const g = new THREE.Group();
+
+  // CNC-turned stepped profile (crown chamfer, top/2nd/oil ring grooves, recessed skirt)
+  const pts = [
+    new THREE.Vector2(0.0, 0.72),
+    new THREE.Vector2(outerRadius * 0.90, 0.72),
+    new THREE.Vector2(outerRadius * 0.97, 0.65),
+    new THREE.Vector2(outerRadius * 0.97, 0.50),
+    new THREE.Vector2(outerRadius * 0.87, 0.49),
+    new THREE.Vector2(outerRadius * 0.87, 0.43),
+    new THREE.Vector2(outerRadius * 0.97, 0.42),
+    new THREE.Vector2(outerRadius * 0.97, 0.30),
+    new THREE.Vector2(outerRadius * 0.87, 0.29),
+    new THREE.Vector2(outerRadius * 0.87, 0.23),
+    new THREE.Vector2(outerRadius * 0.97, 0.22),
+    new THREE.Vector2(outerRadius * 0.97, 0.12),
+    new THREE.Vector2(outerRadius * 0.85, 0.11),
+    new THREE.Vector2(outerRadius * 0.85, -0.02),
+    new THREE.Vector2(outerRadius * 0.95, -0.04),
+    new THREE.Vector2(outerRadius * 0.94, -0.62),
+    new THREE.Vector2(outerRadius * 0.81, -0.66),
+    new THREE.Vector2(outerRadius * 0.78, -0.18),
+    new THREE.Vector2(0.0, -0.12)
+  ];
+
+  const bodyGeo = new THREE.LatheGeometry(pts, 40);
+  bodyGeo.computeVertexNormals();
+  const body = new THREE.Mesh(bodyGeo, pistonMat);
+  g.add(body);
+
+  // Dual Forged Intake & Exhaust Valve Eyebrow Pockets on Piston Crown
+  [-outerRadius * 0.42, outerRadius * 0.42].forEach((vx, idx) => {
+    const pocket = new THREE.Mesh(
+      new THREE.CylinderGeometry(outerRadius * (idx === 0 ? 0.34 : 0.29), outerRadius * (idx === 0 ? 0.32 : 0.27), 0.06, 22),
+      darkMat
+    );
+    pocket.position.set(vx, 0.71, outerRadius * 0.16);
+    pocket.rotation.x = 0.08;
+    g.add(pocket);
+  });
+
+  // Top Plasma-Moly Ring, 2nd Napier Scraper Ring, and 3-Piece Oil Control Ring Pack
+  const ringSpecs = [
+    { y: 0.46, r: outerRadius * 0.985, tube: 0.032, mat: topRingMat },
+    { y: 0.26, r: outerRadius * 0.985, tube: 0.034, mat: secondRingMat },
+    { y: 0.08, r: outerRadius * 0.980, tube: 0.024, mat: topRingMat },
+    { y: 0.045, r: outerRadius * 0.955, tube: 0.028, mat: oilRingMat },
+    { y: 0.01, r: outerRadius * 0.980, tube: 0.024, mat: topRingMat }
+  ];
+  ringSpecs.forEach((rs) => {
+    const ring = new THREE.Mesh(
+      new THREE.TorusGeometry(rs.r, rs.tube, 10, 40, Math.PI * 1.96),
+      rs.mat
+    );
+    ring.rotation.x = Math.PI / 2;
+    ring.position.y = rs.y;
+    g.add(ring);
+  });
+
+  // Pin Boss Side Window Pockets + Full-Floating Hollow Chrome-Moly Wrist Pin + Twin Spiralox Clips
+  const pinLen = outerRadius * 1.62;
+  const pinOuter = new THREE.Mesh(
+    new THREE.CylinderGeometry(outerRadius * 0.24, outerRadius * 0.24, pinLen, 24, 1, true),
+    pinMat
+  );
+  pinOuter.rotation.z = Math.PI / 2;
+  pinOuter.position.y = -0.28;
+  g.add(pinOuter);
+
+  [-pinLen * 0.48, pinLen * 0.48].forEach((px) => {
+    const endRim = new THREE.Mesh(
+      new THREE.TorusGeometry(outerRadius * 0.19, 0.045, 8, 20),
+      pinMat
+    );
+    endRim.rotation.y = Math.PI / 2;
+    endRim.position.set(px, -0.28, 0);
+    g.add(endRim);
+
+    const spiralox = new THREE.Mesh(
+      new THREE.TorusGeometry(outerRadius * 0.25, 0.02, 6, 18),
+      clipMat
+    );
+    spiralox.rotation.y = Math.PI / 2;
+    spiralox.position.set(px * 1.05, -0.28, 0);
+    g.add(spiralox);
+  });
+
+  return g;
+}
+
+/**
+ * Generates an Axial Splined Shaft Segment for Crank Snouts & Transmission Output/Input Splines
+ */
+export function createSplineShaftGeometry(
+  outerRadius: number,
+  length: number,
+  splines = 24
+): THREE.ExtrudeGeometry {
+  const shape = new THREE.Shape();
+  const rootR = outerRadius * 0.87;
+  const step = (Math.PI * 2) / splines;
+  for (let i = 0; i < splines; i++) {
+    const a0 = i * step;
+    const a1 = a0 + step * 0.28;
+    const a2 = a0 + step * 0.62;
+    const a3 = a0 + step * 0.90;
+    if (i === 0) shape.moveTo(Math.cos(a0) * rootR, Math.sin(a0) * rootR);
+    else shape.lineTo(Math.cos(a0) * rootR, Math.sin(a0) * rootR);
+    shape.lineTo(Math.cos(a1) * outerRadius, Math.sin(a1) * outerRadius);
+    shape.lineTo(Math.cos(a2) * outerRadius, Math.sin(a2) * outerRadius);
+    shape.lineTo(Math.cos(a3) * rootR, Math.sin(a3) * rootR);
+  }
+  shape.closePath();
+
+  const geo = new THREE.ExtrudeGeometry(shape, {
+    depth: length,
+    bevelEnabled: true,
+    bevelThickness: 0.02,
+    bevelSize: 0.015,
+    bevelSegments: 2,
+    curveSegments: 12
+  });
+  geo.translate(0, 0, -length / 2);
+  return geo;
+}
+
 
 

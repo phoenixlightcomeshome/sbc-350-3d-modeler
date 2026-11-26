@@ -5,7 +5,8 @@
 
 import React from 'react';
 import { EngineConfig, CoordinatedSpecs, CamProfileId } from '../types/engine';
-import { CAM_PROFILES, CYLINDER_HEAD_FLOW_BENCH } from '../data/engineData';
+import { CAM_PROFILES } from '../data/engineData';
+import { SpecialModControlsStrip } from './SpecialModControlsStrip';
 import { Wind, Activity, CheckCircle2, Sliders, Layers } from 'lucide-react';
 
 interface TabValvetrainProps {
@@ -44,6 +45,15 @@ export const TabValvetrain: React.FC<TabValvetrainProps> = ({
           </div>
         </div>
       </div>
+
+      {/* Porting, Carburetor & Exhaust Port Live Controls */}
+      <SpecialModControlsStrip
+        config={config}
+        specs={specs}
+        onUpdateConfig={onUpdateConfig}
+        variant="compact"
+        defaultExpanded
+      />
 
       {/* Camshaft Profile Selector Cards */}
       <div className="space-y-2">
@@ -167,12 +177,14 @@ export const TabValvetrain: React.FC<TabValvetrainProps> = ({
 
       {/* Cylinder Head Airflow Bench Table (@ 28" H2O Depression) */}
       <div className="bg-[#181e24] p-4 rounded-xl border border-gray-800 space-y-3">
-        <div className="flex justify-between items-center">
+        <div className="flex flex-wrap justify-between items-center gap-2">
           <h3 className="font-bold text-white uppercase text-xs flex items-center gap-2">
             <Activity className="w-4 h-4 text-cyan-400" />
-            CYLINDER HEAD AIRFLOW BENCH (@ 28" H2O DEPRESSION)
+            LIVE CYLINDER HEAD AIRFLOW BENCH (@ 28&quot; H2O DEPRESSION)
           </h3>
-          <span className="text-[10px] text-gray-400">Edelbrock E-Street 64cc / 2.02" Intake / 1.60" Exhaust</span>
+          <span className="text-[11px] font-mono text-cyan-300">
+            {config.chamberCc.toFixed(1)} cc Chamber · {config.intakePortCc ?? 185} cc Int ({(config.intakeValveIn ?? 2.02).toFixed(2)}&quot;) / {config.exhaustPortCc ?? 68} cc {(config.exhaustPortShape || 'd_port').replace('_', '-').toUpperCase()} ({(config.exhaustValveIn ?? 1.60).toFixed(2)}&quot;)
+          </span>
         </div>
 
         <div className="overflow-x-auto">
@@ -180,7 +192,7 @@ export const TabValvetrain: React.FC<TabValvetrainProps> = ({
             <thead className="bg-black/60 text-gray-400 border-b border-gray-800">
               <tr>
                 <th className="p-2">PORT</th>
-                {CYLINDER_HEAD_FLOW_BENCH.map((p) => (
+                {specs.dynamicHeadFlowBench.map((p) => (
                   <th key={p.lift} className="p-2 text-center font-mono">
                     .{Math.round(p.lift * 1000)}"
                   </th>
@@ -190,7 +202,7 @@ export const TabValvetrain: React.FC<TabValvetrainProps> = ({
             <tbody className="divide-y divide-gray-800">
               <tr>
                 <td className="p-2 font-bold text-cyan-400">Intake Port (CFM)</td>
-                {CYLINDER_HEAD_FLOW_BENCH.map((p) => (
+                {specs.dynamicHeadFlowBench.map((p) => (
                   <td key={p.lift} className="p-2 text-center text-white font-mono">
                     {p.intakeCfm} CFM
                   </td>
@@ -198,7 +210,7 @@ export const TabValvetrain: React.FC<TabValvetrainProps> = ({
               </tr>
               <tr>
                 <td className="p-2 font-bold text-amber-400">Exhaust Port (CFM)</td>
-                {CYLINDER_HEAD_FLOW_BENCH.map((p) => (
+                {specs.dynamicHeadFlowBench.map((p) => (
                   <td key={p.lift} className="p-2 text-center text-white font-mono">
                     {p.exhaustCfm} CFM
                   </td>
@@ -206,9 +218,9 @@ export const TabValvetrain: React.FC<TabValvetrainProps> = ({
               </tr>
               <tr className="bg-black/30">
                 <td className="p-2 font-bold text-gray-400">E/I Flow Ratio</td>
-                {CYLINDER_HEAD_FLOW_BENCH.map((p) => (
+                {specs.dynamicHeadFlowBench.map((p) => (
                   <td key={p.lift} className="p-2 text-center text-emerald-400 font-mono">
-                    {Math.round((p.exhaustCfm / p.intakeCfm) * 100)}%
+                    {Math.round((p.exhaustCfm / Math.max(1, p.intakeCfm)) * 100)}%
                   </td>
                 ))}
               </tr>

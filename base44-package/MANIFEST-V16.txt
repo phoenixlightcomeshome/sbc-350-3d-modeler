@@ -1,0 +1,11 @@
+SBC 350 v16 — Base44 paste clusters (new version, Ray's account)
+Base = clusters 01-08 from the Nov 25 package (v14 source + image-to-3D = v15 content).
+v16 updates = clusters 09-12 below. Paste 01-08 first, then 09-12 in order.
+cluster-09-library-enginedata.txt: 2 files (corrected old-structure engineData.ts LIVE + canonical-schema as docs REFERENCE ONLY)
+cluster-10-manufacturing-drawings.txt: 2 files (manufacturingMatrixV16.ts NEW — does not overwrite the old file + techDrawingsCatalog.ts v16)
+cluster-11-aerospace.txt: 2 files (aerospaceMatrix.ts v16 + AEROSPACE-PAGE-SPEC.md)
+cluster-12-utilities.txt: 4 files (imageTo3d.ts + materialsProjectFetcher.ts + dataValidation.ts + TOLERANCE-RULE.md)
+
+All 10 v16 files md5-verified + content-checked by build-v16-packages.py.
+See BASE44-BUILD-BRIEF-V16.md for the route (GitHub import first, paste fallback),
+the facts the builder must honor, and the open items for Ray's ruling.

@@ -21,6 +21,7 @@ import {
   Store
 } from 'lucide-react';
 import { ActiveStoreSelection } from './AutoPartsStorePanel';
+import { SpecialModControlsStrip } from './SpecialModControlsStrip';
 import {
   APPLET_HISTORY_PATH,
   CURRENT_APPLET_ID,
@@ -30,6 +31,7 @@ import {
 interface TabMachineShopProps {
   config: EngineConfig;
   specs: CoordinatedSpecs;
+  onUpdateConfig?: (newConfig: Partial<EngineConfig>) => void;
   onOpenRegistry?: () => void;
   activeStoreSelection?: ActiveStoreSelection | null;
 }
@@ -37,6 +39,7 @@ interface TabMachineShopProps {
 export const TabMachineShop: React.FC<TabMachineShopProps> = ({
   config,
   specs,
+  onUpdateConfig,
   onOpenRegistry,
   activeStoreSelection
 }) => {
@@ -81,6 +84,17 @@ export const TabMachineShop: React.FC<TabMachineShopProps> = ({
           <span>PRINT / EXPORT BUILD SHEET</span>
         </button>
       </div>
+
+      {onUpdateConfig && (
+        <div className="no-print">
+          <SpecialModControlsStrip
+            config={config}
+            specs={specs}
+            onUpdateConfig={onUpdateConfig}
+            variant="compact"
+          />
+        </div>
+      )}
 
       {/* Blueprinted Build Sheet Summary Card */}
       <div className="bg-[#181e24] p-5 rounded-2xl border border-gray-800 space-y-4 shadow-xl">
