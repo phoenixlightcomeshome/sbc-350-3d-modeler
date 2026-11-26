@@ -18,6 +18,7 @@ Ray's word Nov 26: "Take all your upgrades and updates from the ai studio you ve
 - **Content:** corrected old-structure engineData.ts (audit fixes: E-Street #5089, LS3 68.4cc, TH350 reverse 1.93, Mopar 727 reverse 2.20, 42RE front band 3 turns); v16 techDrawingsCatalog.ts; NEW manufacturingMatrixV16.ts (additive — new schema, old file kept); NEW aerospaceMatrix.ts; NEW imageTo3d.ts, materialsProjectFetcher.ts (key from env only), dataValidation.ts; canonical-schema engineData as a docs reference (migration target, not wired in). Cam-core spin fix survives (`camCore.rotation.y`). Typecheck: clean (`tsc --noEmit`, 0 errors) after a one-word fix to Gemini's delivery (`family?.pattern` → `family?.bellhousingPattern`, the field that exists on EngineFamilySpec).
 - **Open items for Ray's ruling:** CID diffs of 0.01–0.02 on LS3/2JZ/L24; baseTq 415 vs his stated 414; PTWA as-deposited range vs Villafuerte. The v16 AI Studio pickup was still running when v16 launched; its outputs land as a follow-up.
 - **Build:** source `app/` (v16-staging branch); built with `vite build --base /sbc-350-3d-modeler/v16/`; published build in `v16/`.
+- **Rebuilt Nov 26 ~02:13 (Ray's word "launch it on GitHub now in this version"):** the v16 build now includes the Aerospace Matrix page ("14 Aerospace Matrix", Base44 PR #1, merged to main) — same v16 URL, rebuilt from main's app/ source, tsc clean.
 
 ## v12 (current) — the remixed app, pushed through GitHub (Nov 24, 2026)
 

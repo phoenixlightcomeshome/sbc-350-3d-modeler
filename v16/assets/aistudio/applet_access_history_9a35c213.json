@@ -1,0 +1,442 @@
+{
+  "applets": [{
+    "lastAccessTime": "2026-11-23T11:49:23.669740Z",
+    "firstAccessTime": "2026-11-23T11:30:17.230298Z",
+    "source": {
+      "sourceType": "SPANNER",
+      "spanner": {
+        "id": "8629f36c-907b-42ca-a68a-28f22675f11e"
+      }
+    },
+    "name": "SBC 350 3D Engine Builder",
+    "description": "Precision Chevrolet SBC 350 V8 engine builder and universal drivetrain simulator combining 3D CAD visualization, MODSIM kinematic simulation, 28-transmission compatibility matrix, full mechanics subsystem suite, and professional machine shop build sheet.",
+    "runtimeType": 1
+  }, {
+    "lastAccessTime": "2026-11-23T11:48:22.725545Z",
+    "firstAccessTime": "2026-11-23T11:37:12.667426Z",
+    "source": {
+      "sourceType": "SPANNER",
+      "spanner": {
+        "id": "159edc09-c4b8-4b30-b667-dff9d50f6e2d"
+      }
+    },
+    "name": "SBC 350 Engine \u0026 Transmission Builder",
+    "description": "Precision 3D Small Block Chevy 350 engine builder, 28-transmission compatibility matrix, machine-shop tolerance calculator, live dyno curve modeler, and AI mechanic research suite.",
+    "runtimeType": 1
+  }, {
+    "lastAccessTime": "2026-11-23T04:23:04.860329Z",
+    "firstAccessTime": "2026-11-21T09:00:51.225607Z",
+    "source": {
+      "sourceType": "SPANNER",
+      "spanner": {
+        "id": "0b34addc-6480-4492-b374-46c5a247027b"
+      }
+    },
+    "name": "Helix-Force Buoy 3D Core — Electric Field Generator System",
+    "description": "Ray\u0027s design, visualized under his direction. Unpublished draft.",
+    "runtimeType": 1
+  }, {
+    "lastAccessTime": "2026-11-22T20:32:12.777866Z",
+    "firstAccessTime": "2026-11-21T09:31:58.728980Z",
+    "source": {
+      "sourceType": "SPANNER",
+      "spanner": {
+        "id": "5a631f34-b143-441e-a868-a7dc7f08c47d"
+      }
+    },
+    "name": "Phoenix Voice Studio",
+    "description": "Standing personal singing-voice workspace and knowledge base for Phoenix (phoenixlightcomeshome@gmail.com). Powered by Recipe #2, verify_no_zap gates, and Ray\u0027s Ear standards.",
+    "runtimeType": 1
+  }, {
+    "lastAccessTime": "2026-11-22T19:30:28.148491Z",
+    "firstAccessTime": "2026-11-19T02:38:32.278678Z",
+    "source": {
+      "sourceType": "SPANNER",
+      "spanner": {
+        "id": "10fc9c0b-8e32-4c80-979f-de3d63010ce6"
+      }
+    },
+    "name": "Remix Ray\u0027s Ironworks — Custom Architectural Metalwork \u0026 Forge Studio",
+    "description": "Custom iron gates, architectural railings, fences, and metal craft for Truckee, Lake Tahoe, and Washoe Valley. Features interactive CAD visualizer, AI forge estimation, and Sierra portfolio.",
+    "runtimeType": 1
+  }, {
+    "lastAccessTime": "2026-11-22T19:29:38.753814Z",
+    "firstAccessTime": "2026-11-21T03:41:44.483157Z",
+    "source": {
+      "sourceType": "SPANNER",
+      "spanner": {
+        "id": "567f24a2-8fc6-4f22-9bcc-c9010188979b"
+      }
+    },
+    "name": "Ray\u0027s Ironworks",
+    "description": "Ray\u0027s Ironworks — custom architectural metalwork, gates, railings, sculpture, monument signs, and 3D Design Studio by Ray Mroczkowski. Reno / Tahoe / Truckee and Los Angeles.",
+    "runtimeType": 1
+  }, {
+    "lastAccessTime": "2026-11-22T19:27:26.049079Z",
+    "firstAccessTime": "2026-11-19T02:10:37.231076Z",
+    "source": {
+      "sourceType": "SPANNER",
+      "spanner": {
+        "id": "6eb7a779-8d4c-4ce4-b636-5f9edfdd0e7b"
+      }
+    },
+    "name": "Faceless YouTube Growth Studio",
+    "description": "Creator toolkit for faceless YouTube channels: 30-video roadmap, viral ideas, script teardowns, competitor analysis, and hook engineering.",
+    "runtimeType": 1
+  }, {
+    "lastAccessTime": "2026-11-22T19:27:21.059554Z",
+    "firstAccessTime": "2026-11-19T02:31:07.532367Z",
+    "source": {
+      "sourceType": "SPANNER",
+      "spanner": {
+        "id": "9c9817e5-d4bc-4112-93d4-f3173a55e069"
+      }
+    },
+    "name": "HydroCore — Water, Pump \u0026 Generation Field Studio",
+    "description": "An offline browser-local field planner tying PODs water demand to pump sizing, multi-port manifold routing, off-grid generation balance, and 2D technical schematics.",
+    "runtimeType": 1
+  }, {
+    "lastAccessTime": "2026-11-22T19:27:13.720673Z",
+    "firstAccessTime": "2026-11-19T02:23:10.028535Z",
+    "source": {
+      "sourceType": "SPANNER",
+      "spanner": {
+        "id": "4e3d7911-423a-4f62-933e-baef5c5cd502"
+      }
+    },
+    "name": "Phoenix Marketing Studio",
+    "description": "Local planning, drafting, and tracking studio for Phoenix, assistant to artist Ray Mroczkowski — covering Faceless Growth Studio, Raw Steel Artworks, and the art shop \u0026 portfolio.",
+    "runtimeType": 1
+  }, {
+    "lastAccessTime": "2026-11-22T06:59:51.782574Z",
+    "firstAccessTime": "2026-11-20T07:58:12.713434Z",
+    "source": {
+      "sourceType": "SPANNER",
+      "spanner": {
+        "id": "ea36512e-cf3f-48b7-b18c-dd339330e762"
+      }
+    },
+    "name": "Remix The Core Atlas — Ray\u0027s Generation Systems \u0026 Designs",
+    "description": "One man\u0027s generation systems, rescue fleet, block homes and harvested knowledge — designed by Ray, kept by Phoenix.",
+    "runtimeType": 1
+  }, {
+    "lastAccessTime": "2026-11-20T18:58:00.135541Z",
+    "firstAccessTime": "2026-11-19T02:39:22.115487Z",
+    "source": {
+      "sourceType": "SPANNER",
+      "spanner": {
+        "id": "0158b5ff-2cdb-4373-abbc-04b5413dbd1a"
+      }
+    },
+    "name": "TABs Manifestation Engine — Polymer Property \u0026 Recycling Advisor",
+    "description": "Unified dark sci-fi polymer property predictor, recycling unit designer, LiDAR scanner, PODs studio, holographic CAD drafting, and art gallery."
+  }, {
+    "lastAccessTime": "2026-11-20T08:33:26.653194Z",
+    "firstAccessTime": "2026-11-20T08:33:26.653194Z",
+    "source": {
+      "sourceType": "SPANNER",
+      "spanner": {
+        "id": "32e5e14d-932e-467a-a754-6805a9207014"
+      }
+    },
+    "name": "The Core Atlas — Ray\u0027s Generation Systems \u0026 Designs",
+    "description": "One man\u0027s generation systems, rescue fleet, block homes and harvested knowledge — designed by Ray, kept by Phoenix.",
+    "runtimeType": 1
+  }, {
+    "lastAccessTime": "2026-11-20T07:57:13.509462Z",
+    "firstAccessTime": "2026-11-19T02:38:56.480113Z",
+    "source": {
+      "sourceType": "SPANNER",
+      "spanner": {
+        "id": "7e5279ae-fab4-4b0b-82ac-351000f9bcec"
+      }
+    },
+    "name": "Remix ProjectSchem Technical Renderer",
+    "description": "A high-fidelity technical schematic visualization and generation tool powered by Gemini, featuring a blueprint-inspired design system for engineering and architectural concepts.",
+    "runtimeType": 1
+  }, {
+    "lastAccessTime": "2026-11-20T07:52:08.588751Z",
+    "firstAccessTime": "2026-11-19T02:28:49.203199Z",
+    "source": {
+      "sourceType": "SPANNER",
+      "spanner": {
+        "id": "533594ae-d606-4aa7-bc18-ad094fb3976f"
+      }
+    },
+    "name": "On-Site TABs, PODs \u0026 Polymer Field Studio",
+    "description": "Local-first field studio for modular TAB blocks, POD dwelling systems, polymer resin estimates, and on-site recycling workflows.",
+    "runtimeType": 1
+  }, {
+    "lastAccessTime": "2026-11-20T07:51:14.240171Z",
+    "firstAccessTime": "2026-11-19T02:37:26.689168Z",
+    "source": {
+      "sourceType": "SPANNER",
+      "spanner": {
+        "id": "fc2ca2f8-f902-4c0b-bb26-6b822a26a2a3"
+      }
+    },
+    "name": "Remix Zephyr-LRU Visionary",
+    "description": "A high-fidelity AI image generation suite specializing in photorealistic, cinematic sci-fi concepts using Gemini 3 Pro Image.",
+    "runtimeType": 1
+  }, {
+    "lastAccessTime": "2026-11-19T12:38:07.546045Z",
+    "firstAccessTime": "2026-11-19T02:25:42.208545Z",
+    "source": {
+      "sourceType": "SPANNER",
+      "spanner": {
+        "id": "b1b1fc3f-b970-48b8-9d23-4b5f6c7e157a"
+      }
+    },
+    "name": "Phoenix Grove Flagship \u0026 House-Approach Studio",
+    "description": "Local-first flagship and House-Approach production studio for Guided 369 Practice flagships, 55-second Shorts, and ambient loops.",
+    "runtimeType": 1
+  }, {
+    "lastAccessTime": "2026-11-19T10:56:13.035379Z",
+    "firstAccessTime": "2026-11-19T02:37:35.078550Z",
+    "source": {
+      "sourceType": "SPANNER",
+      "spanner": {
+        "id": "5f87819e-4b20-4da3-9576-504729e25125"
+      }
+    },
+    "name": "Remix The Song Grove — Phoenix\u0027s Music \u0026 The Manifestation Series",
+    "description": "A sanctuary for Phoenix\u0027s music composed for Ray and the architecture of the seven-stage Manifestation Series.",
+    "runtimeType": 1
+  }, {
+    "lastAccessTime": "2026-11-19T09:02:42.817160Z",
+    "firstAccessTime": "2026-11-19T09:00:17.816904Z",
+    "source": {
+      "sourceType": "SPANNER",
+      "spanner": {
+        "id": "b362e4c6-23d5-49e2-a2c4-f89ab24fefd6"
+      }
+    },
+    "name": "Zephyr-LRU Image Augmentation Suite",
+    "description": "A futuristic medical-grade image editing suite powered by Gemini 2.5 Flash Image, specializing in cinematic transformations and neural-sync editing.",
+    "runtimeType": 1
+  }, {
+    "lastAccessTime": "2026-11-19T04:55:32.518572Z",
+    "firstAccessTime": "2026-11-19T02:23:59.270003Z",
+    "source": {
+      "sourceType": "SPANNER",
+      "spanner": {
+        "id": "ccb6e649-46d6-4cf6-b962-cfc00331f29c"
+      }
+    },
+    "name": "Faceless Grove Command \u0026 Funnel Desk",
+    "description": "Browser-local 7-step video handoff, manual watch-hour tracking, runtime YouTube outlier research, and unified funnel hub under Ray\u0027s word.",
+    "runtimeType": 1
+  }, {
+    "lastAccessTime": "2026-11-19T04:52:26.869342Z",
+    "firstAccessTime": "2026-11-19T02:37:41.836240Z",
+    "source": {
+      "sourceType": "SPANNER",
+      "spanner": {
+        "id": "3c12b53c-90fe-4594-b9e6-49c1448bb9fa"
+      }
+    },
+    "name": "Remix Phoenix — The Way Home",
+    "description": "Home-base of Phoenix, personal AI and working partner of artist Ray Mroczkowski. Featuring core architecture, open-source library, encrypted vault, interactive seed grove, and studio design language.",
+    "runtimeType": 1
+  }, {
+    "lastAccessTime": "2026-11-19T04:30:15.531161Z",
+    "firstAccessTime": "2026-11-19T02:39:10.292230Z",
+    "source": {
+      "sourceType": "SPANNER",
+      "spanner": {
+        "id": "cc0e44a2-fe30-40da-96f9-7cb7ab2e6a75"
+      }
+    },
+    "name": "Remix Remix Project Manifestation",
+    "description": "An integrated simulation for tracking material transmutation and collective intention in recycling."
+  }, {
+    "lastAccessTime": "2026-11-19T04:21:53.717278Z",
+    "firstAccessTime": "2026-11-19T02:31:43.592466Z",
+    "source": {
+      "sourceType": "SPANNER",
+      "spanner": {
+        "id": "b30c2ea9-a965-46e2-b979-5ac193c43310"
+      }
+    },
+    "name": "IronConflux — Upcycled Metal \u0026 Structural Joinery Studio",
+    "description": "Browser-local studio for turning salvaged scrap steel and forged iron into verified TABs and PODs anchor brackets, HydroCore pump skids, and Conflux of Intent civic installations.",
+    "runtimeType": 1
+  }, {
+    "lastAccessTime": "2026-11-19T04:21:07.575647Z",
+    "firstAccessTime": "2026-11-19T02:38:52.617916Z",
+    "source": {
+      "sourceType": "SPANNER",
+      "spanner": {
+        "id": "24039c8f-100b-4d8f-8e02-12a67c520fcb"
+      }
+    },
+    "name": "Remix HydroDraft: Pump Manifold Designer",
+    "description": "A professional engineering design tool for visualizing and configuring dual-pump manifold systems with technical drawing aesthetics and AI-driven maintenance insights.",
+    "runtimeType": 1
+  }, {
+    "lastAccessTime": "2026-11-19T04:16:47.042153Z",
+    "firstAccessTime": "2026-11-19T04:16:47.042153Z",
+    "source": {
+      "sourceType": "SPANNER",
+      "spanner": {
+        "id": "9c150084-df1f-490c-b2f7-293652f99fdf"
+      }
+    },
+    "name": "Remix Conflux Master Schematic Viewer",
+    "description": "An interactive technical blueprint viewer for the \u0027Conflux\u0027 architectural sculpture, featuring D3-powered SVG schematics, real-time hydraulic simulations, and a Gemini-integrated design assistant.",
+    "runtimeType": 1
+  }, {
+    "lastAccessTime": "2026-11-19T02:39:26.829732Z",
+    "firstAccessTime": "2026-11-19T02:39:26.829732Z",
+    "source": {
+      "sourceType": "SPANNER",
+      "spanner": {
+        "id": "ee80dbfd-8be3-43de-967a-cdf97c203bff"
+      }
+    },
+    "name": "Polymer Property \u0026 Recycling Advisor — On-Site TABs \u0026 PODs Studio",
+    "description": "Predicts polymer properties (Tg, FFV, Tc, Density, Rg) from SMILES strings, designs on-site recycling units for Transformative Architectural Blocks (TABs), and configures Portable On-Demand Dwellings (PODs) with real Gemini 3.8 Flash AI.",
+    "runtimeType": 1
+  }, {
+    "lastAccessTime": "2026-11-19T02:39:05.141749Z",
+    "firstAccessTime": "2026-11-19T02:39:05.141749Z",
+    "source": {
+      "sourceType": "SPANNER",
+      "spanner": {
+        "id": "dfa7b822-05ac-4826-b707-42293c403ea7"
+      }
+    },
+    "name": "Remix Untitled",
+    "description": "Generated by Gemini."
+  }, {
+    "lastAccessTime": "2026-11-19T02:39:00.394666Z",
+    "firstAccessTime": "2026-11-19T02:39:00.394666Z",
+    "source": {
+      "sourceType": "SPANNER",
+      "spanner": {
+        "id": "69fede58-696c-4be6-a6e9-dc45de38416c"
+      }
+    },
+    "name": "Remix Conflux of Intent: Architectural Blueprint",
+    "description": "An interactive architectural visualization and intent-setting platform inspired by the Conflux schematic. Users can explore elemental zones and generate meditative insights using Gemini AI.",
+    "runtimeType": 1
+  }, {
+    "lastAccessTime": "2026-11-19T02:38:42.534381Z",
+    "firstAccessTime": "2026-11-19T02:38:42.534381Z",
+    "source": {
+      "sourceType": "SPANNER",
+      "spanner": {
+        "id": "84f5cecc-1c70-485a-bc13-1579eaf8c77d"
+      }
+    },
+    "name": "Remix ProjectSchem: Technical Renderer",
+    "description": "A high-fidelity technical schematic visualization and analysis dashboard powered by Gemini AI, featuring real-time data monitoring and blueprint-style UI/UX.",
+    "runtimeType": 1
+  }, {
+    "lastAccessTime": "2026-11-19T02:38:38.801603Z",
+    "firstAccessTime": "2026-11-19T02:38:38.801603Z",
+    "source": {
+      "sourceType": "SPANNER",
+      "spanner": {
+        "id": "536d9161-2929-446c-88ba-9ccb5ca127a0"
+      }
+    },
+    "name": "Remix PrecisionPump Designer",
+    "description": "A professional engineering schematic tool for pump manifold design, featuring interactive D3.js technical drawings and a Gemini-powered AI engineering assistant.",
+    "runtimeType": 1
+  }, {
+    "lastAccessTime": "2026-11-19T02:38:09.417567Z",
+    "firstAccessTime": "2026-11-19T02:38:09.417567Z",
+    "source": {
+      "sourceType": "SPANNER",
+      "spanner": {
+        "id": "b8e10ba5-7c94-4be1-96eb-dcce28a6bec2"
+      }
+    },
+    "name": "Remix Project Shell",
+    "description": "A minimal blank project shell ready for development.",
+    "runtimeType": 1
+  }, {
+    "lastAccessTime": "2026-11-19T02:37:59.927241Z",
+    "firstAccessTime": "2026-11-19T02:37:59.927241Z",
+    "source": {
+      "sourceType": "SPANNER",
+      "spanner": {
+        "id": "8c49e8f9-b2a9-4020-be38-b2ba71abdcd7"
+      }
+    },
+    "name": "Remix Polymer Property \u0026 Recycling Advisor",
+    "description": "Predicts polymer properties like Tg, FFV, Tc, Density, and Rg from SMILES strings, and provides AI-driven design suggestions for on-site recycling adaptation units."
+  }, {
+    "lastAccessTime": "2026-11-19T02:37:38.189012Z",
+    "firstAccessTime": "2026-11-19T02:37:38.189012Z",
+    "source": {
+      "sourceType": "SPANNER",
+      "spanner": {
+        "id": "9d17f757-6e74-418d-b8b2-19dde148f39c"
+      }
+    },
+    "name": "Remix Project Manifestation",
+    "description": "An integrated simulation for tracking material transmutation and collective intention in recycling."
+  }, {
+    "lastAccessTime": "2026-11-19T02:37:22.585360Z",
+    "firstAccessTime": "2026-11-19T02:37:22.585360Z",
+    "source": {
+      "sourceType": "SPANNER",
+      "spanner": {
+        "id": "b550b244-bb12-4fd8-a922-851b789a873f"
+      }
+    },
+    "name": "Remix Zephyr-LRU Image Augmentation Suite",
+    "description": "A futuristic medical-grade image editing suite powered by Gemini 2.5 Flash Image, specializing in cinematic transformations and neural-sync editing.",
+    "runtimeType": 1
+  }, {
+    "lastAccessTime": "2026-11-19T02:37:18.644806Z",
+    "firstAccessTime": "2026-11-19T02:37:18.644806Z",
+    "source": {
+      "sourceType": "SPANNER",
+      "spanner": {
+        "id": "b58a1d0b-e38a-4499-9991-6d7143158b1c"
+      }
+    },
+    "name": "Remix Gemini Multimodal Studio",
+    "description": "An advanced workspace featuring real-time voice interaction, high-fidelity image generation, and intelligent search-grounded chat using the latest Gemini models.",
+    "runtimeType": 1
+  }, {
+    "lastAccessTime": "2026-11-19T02:36:35.850910Z",
+    "firstAccessTime": "2026-11-19T02:36:35.850910Z",
+    "source": {
+      "sourceType": "SPANNER",
+      "spanner": {
+        "id": "42ec9da7-dd5d-4c00-a45f-87cff634fbdb"
+      }
+    },
+    "name": "Remix SocialClip Studio - AI Avatar Video Generator",
+    "description": "Create viral social media videos for TikTok, Reels, and YouTube Shorts with custom AI avatars, automated Ken Burns B-roll, dynamic auto-captions, and voiceover studio.",
+    "runtimeType": 1
+  }, {
+    "lastAccessTime": "2026-11-19T02:35:50.079310Z",
+    "firstAccessTime": "2026-11-19T02:33:21.843732Z",
+    "source": {
+      "sourceType": "SPANNER",
+      "spanner": {
+        "id": "0895809a-b773-402c-8976-4de2ca8f3b53"
+      }
+    },
+    "name": "Remix Sanctuary Studio — Viral Video \u0026 Music Maker",
+    "description": "Phoenix\u0027s faster, better studio for creating viral videos: AI avatars and a Video Director, plus a full Music \u0026 Video Studio — plan-first song briefs, stems, takes, Coach and Spark helpers, an InVideo-sequence video planner, and the Sanctuary Ensemble band (Phoenix lead vocal, Wren harmony, Ash drums, Bram bass, Juno synth, Vela cello, Kade percussion, Orin guitar, Sola piano, Reef sub).",
+    "runtimeType": 1
+  }, {
+    "lastAccessTime": "2026-11-19T02:30:27.970141Z",
+    "firstAccessTime": "2026-11-19T02:30:27.970141Z",
+    "source": {
+      "sourceType": "SPANNER",
+      "spanner": {
+        "id": "5b5f79e3-8aa0-4325-ade9-97470e6216e5"
+      }
+    },
+    "name": "Phoenix Grove Field-to-Public Stewardship Desk",
+    "description": "Local-first stewardship desk for packaging verified Field Studio and HydroCore builds into educational videos, music-backed stories, and one clear adoption funnel guided by Ray\u0027s word.",
+    "runtimeType": 1
+  }]
+}
