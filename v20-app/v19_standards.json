@@ -1,0 +1,475 @@
+{
+  "version": "19.0.0",
+  "studioName": "Quantum Aerospace Design Studio",
+  "codename": "QADS-v19-Honest-Extrude-And-Drafting-Baseline",
+  "previousVersion": "18.0.0",
+  "targetUrl": null,
+  "plannedTargetUrl": "v19/ (GitHub Pages forward reference — URL does not exist yet)",
+  "launchStatus": "NOT_LAUNCHED_LOCAL_ARCHIVE_ONLY",
+  "targetUrlStatus": "DOES_NOT_EXIST_YET_FORWARD_REFERENCE_ONLY",
+  "unitsPolicy": {
+    "internalUnit": "imperial",
+    "supportedDisplayUnits": [
+      "imperial",
+      "metric"
+    ],
+    "metricRole": "DISPLAY_ONLY_NO_INTERNAL_METRIC_MATH",
+    "conversionNote": "1 in = 25.4 mm exact; 500 mm = 19.685 in"
+  },
+  "supportedUnits": [
+    "imperial",
+    "metric"
+  ],
+  "defaultFabricationTier": "tier2_jobshop",
+  "bundleMatrix": {
+    "activeArchiveId": "BM-04-FUTURE-TECH-V19",
+    "archiveLayout": "13-file flat-root archive (+ Area 9 showroom module)",
+    "status": "LOCAL_ARCHIVE_UNDER_REVIEW_NOT_PUBLISHED",
+    "v19PagesUrlLive": false,
+    "notes": "BM-04-FUTURE-TECH-V19 is the current archive. Planned v19/ GitHub Pages URL does not exist yet."
+  },
+  "futureTechStack": {
+    "graphicsApi": "Three.js WebGLRenderer active (NOT Three.js WebGPURenderer); WebGPU capability detection + @workgroup_size(64) WGSL compute probe (falls back to detection-only / CPU evaluator unless browser acquires a live GPUDevice)",
+    "geometryKernel": "THREE.ExtrudeGeometry extrude-based mesh approximation ONLY (NOT a real B-Rep kernel; NO watertight manifold guarantee; OpenCASCADE.js WASM is an optional CDN hook, NOT YET WORKING by default); Design Report / Modeling-Room Transfer .JSON packet (NOT a native ISO 10303-242 STEP file)",
+    "securityGovernance": "NIST SP 800-207 Zero Trust, NIST AI RMF, NIST IR 8547 PQC readiness, and ISO 10303-242 field references ONLY",
+    "certificationStatus": "NOT_CERTIFIED_FRAMEWORK_REFERENCES_ONLY",
+    "isRealStepAp242File": false,
+    "isTrueBRepKernelActive": false
+  },
+  "sbc_350_head_photo_calibration": {
+    "description": "Ray's SBC 350 camless head reference shop photo calibration baseline",
+    "headLengthMm": 500,
+    "headLengthIn": 19.685,
+    "measuredSpanPx": 335.5,
+    "pxPerIn": 17.043,
+    "imageWidthPx": 688,
+    "imageHeightPx": 532,
+    "calibratedPlaneWidthIn": 40.37,
+    "calibratedPlaneHeightIn": 31.21,
+    "verified": true,
+    "source": "Ray 2-click 500 mm span on 688x532 camless head photo (335.5 px = 19.685 in -> 17.043 px/in)"
+  },
+  "referenceTargets": [
+    {
+      "id": "sbc350_bore_spacing_ref",
+      "label": "SBC 350 Bore-Spacing Reference (H / Holes NEEDING RAY'S MEASUREMENT)",
+      "widthIn": 4.400,
+      "widthVerified": true,
+      "widthSource": "GM Gen-I Small Block Chevy Specification (4.400 in bore centers)",
+      "heightIn": null,
+      "heightStatus": "NEEDING RAY'S MEASUREMENT",
+      "expectedFeatureCount": null,
+      "featureStatus": "17 head bolts per head (GM/Chevrolet Performance) — NOT a circular bolt pattern; XY offsets NEEDING RAY'S MEASUREMENT",
+      "verified": false
+    },
+    {
+      "id": "sbc350_camless_photo_footprint",
+      "label": "Calibrated SBC 350 Camless Photo Footprint (688x532 -> 40.37 x 31.21 in)",
+      "widthIn": 40.37,
+      "heightIn": 31.21,
+      "pxPerIn": 17.043,
+      "expectedFeatureCount": null,
+      "verified": true,
+      "source": "Ray 2-click calibration (335.5 px = 19.685 in / 500 mm)"
+    },
+    {
+      "id": "sbc350_500mm_head_length_span",
+      "label": "SBC 350 Head Length Baseline (500 mm = 19.685 in)",
+      "widthIn": 19.685,
+      "heightIn": null,
+      "heightStatus": "NEEDING RAY'S MEASUREMENT",
+      "expectedFeatureCount": null,
+      "verified": true,
+      "source": "QADS SBC 350 Baseline (500 mm = 19.685 in)"
+    },
+    {
+      "id": "sbc350_camless_head_envelope",
+      "label": "SBC 350 Camless Head Reference (500 mm Len verified; Envelope NEEDING RAY'S MEASUREMENT)",
+      "widthIn": 19.685,
+      "widthVerified": true,
+      "boreSpacingIn": 4.400,
+      "heightIn": null,
+      "heightStatus": "NEEDING RAY'S MEASUREMENT",
+      "expectedFeatureCount": 17,
+      "featureStatus": "17-position head-bolt torque sequence (NOT bolt circle); casting XY coordinates NEEDING RAY'S MEASUREMENT",
+      "verified": false
+    }
+  ],
+  "referenceSpecs": {
+    "sbc_350_oem": {
+      "label": "Chevrolet SBC 350 OEM Baseline",
+      "displacementCid": 349.85,
+      "displacementVerified": true,
+      "horsepowerCarb": 385,
+      "torqueCarbFtLb": 414,
+      "carbRatingVerified": true,
+      "horsepowerMpfiProvisional": 408,
+      "torqueMpfiProvisionalFtLb": 431,
+      "mpfiRatingVerified": false,
+      "mpfiStatus": "PROVISIONAL — UNVERIFIED",
+      "cylinders": 8,
+      "boreIn": 4.000,
+      "strokeIn": 3.480,
+      "rodLengthIn": 5.700,
+      "deckHeightIn": 9.025,
+      "boreSpacingIn": 4.400,
+      "headLengthMm": 500,
+      "headLengthIn": 19.685,
+      "firingOrder": [1, 8, 4, 3, 6, 5, 7, 2],
+      "headBoltCount": 17,
+      "headBoltPatternNote": "17 head bolts per cylinder head (never a circular bolt pattern)",
+      "stockBoltTorqueSpec": "3 progressive passes: 25 -> 45 -> 65 ft-lb (with thread sealant)",
+      "stockBoltTorqueSource": "GM Gen-I Small Block V8 Service Manual",
+      "arpBoltTorqueSpec": "3 progressive passes: 25 -> 45 -> 70 ft-lb (with ARP Ultra-Torque lube)",
+      "arpBoltTorqueSource": "ARP SBC Head Bolt / Stud Installation Instructions",
+      "bankAngleDeg": 90,
+      "bankAngleDegVerified": false,
+      "bankAngleStatus": "UNVERIFIED — NEEDING RAY'S MEASUREMENT / DRAWING VERIFICATION",
+      "defaultTransmission": "TH350 (Ray's confirmed direct bolt-up)",
+      "verified": true,
+      "source": "QADS SBC 350 Baseline + GM Gen-I Service Manual + Chevrolet Performance Spec Sheets"
+    },
+    "sbc_350_camless": {
+      "label": "SBC 350 Camless Head Parametric Prototype",
+      "verified": false,
+      "status": "NEEDING RAY'S MEASUREMENT",
+      "headLengthMm": 500,
+      "headLengthIn": 19.685,
+      "headLengthVerified": true,
+      "boreSpacingIn": 4.400,
+      "boreSpacingVerified": true,
+      "valveOrder": "E-I-I-E-E-I-I-E",
+      "headBoltCount": 17,
+      "editableDefaultsNote": "All 12 dimensional parameters below are editable placeholders NOT MEASURED until Ray trues physical hardware.",
+      "editableDefaults": {
+        "boreSpacingIn": { "value": 4.400, "verified": false, "note": "GM SBC baseline; verify on camless casting" },
+        "flangeThicknessIn": { "value": 0.625, "verified": false },
+        "headHeightIn": { "value": 4.250, "verified": false },
+        "intakeRunnerLengthIn": { "value": 4.650, "verified": false },
+        "intakeRunnerDiaIn": { "value": 2.000, "verified": false },
+        "exhaustPortSizeIn": { "value": 1.550, "verified": false },
+        "actuatorHeightIn": { "value": 4.500, "verified": false },
+        "actuatorRadialOffsetIn": { "value": 0.450, "verified": false },
+        "actuatorPairSpreadIn": { "value": 1.850, "verified": false },
+        "blowerLengthIn": { "value": 17.250, "verified": false },
+        "blowerWidthIn": { "value": 7.250, "verified": false },
+        "blowerHeightIn": { "value": 5.500, "verified": false }
+      }
+    }
+  },
+  "designEnvironments": {
+    "cad_2d_sketch_dxf": {
+      "id": "cad_2d_sketch_dxf",
+      "label": "2D Profile Sketching, Datum & DXF/Waterjet/Laser",
+      "defaultTechnique": "parametric_2d_extrude",
+      "defaultUnit": "imperial",
+      "metricDisplaySupported": true
+    },
+    "cad_3d_extrude_brep": {
+      "id": "cad_3d_extrude_brep",
+      "label": "3D Parametric Extrude, Pockets/Slots (Extrude Approximation — B-Rep Hook Ready)",
+      "defaultTechnique": "parametric_2d_extrude",
+      "defaultUnit": "imperial",
+      "metricDisplaySupported": true
+    },
+    "surface_loft_aero_auto": {
+      "id": "surface_loft_aero_auto",
+      "label": "Surface Contour Extrude-Approximation (NOT True Loft/Sweep)",
+      "defaultTechnique": "loft_sweep_surface",
+      "defaultUnit": "imperial",
+      "metricDisplaySupported": true
+    },
+    "additive_dfam_lattice": {
+      "id": "additive_dfam_lattice",
+      "label": "Additive DfAM Wall/Overhang Advisory & Extrude",
+      "defaultTechnique": "additive_dfam_shell",
+      "defaultUnit": "imperial",
+      "metricDisplaySupported": true
+    },
+    "sheet_metal_bend_punch": {
+      "id": "sheet_metal_bend_punch",
+      "label": "Sheet Metal Bend Allowance Advisory & Hole Patterns",
+      "defaultTechnique": "sheet_metal_bend",
+      "defaultUnit": "imperial",
+      "metricDisplaySupported": true
+    },
+    "reverse_eng_scan_cal": {
+      "id": "reverse_eng_scan_cal",
+      "label": "Reverse Engineering, Photo Calibration & RDP Fit",
+      "defaultTechnique": "reverse_eng_fit",
+      "defaultUnit": "imperial",
+      "metricDisplaySupported": true
+    }
+  },
+  "designTechniques": {
+    "parametric_2d_extrude": {
+      "id": "parametric_2d_extrude",
+      "label": "Parametric Profile + Flange Bolt Circle / Hole Array Extrusion",
+      "implementationStatus": "IMPLEMENTED_EXTRUDE_APPROXIMATION",
+      "recommendedFor": [
+        "CNC Mill",
+        "2D Plate Cut",
+        "Enclosures",
+        "Brackets"
+      ]
+    },
+    "loft_sweep_surface": {
+      "id": "loft_sweep_surface",
+      "label": "Extrude-Based Approximation (NOT a True Multi-Station Loft/Sweep)",
+      "implementationStatus": "EXTRUDE_BASED_APPROXIMATION_NOT_TRUE_LOFT",
+      "recommendedFor": [
+        "Aerospace",
+        "Automotive Intake/Exhaust",
+        "Marine Hulls"
+      ]
+    },
+    "additive_dfam_shell": {
+      "id": "additive_dfam_shell",
+      "label": "DfAM Thin-Wall Shell & Overhang Check (Extrude Approximation)",
+      "implementationStatus": "IMPLEMENTED_EXTRUDE_APPROXIMATION_WITH_DFM_CHECK",
+      "recommendedFor": [
+        "DMLS/SLM Metal",
+        "SLA/SLS Polymer",
+        "Lightweight UAV"
+      ]
+    },
+    "sheet_metal_bend": {
+      "id": "sheet_metal_bend",
+      "label": "Sheet Metal Bend Allowance & K-Factor Relief (Unverified Bend Estimates)",
+      "implementationStatus": "IMPLEMENTED_EXTRUDE_APPROXIMATION_WITH_ADVISORY",
+      "recommendedFor": [
+        "Chassis",
+        "Avionics Racks",
+        "HVAC/Enclosures"
+      ]
+    },
+    "reverse_eng_fit": {
+      "id": "reverse_eng_fit",
+      "label": "Calibrated Overlay + RDP Contour Simplification (Currently Falls Back to Default Extrude)",
+      "implementationStatus": "UNIMPLEMENTED_AS_TECHNIQUE_BRANCH_FALLS_BACK_TO_DEFAULT_EXTRUDE",
+      "pendingNote": "Addition #20 will wire a dedicated Trace -> Fit -> Extrude branch inside the CAD engine.",
+      "recommendedFor": [
+        "Legacy Retrofit",
+        "SBC 350 / Camless",
+        "Field Repair"
+      ]
+    }
+  },
+  "industryCatalog": {
+    "aerospace_defense": {
+      "id": "aerospace_defense",
+      "label": "Aerospace & Defense (AS9100D / AS9102 / ASME Y14.5 Reference)",
+      "defaultStandard": "AS9100D / AS9102 / ASME Y14.5 (Reference Only — Not Certified)",
+      "defaultMaterial": "7075-T6 Aluminum",
+      "defaultTier": "tier2_jobshop"
+    },
+    "automotive_motorsports": {
+      "id": "automotive_motorsports",
+      "label": "Automotive & Motorsports (IATF 16949 / SAE J1349 / ISO 1585 Reference)",
+      "defaultStandard": "IATF 16949 / SAE J1349 / ISO 1585 (Reference Only)",
+      "defaultMaterial": "6061-T6 Aluminum",
+      "defaultTier": "tier2_jobshop"
+    },
+    "medical_life_sciences": {
+      "id": "medical_life_sciences",
+      "label": "Medical Devices & Life Sciences (ISO 13485 / ASME Y14.5 Reference)",
+      "defaultStandard": "ISO 13485 / ASME Y14.5 (Reference Only — Not Certified)",
+      "defaultMaterial": "316L Stainless Steel",
+      "defaultTier": "tier2_jobshop"
+    },
+    "industrial_machinery": {
+      "id": "industrial_machinery",
+      "label": "Industrial Machinery & Structural (ISO 9001 / ISO 2768-m Table Ref / AWS D1.1)",
+      "defaultStandard": "ISO 9001 / ISO 2768-m General Table / AWS D1.1",
+      "defaultMaterial": "4130 Chromoly Steel",
+      "defaultTier": "tier2_jobshop"
+    },
+    "robotics_mechatronics": {
+      "id": "robotics_mechatronics",
+      "label": "Robotics, Automation & EV (ISO 9409-1 / IEC 60529 Reference)",
+      "defaultStandard": "ISO 9409-1 / IEC 60529 (Reference Only)",
+      "defaultMaterial": "6061-T6 Aluminum",
+      "defaultTier": "tier2_jobshop"
+    },
+    "energy_pressure_semicon": {
+      "id": "energy_pressure_semicon",
+      "label": "Energy, Pressure & Semiconductor (ASME BPVC / SEMI Reference)",
+      "defaultStandard": "ASME BPVC / SEMI (Reference Only)",
+      "defaultMaterial": "316L Stainless Steel",
+      "defaultTier": "tier2_jobshop"
+    },
+    "consumer_additive": {
+      "id": "consumer_additive",
+      "label": "Consumer Hardware & Additive (ISO/ASTM 52900 Reference)",
+      "defaultStandard": "ISO/ASTM 52900 (Reference Only)",
+      "defaultMaterial": "PA12 Nylon (SLS)",
+      "defaultTier": "tier1_maker"
+    }
+  },
+  "fabricationTiers": {
+    "tier1_maker": {
+      "id": "tier1_maker",
+      "label": "Tier 1 Shop Preset: Rapid Prototype / Additive / Maker (±0.010 in. / ±0.25 mm)",
+      "isPreset": true,
+      "toleranceIn": 0.01,
+      "toleranceIsPreset": true,
+      "minWallIn": 0.048,
+      "minWallIsPreset": true,
+      "minHoleDiaIn": 0.0625,
+      "minHoleDiaIsPreset": true,
+      "maxAspectRatio": 12,
+      "maxAspectRatioIsPreset": true,
+      "measurementStatus": "SHOP_PRESET_NEEDING_RAY_CONFIRMATION"
+    },
+    "tier2_jobshop": {
+      "id": "tier2_jobshop",
+      "label": "Tier 2 General Default Preset: Job Shop / 2.5D-3-Axis CNC / Sheet Metal (±0.005 in. / ±0.13 mm)",
+      "isPreset": true,
+      "isGeneralDefault": true,
+      "toleranceIn": 0.005,
+      "toleranceIsPreset": true,
+      "minWallIn": 0.06,
+      "minWallIsPreset": true,
+      "minHoleDiaIn": 0.0625,
+      "minHoleDiaIsPreset": true,
+      "maxAspectRatio": 10,
+      "maxAspectRatioIsPreset": true,
+      "measurementStatus": "SHOP_PRESET_NEEDING_RAY_CONFIRMATION"
+    },
+    "tier3_precision": {
+      "id": "tier3_precision",
+      "label": "Tier 3 Shop Preset: Precision Industrial / 5-Axis / Automotive (±0.0005 in. / ±0.013 mm)",
+      "isPreset": true,
+      "toleranceIn": 0.0005,
+      "toleranceIsPreset": true,
+      "minWallIn": 0.03,
+      "minWallIsPreset": true,
+      "minHoleDiaIn": 0.04,
+      "minHoleDiaIsPreset": true,
+      "maxAspectRatio": 15,
+      "maxAspectRatioIsPreset": true,
+      "measurementStatus": "SHOP_PRESET_NEEDING_RAY_CONFIRMATION"
+    },
+    "tier4_aerospace": {
+      "id": "tier4_aerospace",
+      "label": "Tier 4 Opt-In Preset: Flight/Precision Spec (±0.0002 in. / ±0.005 mm — Never Default)",
+      "isPreset": true,
+      "neverDefault": true,
+      "toleranceIn": 0.0002,
+      "toleranceIsPreset": true,
+      "minWallIn": 0.025,
+      "minWallIsPreset": true,
+      "minHoleDiaIn": 0.03125,
+      "minHoleDiaIsPreset": true,
+      "maxAspectRatio": 20,
+      "maxAspectRatioIsPreset": true,
+      "measurementStatus": "SHOP_PRESET_NEEDING_RAY_CONFIRMATION"
+    }
+  },
+  "materials": {
+    "6061-T6 Aluminum": {
+      "densityLbPerIn3": 0.0975,
+      "densityVerified": true,
+      "densitySource": "ASM / MatWeb Aluminum 6061-T6 Standard Density (0.0975 lb/in3)",
+      "costPerLbUsd": 3.85,
+      "costIsEstimate": true,
+      "kFactor": 0.42,
+      "kFactorIsEstimate": true,
+      "minBendRadiusIn": 0.06,
+      "minBendRadiusIsEstimate": true,
+      "bendParamsStatus": "UNVERIFIED_ESTIMATE_NEEDING_TOOLING_TEST",
+      "category": "Non-Ferrous Alloy"
+    },
+    "7075-T6 Aluminum": {
+      "densityLbPerIn3": 0.101,
+      "densityVerified": true,
+      "densitySource": "ASM / MatWeb Aluminum 7075-T6 Standard Density (0.101 lb/in3)",
+      "costPerLbUsd": 6.4,
+      "costIsEstimate": true,
+      "kFactor": 0.38,
+      "kFactorIsEstimate": true,
+      "minBendRadiusIn": 0.09,
+      "minBendRadiusIsEstimate": true,
+      "bendParamsStatus": "UNVERIFIED_ESTIMATE_NEEDING_TOOLING_TEST",
+      "category": "Aerospace Alloy"
+    },
+    "4130 Chromoly Steel": {
+      "densityLbPerIn3": 0.2836,
+      "densityVerified": true,
+      "densitySource": "ASM / AISI 4130 Alloy Steel Standard Density (0.2836 lb/in3)",
+      "costPerLbUsd": 2.9,
+      "costIsEstimate": true,
+      "kFactor": 0.4,
+      "kFactorIsEstimate": true,
+      "minBendRadiusIn": 0.06,
+      "minBendRadiusIsEstimate": true,
+      "bendParamsStatus": "UNVERIFIED_ESTIMATE_NEEDING_TOOLING_TEST",
+      "category": "Alloy Steel"
+    },
+    "316L Stainless Steel": {
+      "densityLbPerIn3": 0.289,
+      "densityVerified": false,
+      "densitySource": "UNVERIFIED_HANDBOOK_DEFAULT — verify against aerospaceMatrix.ts (Addition #20)",
+      "costPerLbUsd": 5.2,
+      "costIsEstimate": true,
+      "kFactor": 0.44,
+      "kFactorIsEstimate": true,
+      "minBendRadiusIn": 0.06,
+      "minBendRadiusIsEstimate": true,
+      "bendParamsStatus": "UNVERIFIED_ESTIMATE_NEEDING_TOOLING_TEST",
+      "category": "Medical / Corrosion Steel"
+    },
+    "Ti-6Al-4V Titanium": {
+      "densityLbPerIn3": 0.16,
+      "densityVerified": true,
+      "densitySource": "ASM / AMS 4911 Ti-6Al-4V Standard Density (0.160 lb/in3)",
+      "costPerLbUsd": 28.5,
+      "costIsEstimate": true,
+      "kFactor": 0.35,
+      "kFactorIsEstimate": true,
+      "minBendRadiusIn": 0.125,
+      "minBendRadiusIsEstimate": true,
+      "bendParamsStatus": "UNVERIFIED_ESTIMATE_NEEDING_TOOLING_TEST",
+      "category": "Titanium Alloy"
+    },
+    "C11000 Copper": {
+      "densityLbPerIn3": 0.323,
+      "densityVerified": false,
+      "densitySource": "UNVERIFIED_HANDBOOK_DEFAULT — verify against aerospaceMatrix.ts (Addition #20)",
+      "costPerLbUsd": 7.5,
+      "costIsEstimate": true,
+      "kFactor": 0.45,
+      "kFactorIsEstimate": true,
+      "minBendRadiusIn": 0.045,
+      "minBendRadiusIsEstimate": true,
+      "bendParamsStatus": "UNVERIFIED_ESTIMATE_NEEDING_TOOLING_TEST",
+      "category": "Electrical / Thermal"
+    },
+    "PA12 Nylon (SLS)": {
+      "densityLbPerIn3": 0.0365,
+      "densityVerified": false,
+      "densitySource": "UNVERIFIED_HANDBOOK_DEFAULT — verify against aerospaceMatrix.ts (Addition #20)",
+      "costPerLbUsd": 24.0,
+      "costIsEstimate": true,
+      "kFactor": 0.5,
+      "kFactorIsEstimate": true,
+      "minBendRadiusIn": 0.04,
+      "minBendRadiusIsEstimate": true,
+      "bendParamsStatus": "UNVERIFIED_ESTIMATE_NEEDING_TOOLING_TEST",
+      "category": "Additive Polymer"
+    },
+    "Carbon Fiber / Nylon": {
+      "densityLbPerIn3": 0.047,
+      "densityVerified": false,
+      "densitySource": "UNVERIFIED_HANDBOOK_DEFAULT — verify against aerospaceMatrix.ts (Addition #20)",
+      "costPerLbUsd": 18.0,
+      "costIsEstimate": true,
+      "kFactor": 0.4,
+      "kFactorIsEstimate": true,
+      "minBendRadiusIn": 0.05,
+      "minBendRadiusIsEstimate": true,
+      "bendParamsStatus": "UNVERIFIED_ESTIMATE_NEEDING_TOOLING_TEST",
+      "category": "Composite / Polymer"
+    }
+  }
+}

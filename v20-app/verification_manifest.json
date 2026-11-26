@@ -1,0 +1,20 @@
+{
+  "manifestVersion": "19.0.0",
+  "policy": "Automated syntax/consistency checks are recorded separately from human engineering sign-off. humanVerified MUST stay false and checkedBy/checkedAt MUST stay null until a real reviewer verifies the file.",
+  "torqueReferenceSources": {
+    "sbc350_stock": {
+      "boltsPerHead": 17,
+      "sequenceSpec": "3 progressive passes: 25 -> 45 -> 65 ft-lb (thread sealant)",
+      "source": "GM Gen-I Small Block V8 Service Manual"
+    },
+    "sbc350_arp": {
+      "boltsPerHead": 17,
+      "sequenceSpec": "3 progressive passes: 25 -> 45 -> 70 ft-lb (ARP Ultra-Torque lube)",
+      "source": "ARP SBC Head Bolt / Stud Installation Instructions"
+    }
+  },
+  "files": [
+    { "file": "README.md", "version": "19.0.0", "automatedSyntaxPass": null, "humanVerified": false, "checkedBy": null, "checkedAt": null },
+    { "file": "index.html", "version": "19.0.0", "automatedSyntaxPass": null, "humanVerified": false, "checkedBy": null, "checkedAt": null }
+  ]
+}

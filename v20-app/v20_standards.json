@@ -1,0 +1,581 @@
+{
+  "version": "20.0.0",
+  "codename": "Quantum-Aerospace-Design-Studio",
+  "studioTitle": "SBC 350 v20.0.0 Quantum Aerospace Design Studio",
+  "previousVersion": "19.0.0",
+  "internalUnitStandard": "inches",
+  "supportedUnits": [
+    "imperial",
+    "metric"
+  ],
+  "targetUrl": null,
+  "plannedTargetUrl": "./v20/",
+  "launchStatus": "PRE_LAUNCH_VERIFICATION_ONLY",
+  "targetUrlStatus": "NOT_YET_DEPLOYED_TARGET_URL_NULL_UNTIL_PAGES_LIVE",
+  "certificationStatus": "NOT_CERTIFIED_FRAMEWORK_REFERENCES_ONLY",
+  "defaultFabricationTier": "tier2_jobshop",
+  "sbc_350_head_photo_calibration": {
+    "referenceLengthMm": 500,
+    "referenceLengthIn": 19.685,
+    "measuredPixels": 335.5,
+    "pixelsPerInch": 17.043,
+    "imageWidthPx": 688,
+    "imageHeightPx": 532,
+    "calibratedWidthIn": 40.37,
+    "calibratedHeightIn": 31.21,
+    "aspectRatio": 1.2932,
+    "verified": true,
+    "source": "688x532 px SBC 350 cylinder head photo calibrated against 500 mm (19.685 in.) head length across 335.5 px (17.043 px/in.)"
+  },
+  "referenceSpecs": {
+    "sbc_350_oem": {
+      "id": "sbc_350_oem",
+      "label": "Chevy SBC 350 V8 OEM Baseline",
+      "boreIn": 4.0,
+      "strokeIn": 3.48,
+      "rodLengthIn": 5.7,
+      "deckHeightIn": 9.025,
+      "boreSpacingIn": 4.4,
+      "headLengthMm": 500,
+      "headLengthIn": 19.685,
+      "cylinders": 8,
+      "displacementCid": 349.85,
+      "carbHorsepower": 385,
+      "carbTorqueLbFt": 414,
+      "carbRatingStatus": "VERIFIED_BASELINE",
+      "mpfiHorsepower": 408,
+      "mpfiTorqueLbFt": 431,
+      "mpfiRatingStatus": "PROVISIONAL_UNVERIFIED_DYNO_SHEET",
+      "headBoltPattern": "17-position SBC torque sequence (NOT a circular bolt circle)",
+      "bankAngleDeg": 90,
+      "bankAngleStatus": "UNVERIFIED_CONVENTIONAL_V8_NOMINAL_NOT_DIRECTLY_MEASURED",
+      "verified": true,
+      "source": "SBC 350 studio immutable baseline (Ray's verified spec; MPFI provisional, bankAngleDeg unverified)"
+    }
+  },
+  "referenceTargets": [
+    {
+      "id": "sbc_350_bore_spacing_ref",
+      "label": "SBC 350 Bore-Spacing Reference (4.400 in. W)",
+      "widthIn": 4.4,
+      "widthVerified": true,
+      "heightIn": null,
+      "heightStatus": "NEEDING RAY'S MEASUREMENT",
+      "expectedFeatureCount": null,
+      "featureCountStatus": "NEEDING RAY'S MEASUREMENT",
+      "verificationStatus": "PARTIAL_WIDTH_VERIFIED_HEIGHT_AND_HOLES_NEEDING_RAYS_MEASUREMENT",
+      "source": "SBC 350 nominal bore spacing 4.400 in.; height and bolt holes unmeasured"
+    },
+    {
+      "id": "sbc_350_head_calibrated_photo_footprint",
+      "label": "SBC 350 Calibrated Photo Footprint (40.37 x 31.21 in.)",
+      "widthIn": 40.37,
+      "heightIn": 31.21,
+      "expectedFeatureCount": null,
+      "featureCountStatus": "NEEDING RAY'S MEASUREMENT",
+      "verified": true,
+      "verificationStatus": "VERIFIED_FROM_PHOTO_CALIBRATION",
+      "source": "688x532 px image calibrated at 17.043 px/in. (500 mm = 19.685 in. across 335.5 px)"
+    },
+    {
+      "id": "sbc_350_head_length_500mm_span",
+      "label": "SBC 350 Head Length Reference Span (500 mm = 19.685 in.)",
+      "widthIn": 19.685,
+      "widthMm": 500,
+      "heightIn": null,
+      "heightStatus": "NEEDING RAY'S MEASUREMENT",
+      "expectedFeatureCount": null,
+      "featureCountStatus": "NEEDING RAY'S MEASUREMENT",
+      "verified": true,
+      "verificationStatus": "SPAN_VERIFIED_HEIGHT_AND_HOLES_NEEDING_RAYS_MEASUREMENT",
+      "source": "Ray's 500 mm (19.685 in.) SBC 350 cylinder head reference length"
+    }
+  ],
+  "bundleMatrix": [
+    {
+      "id": "BM-05-MATERIALS-3DP-INFRA-V20",
+      "label": "SBC 350 v20.0.0 Quantum Aerospace Design Studio (Flat Root Archive)",
+      "version": "20.0.0",
+      "archiveRole": "Materials, 3DP Estimates, Powertrain Packaging, Bidirectional Drawing & Studio UI",
+      "status": "ACTIVE_ARCHIVE_VERIFICATION_IN_PROGRESS",
+      "certificationStatus": "NOT_CERTIFIED_FRAMEWORK_REFERENCES_ONLY"
+    }
+  ],
+  "futureTechStack": {
+    "certificationStatus": "NOT_CERTIFIED_FRAMEWORK_REFERENCES_ONLY",
+    "graphicsApi": "WebGLRenderer active (WebGL2); WebGPU detection + @workgroup_size(64) WGSL kernel template probe only (activeInRenderer: false unless compute pass wired)",
+    "geometryKernel": "THREE.ExtrudeGeometry approximation with exact signed-tetrahedron mesh volume + AEGIS_MBD_JSON_PACKET (isRealStepAp242File: false, JSON-not-STEP; no bundled Manifold-3D/OpenCascade WASM unless externally loaded)",
+    "materialsAnd3dpInfra": "Framework references only (ISO/ASTM 52900 / 52920 concepts); thermal, shrinkage, anisotropy & build-hour parameters are unverified estimates",
+    "securityGovernance": "NOT_CERTIFIED_FRAMEWORK_REFERENCES_ONLY — reference alignment labels only (NIST SP 800-207 / NIST AI RMF / NIST IR 8547; no active cryptographic enforcement)"
+  },
+  "additiveProcessFamilies": {
+    "pbf_lb_m": {
+      "id": "pbf_lb_m",
+      "isoAstMCode": "PBF-LB/M (LPBF)",
+      "label": "Laser Powder Bed Fusion — Metals",
+      "layerThicknessRangeMm": [
+        0.02,
+        0.08
+      ],
+      "atmosphere": "Argon / Nitrogen Inert (<100 ppm O2)",
+      "anisotropyRatioXYtoZ": 0.92,
+      "typicalDensityPct": 99.8,
+      "dataStatus": "UNVERIFIED_ESTIMATE_NO_SOURCE_CITED",
+      "anisotropyIsEstimate": true,
+      "densityIsEstimate": true,
+      "layerRangeIsEstimate": true,
+      "postProcessing": [
+        "Stress Relief",
+        "Wire EDM Cut-Off",
+        "HIP (Hot Isostatic Pressing)",
+        "CNC Datum Machining"
+      ]
+    },
+    "pbf_eb_m": {
+      "id": "pbf_eb_m",
+      "isoAstMCode": "PBF-EB/M (EBM)",
+      "label": "Electron Beam Powder Bed Fusion — Metals",
+      "layerThicknessRangeMm": [
+        0.05,
+        0.15
+      ],
+      "atmosphere": "High Vacuum + Controlled He",
+      "anisotropyRatioXYtoZ": 0.95,
+      "typicalDensityPct": 99.7,
+      "dataStatus": "UNVERIFIED_ESTIMATE_NO_SOURCE_CITED",
+      "anisotropyIsEstimate": true,
+      "densityIsEstimate": true,
+      "layerRangeIsEstimate": true,
+      "postProcessing": [
+        "Powder Recovery Blasting",
+        "HIP",
+        "Precision Finish Machining"
+      ]
+    },
+    "pbf_lb_p": {
+      "id": "pbf_lb_p",
+      "isoAstMCode": "PBF-LB/P (SLS)",
+      "label": "Laser Powder Bed Fusion — Polymers",
+      "layerThicknessRangeMm": [
+        0.08,
+        0.12
+      ],
+      "atmosphere": "Nitrogen / Heated Build Chamber",
+      "anisotropyRatioXYtoZ": 0.86,
+      "typicalDensityPct": 98.5,
+      "dataStatus": "UNVERIFIED_ESTIMATE_NO_SOURCE_CITED",
+      "anisotropyIsEstimate": true,
+      "densityIsEstimate": true,
+      "layerRangeIsEstimate": true,
+      "postProcessing": [
+        "Media Blasting / Depowdering",
+        "Vapor Smoothing",
+        "Dyeing / Sealing"
+      ]
+    },
+    "vpp_sla": {
+      "id": "vpp_sla",
+      "isoAstMCode": "VPP (SLA / DLP)",
+      "label": "Vat Photopolymerization — Resins & Ceramics",
+      "layerThicknessRangeMm": [
+        0.025,
+        0.1
+      ],
+      "atmosphere": "Controlled UV / Photopolymer Vat",
+      "anisotropyRatioXYtoZ": 0.94,
+      "typicalDensityPct": 99.5,
+      "dataStatus": "UNVERIFIED_ESTIMATE_NO_SOURCE_CITED",
+      "anisotropyIsEstimate": true,
+      "densityIsEstimate": true,
+      "layerRangeIsEstimate": true,
+      "postProcessing": [
+        "IPA / Solvent Wash",
+        "Thermal + UV Post-Cure",
+        "Support Removal"
+      ]
+    },
+    "bjt_metal": {
+      "id": "bjt_metal",
+      "isoAstMCode": "BJT-M (Metal Binder Jetting)",
+      "label": "Binder Jetting — Sintered Metals",
+      "layerThicknessRangeMm": [
+        0.03,
+        0.1
+      ],
+      "atmosphere": "Debinding + Sinter Furnace (H2 / Ar / Vacuum)",
+      "anisotropyRatioXYtoZ": 0.96,
+      "typicalDensityPct": 99.4,
+      "dataStatus": "UNVERIFIED_ESTIMATE_NO_SOURCE_CITED",
+      "anisotropyIsEstimate": true,
+      "densityIsEstimate": true,
+      "layerRangeIsEstimate": true,
+      "postProcessing": [
+        "Curing",
+        "Depowdering",
+        "Thermal Debind & Sinter",
+        "HIP / Bronze Infiltration"
+      ]
+    },
+    "mex_composite": {
+      "id": "mex_composite",
+      "isoAstMCode": "MEX (FFF / Continuous Fiber)",
+      "label": "Material Extrusion — Engineering & Fiber Polymers",
+      "layerThicknessRangeMm": [
+        0.1,
+        0.35
+      ],
+      "atmosphere": "Heated Chamber / Dry Filament Feed",
+      "anisotropyRatioXYtoZ": 0.74,
+      "typicalDensityPct": 96.5,
+      "dataStatus": "UNVERIFIED_ESTIMATE_NO_SOURCE_CITED",
+      "anisotropyIsEstimate": true,
+      "densityIsEstimate": true,
+      "layerRangeIsEstimate": true,
+      "postProcessing": [
+        "Annealing",
+        "Support Dissolution",
+        "Machined Boss/Insert Fit"
+      ]
+    }
+  },
+  "infrastructurePillars": {
+    "powder_feedstock_chain": {
+      "id": "powder_feedstock_chain",
+      "label": "Feedstock Logistics, Sieving & Lot Traceability",
+      "standard": "ISO/ASTM 52907 / AS9100D",
+      "frameworkReferenceOnly": true,
+      "certificationStatus": "NOT_CERTIFIED_FRAMEWORK_REFERENCES_ONLY",
+      "controls": [
+        "PSD Laser Diffraction",
+        "Hall/Carney Flow",
+        "Oxygen/Moisture Telemetry",
+        "Batch Genealogy"
+      ]
+    },
+    "in_situ_monitoring_mes": {
+      "id": "in_situ_monitoring_mes",
+      "label": "In-Situ Melt-Pool / Optical Telemetry & MES",
+      "standard": "ISO/ASTM 52920 / ISA-95",
+      "frameworkReferenceOnly": true,
+      "certificationStatus": "NOT_CERTIFIED_FRAMEWORK_REFERENCES_ONLY",
+      "controls": [
+        "Photodiode / Pyrometer Layer Log",
+        "Build Plate Thermal Map",
+        "Digital Thread & Nonconformance Hold"
+      ]
+    },
+    "post_process_metrology": {
+      "id": "post_process_metrology",
+      "label": "Heat Treat, HIP, Surface Finish & CMM/CT Qualification",
+      "standard": "AS9102 / AMS2750 / ASTM E1441",
+      "frameworkReferenceOnly": true,
+      "certificationStatus": "NOT_CERTIFIED_FRAMEWORK_REFERENCES_ONLY",
+      "controls": [
+        "Residual Stress Relief",
+        "HIP Densification",
+        "Ra Surface Profilometry",
+        "CMM / X-Ray CT Scan"
+      ]
+    }
+  },
+  "designEnvironments": {
+    "cad_2d_sketch_dxf": {
+      "id": "cad_2d_sketch_dxf",
+      "label": "2D Profile Sketching, Datum & DXF/Waterjet/Laser",
+      "defaultTechnique": "parametric_2d_extrude",
+      "defaultUnit": "imperial"
+    },
+    "cad_3d_extrude_brep": {
+      "id": "cad_3d_extrude_brep",
+      "label": "3D Parametric Extrude, Pockets/Slots & B-Rep Bridge",
+      "defaultTechnique": "parametric_2d_extrude",
+      "defaultUnit": "imperial"
+    },
+    "surface_loft_aero_auto": {
+      "id": "surface_loft_aero_auto",
+      "label": "Class-A Surface Lofting, Sweeps & Aero/Auto Contours (Extrude Approx)",
+      "defaultTechnique": "loft_sweep_surface",
+      "defaultUnit": "imperial"
+    },
+    "additive_dfam_lattice": {
+      "id": "additive_dfam_lattice",
+      "label": "Additive DfAM, Shells, Fillets & Powder/FDM/SLA",
+      "defaultTechnique": "additive_dfam_shell",
+      "defaultUnit": "imperial"
+    },
+    "sheet_metal_bend_punch": {
+      "id": "sheet_metal_bend_punch",
+      "label": "Sheet Metal K-Factor Bend, Flanges & Hole Patterns",
+      "defaultTechnique": "sheet_metal_bend",
+      "defaultUnit": "imperial"
+    },
+    "reverse_eng_scan_cal": {
+      "id": "reverse_eng_scan_cal",
+      "label": "Reverse Engineering, Photo/Scan Calibration & RDP Fit",
+      "defaultTechnique": "reverse_eng_fit",
+      "defaultUnit": "imperial"
+    }
+  },
+  "designTechniques": {
+    "parametric_2d_extrude": {
+      "id": "parametric_2d_extrude",
+      "label": "Parametric Profile + Bolt Circle (Flanges Only) / Hole Array Extrusion",
+      "implementationStatus": "IMPLEMENTED_EXTRUDE_GEOMETRY",
+      "recommendedFor": [
+        "CNC Mill",
+        "2D Plate Cut",
+        "Enclosures",
+        "Brackets"
+      ]
+    },
+    "loft_sweep_surface": {
+      "id": "loft_sweep_surface",
+      "label": "Loft / Sweep Surface (EXTRUDE-BASED APPROXIMATION — Not True Loft)",
+      "implementationStatus": "EXTRUDE_BASED_APPROXIMATION_NOT_TRUE_LOFT",
+      "recommendedFor": [
+        "Aerospace",
+        "Automotive Intake/Exhaust",
+        "Marine Hulls"
+      ]
+    },
+    "additive_dfam_shell": {
+      "id": "additive_dfam_shell",
+      "label": "DfAM Thin-Wall Shell & Overhang Check",
+      "implementationStatus": "IMPLEMENTED_SHELL_APPROXIMATION",
+      "recommendedFor": [
+        "DMLS/SLM Metal",
+        "SLA/SLS Polymer",
+        "Lightweight UAV"
+      ]
+    },
+    "sheet_metal_bend": {
+      "id": "sheet_metal_bend",
+      "label": "Sheet Metal Bend Allowance & K-Factor Relief (Unverified Bend Estimates)",
+      "implementationStatus": "IMPLEMENTED_WITH_UNVERIFIED_BEND_ESTIMATES",
+      "recommendedFor": [
+        "Chassis",
+        "Avionics Racks",
+        "HVAC/Enclosures"
+      ]
+    },
+    "reverse_eng_fit": {
+      "id": "reverse_eng_fit",
+      "label": "Calibrated Overlay + RDP Contour Simplification (UNIMPLEMENTED AS TECHNIQUE BRANCH — Falls Back to Default Extrude)",
+      "implementationStatus": "UNIMPLEMENTED_AS_TECHNIQUE_BRANCH_FALLS_BACK_TO_DEFAULT_EXTRUDE",
+      "recommendedFor": [
+        "Legacy Retrofit",
+        "SBC 350 / Camless",
+        "Field Repair"
+      ]
+    }
+  },
+  "industryCatalog": {
+    "aerospace_defense": {
+      "id": "aerospace_defense",
+      "label": "Aerospace & Defense (Framework Refs Only: AS9100D / AS9102 / STEP AP242 / ASME Y14.5)",
+      "defaultStandard": "NOT_CERTIFIED_FRAMEWORK_REFERENCES_ONLY (AS9100D / AS9102 / ASME Y14.5)",
+      "defaultMaterial": "7075-T6 Aluminum",
+      "defaultTier": "tier2_jobshop"
+    },
+    "automotive_motorsports": {
+      "id": "automotive_motorsports",
+      "label": "Automotive & Motorsports (Framework Refs Only: IATF 16949 / SAE J1349 / ISO 1585)",
+      "defaultStandard": "NOT_CERTIFIED_FRAMEWORK_REFERENCES_ONLY (IATF 16949 / SAE J1349 / ISO 1585)",
+      "defaultMaterial": "6061-T6 Aluminum",
+      "defaultTier": "tier3_precision"
+    },
+    "medical_life_sciences": {
+      "id": "medical_life_sciences",
+      "label": "Medical Devices & Life Sciences (Framework Refs Only: ISO 13485 / ASME Y14.5 / ISO 2768-f)",
+      "defaultStandard": "NOT_CERTIFIED_FRAMEWORK_REFERENCES_ONLY (ISO 13485 / ASME Y14.5 / ISO 2768-f)",
+      "defaultMaterial": "316L Stainless Steel",
+      "defaultTier": "tier2_jobshop"
+    },
+    "industrial_machinery": {
+      "id": "industrial_machinery",
+      "label": "Industrial Machinery & Structural (Framework Refs Only: ISO 9001 / ISO 2768-m / AWS D1.1)",
+      "defaultStandard": "NOT_CERTIFIED_FRAMEWORK_REFERENCES_ONLY (ISO 9001 / ISO 2768-m / AWS D1.1)",
+      "defaultMaterial": "4130 Chromoly Steel",
+      "defaultTier": "tier2_jobshop"
+    },
+    "robotics_mechatronics": {
+      "id": "robotics_mechatronics",
+      "label": "Robotics, Automation & EV (Framework Refs Only: ISO 9409-1 / IEC 60529 / ISO 2768-f)",
+      "defaultStandard": "NOT_CERTIFIED_FRAMEWORK_REFERENCES_ONLY (ISO 9409-1 / IEC 60529 / ISO 2768-f)",
+      "defaultMaterial": "6061-T6 Aluminum",
+      "defaultTier": "tier3_precision"
+    },
+    "energy_pressure_semicon": {
+      "id": "energy_pressure_semicon",
+      "label": "Energy, Pressure & Semiconductor (Framework Refs Only: ASME BPVC / SEMI / ISO 2768-m)",
+      "defaultStandard": "NOT_CERTIFIED_FRAMEWORK_REFERENCES_ONLY (ASME BPVC / SEMI / ISO 2768-m)",
+      "defaultMaterial": "316L Stainless Steel",
+      "defaultTier": "tier3_precision"
+    },
+    "consumer_additive": {
+      "id": "consumer_additive",
+      "label": "Consumer Hardware & Additive (Framework Refs Only: ISO/ASTM 52900 / ISO 2768-c)",
+      "defaultStandard": "NOT_CERTIFIED_FRAMEWORK_REFERENCES_ONLY (ISO/ASTM 52900 / ISO 2768-c)",
+      "defaultMaterial": "PA12 Nylon (SLS)",
+      "defaultTier": "tier1_maker"
+    }
+  },
+  "fabricationTiers": {
+    "tier1_maker": {
+      "id": "tier1_maker",
+      "label": "Tier 1: Rapid Prototype / Additive / Maker (±0.010 in. / ±0.25 mm)",
+      "toleranceIn": 0.01,
+      "minWallIn": 0.048,
+      "maxAspectRatio": 12,
+      "isPreset": true
+    },
+    "tier2_jobshop": {
+      "id": "tier2_jobshop",
+      "label": "Tier 2: General-Use / Job Shop / 2.5D-3-Axis CNC / Sheet Metal (±0.005 in. / ±0.13 mm)",
+      "toleranceIn": 0.005,
+      "minWallIn": 0.06,
+      "maxAspectRatio": 10,
+      "isPreset": true,
+      "isDefaultGeneralUse": true
+    },
+    "tier3_precision": {
+      "id": "tier3_precision",
+      "label": "Tier 3: Precision Industrial / 5-Axis / Automotive (±0.0005 in. / ±0.013 mm)",
+      "toleranceIn": 0.0005,
+      "minWallIn": 0.03,
+      "maxAspectRatio": 15,
+      "isPreset": true
+    },
+    "tier4_aerospace": {
+      "id": "tier4_aerospace",
+      "label": "Tier 4: Aerospace / Medical / Defense Flight Grade (±0.0002 in. / ±0.005 mm — Manual Select Only)",
+      "toleranceIn": 0.0002,
+      "minWallIn": 0.025,
+      "maxAspectRatio": 20,
+      "isPreset": true,
+      "manualSelectOnly": true
+    }
+  },
+  "materials": {
+    "6061-T6 Aluminum": {
+      "densityLbPerIn3": 0.0975,
+      "densityVerified": true,
+      "costPerLbUsd": 3.85,
+      "costIsEstimate": true,
+      "kFactor": 0.42,
+      "minBendRadiusIn": 0.06,
+      "bendParamsStatus": "UNVERIFIED_ESTIMATE_NEEDING_TOOLING_TEST",
+      "category": "Non-Ferrous Alloy",
+      "thermalConductivityWmk": 167,
+      "meltingOrTgC": 582,
+      "recommended3dpProcess": "pbf_lb_m",
+      "shrinkagePct": 1.4,
+      "thermalParamsStatus": "UNVERIFIED_ESTIMATE_NO_SOURCE_CITED"
+    },
+    "7075-T6 Aluminum": {
+      "densityLbPerIn3": 0.101,
+      "densityVerified": true,
+      "costPerLbUsd": 6.4,
+      "costIsEstimate": true,
+      "kFactor": 0.38,
+      "minBendRadiusIn": 0.09,
+      "bendParamsStatus": "UNVERIFIED_ESTIMATE_NEEDING_TOOLING_TEST",
+      "category": "Aerospace Alloy",
+      "thermalConductivityWmk": 130,
+      "meltingOrTgC": 477,
+      "recommended3dpProcess": "pbf_lb_m",
+      "shrinkagePct": 1.6,
+      "thermalParamsStatus": "UNVERIFIED_ESTIMATE_NO_SOURCE_CITED"
+    },
+    "4130 Chromoly Steel": {
+      "densityLbPerIn3": 0.2836,
+      "densityVerified": true,
+      "costPerLbUsd": 2.9,
+      "costIsEstimate": true,
+      "kFactor": 0.4,
+      "minBendRadiusIn": 0.06,
+      "bendParamsStatus": "UNVERIFIED_ESTIMATE_NEEDING_TOOLING_TEST",
+      "category": "Alloy Steel",
+      "thermalConductivityWmk": 42.7,
+      "meltingOrTgC": 1430,
+      "recommended3dpProcess": "bjt_metal",
+      "shrinkagePct": 1.8,
+      "thermalParamsStatus": "UNVERIFIED_ESTIMATE_NO_SOURCE_CITED"
+    },
+    "316L Stainless Steel": {
+      "densityLbPerIn3": 0.289,
+      "densityVerified": true,
+      "costPerLbUsd": 5.2,
+      "costIsEstimate": true,
+      "kFactor": 0.44,
+      "minBendRadiusIn": 0.06,
+      "bendParamsStatus": "UNVERIFIED_ESTIMATE_NEEDING_TOOLING_TEST",
+      "category": "Medical / Corrosion Steel",
+      "thermalConductivityWmk": 16.3,
+      "meltingOrTgC": 1375,
+      "recommended3dpProcess": "pbf_lb_m",
+      "shrinkagePct": 1.5,
+      "thermalParamsStatus": "UNVERIFIED_ESTIMATE_NO_SOURCE_CITED"
+    },
+    "Ti-6Al-4V Titanium": {
+      "densityLbPerIn3": 0.16,
+      "densityVerified": true,
+      "costPerLbUsd": 28.5,
+      "costIsEstimate": true,
+      "kFactor": 0.35,
+      "minBendRadiusIn": 0.125,
+      "bendParamsStatus": "UNVERIFIED_ESTIMATE_NEEDING_TOOLING_TEST",
+      "category": "Titanium Alloy",
+      "thermalConductivityWmk": 6.7,
+      "meltingOrTgC": 1604,
+      "recommended3dpProcess": "pbf_eb_m",
+      "shrinkagePct": 1.3,
+      "thermalParamsStatus": "UNVERIFIED_ESTIMATE_NO_SOURCE_CITED"
+    },
+    "C11000 Copper": {
+      "densityLbPerIn3": 0.323,
+      "densityVerified": true,
+      "costPerLbUsd": 7.5,
+      "costIsEstimate": true,
+      "kFactor": 0.45,
+      "minBendRadiusIn": 0.045,
+      "bendParamsStatus": "UNVERIFIED_ESTIMATE_NEEDING_TOOLING_TEST",
+      "category": "Electrical / Thermal",
+      "thermalConductivityWmk": 388,
+      "meltingOrTgC": 1065,
+      "recommended3dpProcess": "pbf_lb_m",
+      "shrinkagePct": 1.7,
+      "thermalParamsStatus": "UNVERIFIED_ESTIMATE_NO_SOURCE_CITED"
+    },
+    "PA12 Nylon (SLS)": {
+      "densityLbPerIn3": 0.0365,
+      "densityVerified": true,
+      "costPerLbUsd": 24.0,
+      "costIsEstimate": true,
+      "kFactor": 0.5,
+      "minBendRadiusIn": 0.04,
+      "bendParamsStatus": "UNVERIFIED_ESTIMATE_NEEDING_TOOLING_TEST",
+      "category": "Additive Polymer",
+      "thermalConductivityWmk": 0.25,
+      "meltingOrTgC": 178,
+      "recommended3dpProcess": "pbf_lb_p",
+      "shrinkagePct": 2.4,
+      "thermalParamsStatus": "UNVERIFIED_ESTIMATE_NO_SOURCE_CITED"
+    },
+    "Carbon Fiber / Nylon": {
+      "densityLbPerIn3": 0.047,
+      "densityVerified": true,
+      "costPerLbUsd": 18.0,
+      "costIsEstimate": true,
+      "kFactor": 0.4,
+      "minBendRadiusIn": 0.05,
+      "bendParamsStatus": "UNVERIFIED_ESTIMATE_NEEDING_TOOLING_TEST",
+      "category": "Composite / Polymer",
+      "thermalConductivityWmk": 0.65,
+      "meltingOrTgC": 185,
+      "recommended3dpProcess": "mex_composite",
+      "shrinkagePct": 0.8,
+      "thermalParamsStatus": "UNVERIFIED_ESTIMATE_NO_SOURCE_CITED"
+    }
+  }
+}

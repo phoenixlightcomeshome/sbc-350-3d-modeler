@@ -1,0 +1,6 @@
+{
+  "name": "Quantum Aerospace Design Studio",
+  "description": "Quantum Aerospace Design Studio (SBC 350 v20.0.0) — parametric aerospace and automotive design studio with 2D sketch, photo calibration, 3D extrude, drawing sheet rendering, and MBD export.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
