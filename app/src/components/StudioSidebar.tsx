@@ -23,6 +23,7 @@ import {
   Grid2x2,
   Cpu,
   Wrench,
+  Plane,
   X
 } from 'lucide-react';
 
@@ -67,7 +68,8 @@ export const StudioSidebar: React.FC<StudioSidebarProps> = ({
     { id: 'engconfig', index: '10', label: 'Engineering Config', icon: <Sliders className="w-4 h-4" /> },
     { id: 'drawings2', index: '11', label: 'More Drawings', icon: <Compass className="w-4 h-4" /> },
     { id: 'drawingmatrix', index: '12', label: 'Drawing & MFG Matrix', icon: <Grid2x2 className="w-4 h-4" /> },
-    { id: 'modstudio', index: '13', label: 'Modification Studio', icon: <Wrench className="w-4 h-4" /> }
+    { id: 'modstudio', index: '13', label: 'Modification Studio', icon: <Wrench className="w-4 h-4" /> },
+    { id: 'aerospace', index: '14', label: 'Aerospace Matrix', icon: <Plane className="w-4 h-4" /> }
   ];
 
   const vitalsRows = [
