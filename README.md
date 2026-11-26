@@ -8,7 +8,16 @@ Ray's 3D V8 Chevy small-block builder — 3D CAD engine workbench, transmission 
 - **Live v10:** https://phoenixlightcomeshome.github.io/sbc-350-3d-modeler/v10/ — the new version (Ray's word Nov 24, "Use GitHub to launch it"). v7, v8 and v9 stay live.
 - **Live v11:** https://phoenixlightcomeshome.github.io/sbc-350-3d-modeler/v11/ — built as-is at Ray's word Nov 24 ("Build as is"), from the v10 tree plus the delivered updates. v7, v8, v9 and v10 stay live.
 - **Live v12:** https://phoenixlightcomeshome.github.io/sbc-350-3d-modeler/v12/ — the remixed app Ray sent (02b764cb, remixed into Phoenix's account as 005ec037), pushed through GitHub at his word Nov 24. v7–v11 stay live.
+- **Live v16:** https://phoenixlightcomeshome.github.io/sbc-350-3d-modeler/v16/ — the verified v16 upgrades from AI Studio (Nov 26): corrected library engineData, v16 manufacturing + drawings, aerospace matrix, image-to-3D utilities, validator + fetcher. v7–v15 stay live.
 - **Baseline (Ray, confirmed):** 4.000" bore, 3.480" stroke, 5.700" rods, 9.025" deck height, 64cc chambers, .039" gasket with .015" deck clearance; 9.90:1 compression, 0.054" quench. All dimensions/specs are Gemini's from Ray's numbers — for Ray to true, as with the buoy.
+
+## v16 (current) — verified upgrades from AI Studio (Nov 26, 2026)
+
+Ray's word Nov 26: "Take all your upgrades and updates from the ai studio you verified for v16" and "Then launch it from GitHub." v16 is the verified set, landed on the v16-staging branch and merged to main.
+
+- **Content:** corrected old-structure engineData.ts (audit fixes: E-Street #5089, LS3 68.4cc, TH350 reverse 1.93, Mopar 727 reverse 2.20, 42RE front band 3 turns); v16 techDrawingsCatalog.ts; NEW manufacturingMatrixV16.ts (additive — new schema, old file kept); NEW aerospaceMatrix.ts; NEW imageTo3d.ts, materialsProjectFetcher.ts (key from env only), dataValidation.ts; canonical-schema engineData as a docs reference (migration target, not wired in). Cam-core spin fix survives (`camCore.rotation.y`). Typecheck: clean (`tsc --noEmit`, 0 errors) after a one-word fix to Gemini's delivery (`family?.pattern` → `family?.bellhousingPattern`, the field that exists on EngineFamilySpec).
+- **Open items for Ray's ruling:** CID diffs of 0.01–0.02 on LS3/2JZ/L24; baseTq 415 vs his stated 414; PTWA as-deposited range vs Villafuerte. The v16 AI Studio pickup was still running when v16 launched; its outputs land as a follow-up.
+- **Build:** source `app/` (v16-staging branch); built with `vite build --base /sbc-350-3d-modeler/v16/`; published build in `v16/`.
 
 ## v12 (current) — the remixed app, pushed through GitHub (Nov 24, 2026)
 
