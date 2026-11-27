@@ -1,0 +1,3060 @@
+{
+  "version": "1",
+  "name": "industryLibrary",
+  "packet": "Batch M Packets 1-3 of 6",
+  "models": [
+    {
+      "id": "chevrolet_camaro",
+      "make": "Chevrolet",
+      "parentMake": "General Motors",
+      "model": "Camaro",
+      "chassisCodes": [
+        "F-body",
+        "Zeta",
+        "Alpha"
+      ],
+      "category": "Muscle Car / Pony Car",
+      "yearStart": 1967,
+      "yearEnd": 2024,
+      "yearRanges": [
+        {
+          "yearStart": 1967,
+          "yearEnd": 1969,
+          "engineIds": [
+            "gm_sbc_350",
+            "gm_sbc_327"
+          ],
+          "transmissionIds": [
+            "gm_th350",
+            "gm_th400",
+            "gm_powerglide",
+            "muncieM20",
+            "muncieM21",
+            "muncieM22"
+          ],
+          "trimNote": "1st Gen F-body (SS, Z/28, RS)"
+        },
+        {
+          "yearStart": 1970,
+          "yearEnd": 1981,
+          "engineIds": [
+            "gm_sbc_350"
+          ],
+          "transmissionIds": [
+            "gm_th350",
+            "gm_th400",
+            "muncieM20",
+            "muncieM21",
+            "muncieM22",
+            "super_t10"
+          ],
+          "trimNote": "2nd Gen F-body"
+        },
+        {
+          "yearStart": 1982,
+          "yearEnd": 1992,
+          "engineIds": [
+            "gm_sbc_350"
+          ],
+          "transmissionIds": [
+            "gm_r7004",
+            "tremecT5"
+          ],
+          "trimNote": "3rd Gen F-body (IROC-Z, Z28)"
+        },
+        {
+          "yearStart": 1993,
+          "yearEnd": 2002,
+          "engineIds": [
+            "gm_sbc_350"
+          ],
+          "transmissionIds": [
+            "gm_r4l60e",
+            "tremecT56"
+          ],
+          "trimNote": "4th Gen F-body (LT1 / LS1)"
+        },
+        {
+          "yearStart": 2010,
+          "yearEnd": 2015,
+          "engineIds": [
+            "gm_ls3_62"
+          ],
+          "transmissionIds": [
+            "gm_r6l80e",
+            "tremecT56"
+          ],
+          "trimNote": "5th Gen Zeta (SS / ZL1 / Z/28)"
+        },
+        {
+          "yearStart": 2016,
+          "yearEnd": 2024,
+          "engineIds": [],
+          "transmissionIds": [
+            "gm_r10l90"
+          ],
+          "trimNote": "6th Gen Alpha (LT1 / LT4)"
+        }
+      ],
+      "engineIds": [
+        "gm_sbc_350",
+        "gm_sbc_327",
+        "gm_ls3_62"
+      ],
+      "transmissionIds": [
+        "gm_powerglide",
+        "gm_th350",
+        "gm_th400",
+        "gm_r7004",
+        "gm_r4l60e",
+        "gm_r6l80e",
+        "gm_r10l90",
+        "muncieM20",
+        "muncieM21",
+        "muncieM22",
+        "super_t10",
+        "tremecT5",
+        "tremecT56"
+      ],
+      "partIds": [],
+      "sources": [
+        "GM Heritage Archive",
+        "Camaro Research Group (CRG)"
+      ],
+      "verificationStatus": "PARTIAL"
+    },
+    {
+      "id": "chevrolet_corvette",
+      "make": "Chevrolet",
+      "parentMake": "General Motors",
+      "model": "Corvette",
+      "chassisCodes": [
+        "C1",
+        "C2",
+        "C3",
+        "C4",
+        "C5",
+        "C6",
+        "C7",
+        "C8"
+      ],
+      "category": "Sports Car",
+      "yearStart": 1953,
+      "yearEnd": null,
+      "yearRanges": [
+        {
+          "yearStart": 1953,
+          "yearEnd": 1962,
+          "engineIds": [
+            "gm_sbc_327"
+          ],
+          "transmissionIds": [
+            "gm_powerglide"
+          ],
+          "trimNote": "C1 (Blue Flame 6, 265, 283, 327)"
+        },
+        {
+          "yearStart": 1963,
+          "yearEnd": 1967,
+          "engineIds": [
+            "gm_sbc_327"
+          ],
+          "transmissionIds": [
+            "gm_powerglide",
+            "muncieM20",
+            "muncieM21",
+            "muncieM22"
+          ],
+          "trimNote": "C2 Sting Ray"
+        },
+        {
+          "yearStart": 1968,
+          "yearEnd": 1982,
+          "engineIds": [
+            "gm_sbc_327",
+            "gm_sbc_350",
+            "gm_bbc_454"
+          ],
+          "transmissionIds": [
+            "gm_th400",
+            "gm_th350",
+            "gm_r7004",
+            "muncieM20",
+            "muncieM21",
+            "muncieM22",
+            "super_t10"
+          ],
+          "trimNote": "C3 Stingray"
+        },
+        {
+          "yearStart": 1984,
+          "yearEnd": 1996,
+          "engineIds": [
+            "gm_sbc_350"
+          ],
+          "transmissionIds": [
+            "gm_r7004",
+            "gm_r4l60e"
+          ],
+          "trimNote": "C4 (L83, L98, LT1, LT4, LT5)"
+        },
+        {
+          "yearStart": 1997,
+          "yearEnd": 2004,
+          "engineIds": [],
+          "transmissionIds": [
+            "gm_r4l60e",
+            "tremecT56"
+          ],
+          "trimNote": "C5 (LS1, LS6)"
+        },
+        {
+          "yearStart": 2005,
+          "yearEnd": 2013,
+          "engineIds": [
+            "gm_ls3_62"
+          ],
+          "transmissionIds": [
+            "gm_r4l60e",
+            "gm_r6l80e",
+            "tremecT56"
+          ],
+          "trimNote": "C6 (LS2, LS3, LS7, LS9)"
+        },
+        {
+          "yearStart": 2014,
+          "yearEnd": 2019,
+          "engineIds": [],
+          "transmissionIds": [
+            "gm_r6l80e"
+          ],
+          "trimNote": "C7 (LT1, LT4, LT5)"
+        },
+        {
+          "yearStart": 2020,
+          "yearEnd": null,
+          "engineIds": [],
+          "transmissionIds": [],
+          "trimNote": "C8 Mid-Engine (LT2, LT6, LT7)"
+        }
+      ],
+      "engineIds": [
+        "gm_sbc_327",
+        "gm_sbc_350",
+        "gm_bbc_454",
+        "gm_ls3_62"
+      ],
+      "transmissionIds": [
+        "gm_powerglide",
+        "gm_th350",
+        "gm_th400",
+        "gm_r7004",
+        "gm_r4l60e",
+        "gm_r6l80e",
+        "muncieM20",
+        "muncieM21",
+        "muncieM22",
+        "super_t10",
+        "tremecT56"
+      ],
+      "partIds": [],
+      "sources": [
+        "GM Heritage Archive",
+        "Corvette Black Book"
+      ],
+      "verificationStatus": "PARTIAL"
+    },
+    {
+      "id": "chevrolet_chevelle",
+      "make": "Chevrolet",
+      "parentMake": "General Motors",
+      "model": "Chevelle",
+      "chassisCodes": [
+        "A-body"
+      ],
+      "category": "Intermediate / Muscle Car",
+      "yearStart": 1964,
+      "yearEnd": 1977,
+      "yearRanges": [
+        {
+          "yearStart": 1964,
+          "yearEnd": 1967,
+          "engineIds": [
+            "gm_sbc_327"
+          ],
+          "transmissionIds": [
+            "gm_powerglide",
+            "muncieM20",
+            "muncieM21"
+          ],
+          "trimNote": "1st Gen A-body (Malibu, SS 396)"
+        },
+        {
+          "yearStart": 1968,
+          "yearEnd": 1972,
+          "engineIds": [
+            "gm_sbc_327",
+            "gm_sbc_350",
+            "gm_bbc_454"
+          ],
+          "transmissionIds": [
+            "gm_powerglide",
+            "gm_th350",
+            "gm_th400",
+            "muncieM20",
+            "muncieM21",
+            "muncieM22"
+          ],
+          "trimNote": "2nd Gen A-body (SS 396 / SS 454 LS6)"
+        },
+        {
+          "yearStart": 1973,
+          "yearEnd": 1977,
+          "engineIds": [
+            "gm_sbc_350",
+            "gm_bbc_454"
+          ],
+          "transmissionIds": [
+            "gm_th350",
+            "gm_th400"
+          ],
+          "trimNote": "3rd Gen Colonnade A-body"
+        }
+      ],
+      "engineIds": [
+        "gm_sbc_327",
+        "gm_sbc_350",
+        "gm_bbc_454"
+      ],
+      "transmissionIds": [
+        "gm_powerglide",
+        "gm_th350",
+        "gm_th400",
+        "muncieM20",
+        "muncieM21",
+        "muncieM22"
+      ],
+      "partIds": [],
+      "sources": [
+        "GM Heritage Archive",
+        "Chevrolet Service Manuals 1964-1977"
+      ],
+      "verificationStatus": "PARTIAL"
+    },
+    {
+      "id": "chevrolet_nova",
+      "make": "Chevrolet",
+      "parentMake": "General Motors",
+      "model": "Chevy II / Nova",
+      "chassisCodes": [
+        "X-body"
+      ],
+      "category": "Compact / Muscle Car",
+      "yearStart": 1962,
+      "yearEnd": 1979,
+      "yearRanges": [
+        {
+          "yearStart": 1962,
+          "yearEnd": 1967,
+          "engineIds": [
+            "gm_sbc_327"
+          ],
+          "transmissionIds": [
+            "gm_powerglide",
+            "muncieM20"
+          ],
+          "trimNote": "1st & 2nd Gen Chevy II"
+        },
+        {
+          "yearStart": 1968,
+          "yearEnd": 1974,
+          "engineIds": [
+            "gm_sbc_327",
+            "gm_sbc_350"
+          ],
+          "transmissionIds": [
+            "gm_powerglide",
+            "gm_th350",
+            "gm_th400",
+            "muncieM20",
+            "muncieM21",
+            "muncieM22"
+          ],
+          "trimNote": "3rd Gen Nova SS"
+        },
+        {
+          "yearStart": 1975,
+          "yearEnd": 1979,
+          "engineIds": [
+            "gm_sbc_350"
+          ],
+          "transmissionIds": [
+            "gm_th350"
+          ],
+          "trimNote": "4th Gen Nova"
+        }
+      ],
+      "engineIds": [
+        "gm_sbc_327",
+        "gm_sbc_350"
+      ],
+      "transmissionIds": [
+        "gm_powerglide",
+        "gm_th350",
+        "gm_th400",
+        "muncieM20",
+        "muncieM21",
+        "muncieM22"
+      ],
+      "partIds": [],
+      "sources": [
+        "GM Heritage Archive"
+      ],
+      "verificationStatus": "PARTIAL"
+    },
+    {
+      "id": "chevrolet_impala",
+      "make": "Chevrolet",
+      "parentMake": "General Motors",
+      "model": "Impala",
+      "chassisCodes": [
+        "B-body",
+        "W-body",
+        "Epsilon II"
+      ],
+      "category": "Full-Size",
+      "yearStart": 1958,
+      "yearEnd": 2020,
+      "yearRanges": [
+        {
+          "yearStart": 1958,
+          "yearEnd": 1970,
+          "engineIds": [
+            "gm_sbc_327",
+            "gm_sbc_350",
+            "gm_bbc_454"
+          ],
+          "transmissionIds": [
+            "gm_powerglide",
+            "gm_th350",
+            "gm_th400",
+            "muncieM20",
+            "muncieM21"
+          ],
+          "trimNote": "Full-size B-body (283/327/348/409/396/427/454)"
+        },
+        {
+          "yearStart": 1971,
+          "yearEnd": 1996,
+          "engineIds": [
+            "gm_sbc_350",
+            "gm_bbc_454"
+          ],
+          "transmissionIds": [
+            "gm_th350",
+            "gm_th400",
+            "gm_r2004r",
+            "gm_r7004",
+            "gm_r4l60e"
+          ],
+          "trimNote": "B-body including 1994-1996 Impala SS (LT1)"
+        },
+        {
+          "yearStart": 2000,
+          "yearEnd": 2020,
+          "engineIds": [],
+          "transmissionIds": [],
+          "trimNote": "FWD W-body and Epsilon II"
+        }
+      ],
+      "engineIds": [
+        "gm_sbc_327",
+        "gm_sbc_350",
+        "gm_bbc_454"
+      ],
+      "transmissionIds": [
+        "gm_powerglide",
+        "gm_th350",
+        "gm_th400",
+        "gm_r2004r",
+        "gm_r7004",
+        "gm_r4l60e",
+        "muncieM20",
+        "muncieM21"
+      ],
+      "partIds": [],
+      "sources": [
+        "GM Heritage Archive"
+      ],
+      "verificationStatus": "PARTIAL"
+    },
+    {
+      "id": "chevrolet_c_k_series",
+      "make": "Chevrolet",
+      "parentMake": "General Motors",
+      "model": "C/K Pickup (C10 / C20 / C30 / K10)",
+      "chassisCodes": [
+        "C/K",
+        "GMT400"
+      ],
+      "category": "Light Truck",
+      "yearStart": 1960,
+      "yearEnd": 2002,
+      "yearRanges": [
+        {
+          "yearStart": 1960,
+          "yearEnd": 1972,
+          "engineIds": [
+            "gm_sbc_327",
+            "gm_sbc_350"
+          ],
+          "transmissionIds": [
+            "gm_powerglide",
+            "gm_th350",
+            "gm_th400"
+          ],
+          "trimNote": "1st & 2nd Gen Action Line C/K"
+        },
+        {
+          "yearStart": 1973,
+          "yearEnd": 1987,
+          "engineIds": [
+            "gm_sbc_350",
+            "gm_bbc_454"
+          ],
+          "transmissionIds": [
+            "gm_th350",
+            "gm_th400",
+            "gm_r7004"
+          ],
+          "trimNote": "3rd Gen Rounded Line / Squarebody"
+        },
+        {
+          "yearStart": 1988,
+          "yearEnd": 2002,
+          "engineIds": [
+            "gm_sbc_350",
+            "gm_bbc_454"
+          ],
+          "transmissionIds": [
+            "gm_r7004",
+            "gm_r4l60e",
+            "gm_r4l80e"
+          ],
+          "trimNote": "4th Gen GMT400 (incl. 454 SS)"
+        }
+      ],
+      "engineIds": [
+        "gm_sbc_327",
+        "gm_sbc_350",
+        "gm_bbc_454"
+      ],
+      "transmissionIds": [
+        "gm_powerglide",
+        "gm_th350",
+        "gm_th400",
+        "gm_r7004",
+        "gm_r4l60e",
+        "gm_r4l80e"
+      ],
+      "partIds": [],
+      "sources": [
+        "GM Truck Heritage Archive"
+      ],
+      "verificationStatus": "PARTIAL"
+    },
+    {
+      "id": "chevrolet_silverado",
+      "make": "Chevrolet",
+      "parentMake": "General Motors",
+      "model": "Silverado (1500 / 2500HD / 3500HD)",
+      "chassisCodes": [
+        "GMT800",
+        "GMT900",
+        "K2XX",
+        "T1XX"
+      ],
+      "category": "Full-Size Pickup",
+      "yearStart": 1999,
+      "yearEnd": null,
+      "yearRanges": [
+        {
+          "yearStart": 1999,
+          "yearEnd": 2007,
+          "engineIds": [],
+          "transmissionIds": [
+            "gm_r4l60e",
+            "gm_r4l80e",
+            "allison_1000"
+          ],
+          "trimNote": "GMT800 (Gen III LS / 8.1L / Duramax LB7-LBZ)"
+        },
+        {
+          "yearStart": 2007,
+          "yearEnd": 2014,
+          "engineIds": [],
+          "transmissionIds": [
+            "gm_r4l60e",
+            "gm_r6l80e",
+            "allison_1000"
+          ],
+          "trimNote": "GMT900"
+        },
+        {
+          "yearStart": 2014,
+          "yearEnd": null,
+          "engineIds": [],
+          "transmissionIds": [
+            "gm_r6l80e",
+            "gm_r10l90",
+            "allison_1000"
+          ],
+          "trimNote": "K2XX & T1XX"
+        }
+      ],
+      "engineIds": [],
+      "transmissionIds": [
+        "gm_r4l60e",
+        "gm_r4l80e",
+        "gm_r6l80e",
+        "gm_r10l90",
+        "allison_1000"
+      ],
+      "partIds": [],
+      "sources": [
+        "GM Fleet & Service Specifications"
+      ],
+      "verificationStatus": "PARTIAL"
+    },
+    {
+      "id": "ford_mustang",
+      "make": "Ford",
+      "parentMake": "Ford Motor Company",
+      "model": "Mustang",
+      "chassisCodes": [
+        "1st-Gen",
+        "Mustang II",
+        "Fox",
+        "SN95",
+        "S197",
+        "S550",
+        "S650"
+      ],
+      "category": "Pony Car / Muscle Car",
+      "yearStart": 1964,
+      "yearEnd": null,
+      "yearRanges": [
+        {
+          "yearStart": 1964,
+          "yearEnd": 1973,
+          "engineIds": [
+            "ford_302"
+          ],
+          "transmissionIds": [
+            "ford_c4",
+            "ford_c6",
+            "ford_toploader"
+          ],
+          "trimNote": "1st Gen (1964.5-1973; 260, 289, 302, Boss 302, 351, 390, 428, 429)"
+        },
+        {
+          "yearStart": 1974,
+          "yearEnd": 1978,
+          "engineIds": [
+            "ford_302"
+          ],
+          "transmissionIds": [
+            "ford_c4"
+          ],
+          "trimNote": "2nd Gen Mustang II"
+        },
+        {
+          "yearStart": 1979,
+          "yearEnd": 1993,
+          "engineIds": [
+            "ford_302"
+          ],
+          "transmissionIds": [
+            "ford_c4",
+            "ford_aod",
+            "tremecT5"
+          ],
+          "trimNote": "3rd Gen Fox-body (5.0 HO)"
+        },
+        {
+          "yearStart": 1994,
+          "yearEnd": 2004,
+          "engineIds": [
+            "ford_302"
+          ],
+          "transmissionIds": [
+            "tremecT5",
+            "tremecT56"
+          ],
+          "trimNote": "4th Gen SN95 / New Edge (1994-1995 5.0L Windsor; 1996-2004 4.6L Modular)"
+        },
+        {
+          "yearStart": 2005,
+          "yearEnd": 2014,
+          "engineIds": [],
+          "transmissionIds": [
+            "tremecT56"
+          ],
+          "trimNote": "5th Gen S197 (4.6L 3V, 5.0L Coyote, 5.4L/5.8L GT500)"
+        },
+        {
+          "yearStart": 2015,
+          "yearEnd": 2023,
+          "engineIds": [],
+          "transmissionIds": [
+            "ford_10r80"
+          ],
+          "trimNote": "6th Gen S550 (5.0L Coyote, 5.2L Voodoo/Predator)"
+        },
+        {
+          "yearStart": 2024,
+          "yearEnd": null,
+          "engineIds": [],
+          "transmissionIds": [
+            "ford_10r80"
+          ],
+          "trimNote": "7th Gen S650"
+        }
+      ],
+      "engineIds": [
+        "ford_302"
+      ],
+      "transmissionIds": [
+        "ford_c4",
+        "ford_c6",
+        "ford_aod",
+        "ford_10r80",
+        "ford_toploader",
+        "tremecT5",
+        "tremecT56"
+      ],
+      "partIds": [],
+      "sources": [
+        "Ford Motor Company Heritage Vault",
+        "Ford Shop Manuals"
+      ],
+      "verificationStatus": "PARTIAL"
+    },
+    {
+      "id": "ford_f_series",
+      "make": "Ford",
+      "parentMake": "Ford Motor Company",
+      "model": "F-Series (F-100 / F-150 / F-250 / F-350)",
+      "chassisCodes": [
+        "Dentside",
+        "Bullnose",
+        "Bricknose",
+        "OBS",
+        "P221",
+        "P415",
+        "P552",
+        "P702"
+      ],
+      "category": "Full-Size Pickup",
+      "yearStart": 1948,
+      "yearEnd": null,
+      "yearRanges": [
+        {
+          "yearStart": 1969,
+          "yearEnd": 1996,
+          "engineIds": [
+            "ford_302"
+          ],
+          "transmissionIds": [
+            "ford_c4",
+            "ford_c6",
+            "ford_aod"
+          ],
+          "trimNote": "5th through 9th Gen F-100 / F-150 / F-250 / F-350"
+        },
+        {
+          "yearStart": 1997,
+          "yearEnd": 2016,
+          "engineIds": [],
+          "transmissionIds": [
+            "ford_6r140"
+          ],
+          "trimNote": "10th-12th Gen F-150 & Super Duty"
+        },
+        {
+          "yearStart": 2017,
+          "yearEnd": null,
+          "engineIds": [],
+          "transmissionIds": [
+            "ford_10r80",
+            "ford_6r140"
+          ],
+          "trimNote": "13th-14th Gen F-150 & Super Duty"
+        }
+      ],
+      "engineIds": [
+        "ford_302"
+      ],
+      "transmissionIds": [
+        "ford_c4",
+        "ford_c6",
+        "ford_aod",
+        "ford_6r140",
+        "ford_10r80"
+      ],
+      "partIds": [],
+      "sources": [
+        "Ford Motor Company Truck Shop Manuals"
+      ],
+      "verificationStatus": "PARTIAL"
+    },
+    {
+      "id": "ford_bronco",
+      "make": "Ford",
+      "parentMake": "Ford Motor Company",
+      "model": "Bronco",
+      "chassisCodes": [
+        "U13",
+        "U14",
+        "U15",
+        "U100",
+        "U725"
+      ],
+      "category": "SUV / Off-Road",
+      "yearStart": 1966,
+      "yearEnd": null,
+      "yearRanges": [
+        {
+          "yearStart": 1966,
+          "yearEnd": 1977,
+          "engineIds": [
+            "ford_302"
+          ],
+          "transmissionIds": [
+            "ford_c4"
+          ],
+          "trimNote": "1st Gen Early Bronco (289 / 302 Windsor)"
+        },
+        {
+          "yearStart": 1978,
+          "yearEnd": 1996,
+          "engineIds": [
+            "ford_302"
+          ],
+          "transmissionIds": [
+            "ford_c6",
+            "ford_aod"
+          ],
+          "trimNote": "2nd-5th Gen Full-Size Bronco"
+        },
+        {
+          "yearStart": 2021,
+          "yearEnd": null,
+          "engineIds": [],
+          "transmissionIds": [
+            "ford_10r80"
+          ],
+          "trimNote": "6th Gen U725"
+        }
+      ],
+      "engineIds": [
+        "ford_302"
+      ],
+      "transmissionIds": [
+        "ford_c4",
+        "ford_c6",
+        "ford_aod",
+        "ford_10r80"
+      ],
+      "partIds": [],
+      "sources": [
+        "Ford Motor Company Shop Manuals"
+      ],
+      "verificationStatus": "PARTIAL"
+    },
+    {
+      "id": "dodge_challenger",
+      "make": "Dodge",
+      "parentMake": "Stellantis (Chrysler)",
+      "model": "Challenger",
+      "chassisCodes": [
+        "E-body",
+        "LC",
+        "LA"
+      ],
+      "category": "Muscle Car",
+      "yearStart": 1970,
+      "yearEnd": 2023,
+      "yearRanges": [
+        {
+          "yearStart": 1970,
+          "yearEnd": 1974,
+          "engineIds": [],
+          "transmissionIds": [
+            "mopar_727",
+            "mopar_a833"
+          ],
+          "trimNote": "1st Gen E-body (318, 340, 360, 383, 440, 426 Hemi)"
+        },
+        {
+          "yearStart": 2008,
+          "yearEnd": 2023,
+          "engineIds": [],
+          "transmissionIds": [
+            "mopar_8hp70",
+            "tremecT56"
+          ],
+          "trimNote": "3rd Gen LC/LA (3.5/3.6 V6, 5.7/6.1/6.4/6.2 Hemi)"
+        }
+      ],
+      "engineIds": [],
+      "transmissionIds": [
+        "mopar_727",
+        "mopar_a833",
+        "mopar_8hp70",
+        "tremecT56"
+      ],
+      "partIds": [],
+      "sources": [
+        "Chrysler / Mopar Service Manuals"
+      ],
+      "verificationStatus": "PARTIAL"
+    },
+    {
+      "id": "dodge_charger",
+      "make": "Dodge",
+      "parentMake": "Stellantis (Chrysler)",
+      "model": "Charger",
+      "chassisCodes": [
+        "B-body",
+        "L-body",
+        "LX",
+        "LD"
+      ],
+      "category": "Muscle Car / Sedan",
+      "yearStart": 1966,
+      "yearEnd": null,
+      "yearRanges": [
+        {
+          "yearStart": 1966,
+          "yearEnd": 1978,
+          "engineIds": [],
+          "transmissionIds": [
+            "mopar_727",
+            "mopar_a833"
+          ],
+          "trimNote": "1st-4th Gen B-body"
+        },
+        {
+          "yearStart": 2006,
+          "yearEnd": 2023,
+          "engineIds": [],
+          "transmissionIds": [
+            "mopar_8hp70"
+          ],
+          "trimNote": "6th-7th Gen LX/LD Sedan"
+        },
+        {
+          "yearStart": 2024,
+          "yearEnd": null,
+          "engineIds": [],
+          "transmissionIds": [],
+          "trimNote": "8th Gen Daytona EV / Sixpack"
+        }
+      ],
+      "engineIds": [],
+      "transmissionIds": [
+        "mopar_727",
+        "mopar_a833",
+        "mopar_8hp70"
+      ],
+      "partIds": [],
+      "sources": [
+        "Chrysler / Mopar Service Manuals"
+      ],
+      "verificationStatus": "PARTIAL"
+    },
+    {
+      "id": "toyota_supra",
+      "make": "Toyota",
+      "parentMake": "Toyota Motor Corporation",
+      "model": "Supra",
+      "chassisCodes": [
+        "A40",
+        "A50",
+        "A60",
+        "A70",
+        "A80",
+        "J29",
+        "DB"
+      ],
+      "category": "Sports Car",
+      "yearStart": 1978,
+      "yearEnd": null,
+      "yearRanges": [
+        {
+          "yearStart": 1978,
+          "yearEnd": 1992,
+          "engineIds": [],
+          "transmissionIds": [],
+          "trimNote": "A40/A50 (M-series), A60 (5M-GE), A70 (7M-GE / 7M-GTE / 1JZ-GTE)"
+        },
+        {
+          "yearStart": 1993,
+          "yearEnd": 2002,
+          "engineIds": [
+            "toyota_2jz"
+          ],
+          "transmissionIds": [
+            "toyota_v160"
+          ],
+          "trimNote": "4th Gen A80 (2JZ-GE / 2JZ-GTE)"
+        },
+        {
+          "yearStart": 2019,
+          "yearEnd": null,
+          "engineIds": [],
+          "transmissionIds": [
+            "zf_8hp70_universal"
+          ],
+          "trimNote": "5th Gen GR Supra J29/DB (B48 / B58)"
+        }
+      ],
+      "engineIds": [
+        "toyota_2jz"
+      ],
+      "transmissionIds": [
+        "toyota_v160",
+        "zf_8hp70_universal"
+      ],
+      "partIds": [],
+      "sources": [
+        "Toyota Repair Manual RM315U (A80 Supra)",
+        "Toyota Global Newsroom"
+      ],
+      "verificationStatus": "PARTIAL"
+    },
+    {
+      "id": "nissan_skyline_gt_r",
+      "make": "Nissan",
+      "parentMake": "Nissan Motor Co., Ltd.",
+      "model": "Skyline / GT-R",
+      "chassisCodes": [
+        "PGC10",
+        "KPGC10",
+        "KPGC110",
+        "R30",
+        "R31",
+        "R32",
+        "R33",
+        "R34",
+        "V35",
+        "V36",
+        "V37",
+        "R35"
+      ],
+      "category": "Sports Sedan / Sports Car",
+      "yearStart": 1957,
+      "yearEnd": null,
+      "yearRanges": [
+        {
+          "yearStart": 1989,
+          "yearEnd": 2002,
+          "engineIds": [],
+          "transmissionIds": [],
+          "trimNote": "R32 / R33 / R34 (RB20, RB25, RB26DETT)"
+        },
+        {
+          "yearStart": 2001,
+          "yearEnd": 2007,
+          "engineIds": [],
+          "transmissionIds": [
+            "nissan_cd009"
+          ],
+          "trimNote": "V35 Skyline Coupe / Infiniti G35 (VQ35DE)"
+        },
+        {
+          "yearStart": 2007,
+          "yearEnd": 2024,
+          "engineIds": [],
+          "transmissionIds": [],
+          "trimNote": "R35 GT-R (VR38DETT)"
+        }
+      ],
+      "engineIds": [],
+      "transmissionIds": [
+        "nissan_cd009"
+      ],
+      "partIds": [],
+      "sources": [
+        "Nissan Factory Service Manuals"
+      ],
+      "verificationStatus": "PARTIAL"
+    },
+    {
+      "id": "nissan_350z",
+      "make": "Nissan",
+      "parentMake": "Nissan Motor Co., Ltd.",
+      "model": "350Z / Fairlady Z",
+      "chassisCodes": [
+        "Z33"
+      ],
+      "category": "Sports Car",
+      "yearStart": 2002,
+      "yearEnd": 2009,
+      "yearRanges": [
+        {
+          "yearStart": 2002,
+          "yearEnd": 2009,
+          "engineIds": [],
+          "transmissionIds": [
+            "nissan_cd009"
+          ],
+          "trimNote": "Z33 (VQ35DE / VQ35HR, CD009 6MT)"
+        }
+      ],
+      "engineIds": [],
+      "transmissionIds": [
+        "nissan_cd009"
+      ],
+      "partIds": [],
+      "sources": [
+        "Nissan Z33 Factory Service Manual"
+      ],
+      "verificationStatus": "PARTIAL"
+    },
+    {
+      "id": "chevrolet_el_camino",
+      "make": "Chevrolet",
+      "parentMake": "General Motors",
+      "model": "El Camino",
+      "chassisCodes": [
+        "B-body",
+        "A-body",
+        "G-body"
+      ],
+      "category": "Coupe Utility / Muscle Car",
+      "yearStart": 1959,
+      "yearEnd": 1987,
+      "yearRanges": [
+        {
+          "yearStart": 1959,
+          "yearEnd": 1960,
+          "engineIds": [],
+          "transmissionIds": [
+            "gm_powerglide"
+          ],
+          "trimNote": "1st Gen B-body (283 / 348)"
+        },
+        {
+          "yearStart": 1964,
+          "yearEnd": 1967,
+          "engineIds": [
+            "gm_sbc_327"
+          ],
+          "transmissionIds": [
+            "gm_powerglide",
+            "muncieM20",
+            "muncieM21"
+          ],
+          "trimNote": "2nd Gen A-body (283, 327, 396)"
+        },
+        {
+          "yearStart": 1968,
+          "yearEnd": 1972,
+          "engineIds": [
+            "gm_sbc_327",
+            "gm_sbc_350",
+            "gm_bbc_454"
+          ],
+          "transmissionIds": [
+            "gm_powerglide",
+            "gm_th350",
+            "gm_th400",
+            "muncieM20",
+            "muncieM21",
+            "muncieM22"
+          ],
+          "trimNote": "3rd Gen A-body (SS 396 / SS 454)"
+        },
+        {
+          "yearStart": 1973,
+          "yearEnd": 1977,
+          "engineIds": [
+            "gm_sbc_350",
+            "gm_bbc_454"
+          ],
+          "transmissionIds": [
+            "gm_th350",
+            "gm_th400"
+          ],
+          "trimNote": "4th Gen Colonnade A-body"
+        },
+        {
+          "yearStart": 1978,
+          "yearEnd": 1987,
+          "engineIds": [
+            "gm_sbc_350"
+          ],
+          "transmissionIds": [
+            "gm_th350",
+            "gm_r2004r",
+            "gm_r7004"
+          ],
+          "trimNote": "5th Gen G-body"
+        }
+      ],
+      "engineIds": [
+        "gm_sbc_327",
+        "gm_sbc_350",
+        "gm_bbc_454"
+      ],
+      "transmissionIds": [
+        "gm_powerglide",
+        "gm_th350",
+        "gm_th400",
+        "gm_r2004r",
+        "gm_r7004",
+        "muncieM20",
+        "muncieM21",
+        "muncieM22"
+      ],
+      "partIds": [],
+      "sources": [
+        "GM Heritage Archive",
+        "Chevrolet Service Manuals 1959-1987"
+      ],
+      "verificationStatus": "PARTIAL"
+    },
+    {
+      "id": "chevrolet_monte_carlo",
+      "make": "Chevrolet",
+      "parentMake": "General Motors",
+      "model": "Monte Carlo",
+      "chassisCodes": [
+        "A-body",
+        "G-body",
+        "W-body"
+      ],
+      "category": "Personal Luxury / Muscle Car",
+      "yearStart": 1970,
+      "yearEnd": 2007,
+      "yearRanges": [
+        {
+          "yearStart": 1970,
+          "yearEnd": 1972,
+          "engineIds": [
+            "gm_sbc_350",
+            "gm_bbc_454"
+          ],
+          "transmissionIds": [
+            "gm_th350",
+            "gm_th400",
+            "muncieM20",
+            "muncieM21"
+          ],
+          "trimNote": "1st Gen A-body (incl. SS 454)"
+        },
+        {
+          "yearStart": 1973,
+          "yearEnd": 1977,
+          "engineIds": [
+            "gm_sbc_350",
+            "gm_bbc_454"
+          ],
+          "transmissionIds": [
+            "gm_th350",
+            "gm_th400"
+          ],
+          "trimNote": "2nd Gen A-body"
+        },
+        {
+          "yearStart": 1978,
+          "yearEnd": 1988,
+          "engineIds": [
+            "gm_sbc_350"
+          ],
+          "transmissionIds": [
+            "gm_th350",
+            "gm_r2004r"
+          ],
+          "trimNote": "3rd & 4th Gen G-body (incl. Monte Carlo SS)"
+        },
+        {
+          "yearStart": 1995,
+          "yearEnd": 2007,
+          "engineIds": [],
+          "transmissionIds": [],
+          "trimNote": "5th & 6th Gen FWD W-body"
+        }
+      ],
+      "engineIds": [
+        "gm_sbc_350",
+        "gm_bbc_454"
+      ],
+      "transmissionIds": [
+        "gm_th350",
+        "gm_th400",
+        "gm_r2004r",
+        "muncieM20",
+        "muncieM21"
+      ],
+      "partIds": [],
+      "sources": [
+        "GM Heritage Archive"
+      ],
+      "verificationStatus": "PARTIAL"
+    },
+    {
+      "id": "pontiac_firebird",
+      "make": "Pontiac",
+      "parentMake": "General Motors",
+      "model": "Firebird / Trans Am",
+      "chassisCodes": [
+        "F-body"
+      ],
+      "category": "Pony Car / Muscle Car",
+      "yearStart": 1967,
+      "yearEnd": 2002,
+      "yearRanges": [
+        {
+          "yearStart": 1967,
+          "yearEnd": 1969,
+          "engineIds": [],
+          "transmissionIds": [
+            "gm_powerglide",
+            "gm_th350",
+            "gm_th400",
+            "muncieM20",
+            "muncieM21"
+          ],
+          "trimNote": "1st Gen F-body (Pontiac 326, 350, 400, Sprint OHC-6)"
+        },
+        {
+          "yearStart": 1970,
+          "yearEnd": 1981,
+          "engineIds": [],
+          "transmissionIds": [
+            "gm_th350",
+            "gm_th400",
+            "muncieM20",
+            "muncieM21",
+            "muncieM22",
+            "super_t10"
+          ],
+          "trimNote": "2nd Gen F-body (Pontiac 350, 400, 455, Olds 403, Chevy 305/350)"
+        },
+        {
+          "yearStart": 1982,
+          "yearEnd": 1992,
+          "engineIds": [
+            "gm_sbc_350"
+          ],
+          "transmissionIds": [
+            "gm_r7004",
+            "tremecT5"
+          ],
+          "trimNote": "3rd Gen F-body (Trans Am GTA L98 350)"
+        },
+        {
+          "yearStart": 1993,
+          "yearEnd": 2002,
+          "engineIds": [
+            "gm_sbc_350"
+          ],
+          "transmissionIds": [
+            "gm_r4l60e",
+            "tremecT56"
+          ],
+          "trimNote": "4th Gen F-body (LT1 / LS1 Trans Am & Firehawk)"
+        }
+      ],
+      "engineIds": [
+        "gm_sbc_350"
+      ],
+      "transmissionIds": [
+        "gm_powerglide",
+        "gm_th350",
+        "gm_th400",
+        "gm_r7004",
+        "gm_r4l60e",
+        "muncieM20",
+        "muncieM21",
+        "muncieM22",
+        "super_t10",
+        "tremecT5",
+        "tremecT56"
+      ],
+      "partIds": [],
+      "sources": [
+        "Pontiac Historic Services (PHS)",
+        "GM Heritage Archive"
+      ],
+      "verificationStatus": "PARTIAL"
+    },
+    {
+      "id": "pontiac_gto",
+      "make": "Pontiac",
+      "parentMake": "General Motors",
+      "model": "GTO",
+      "chassisCodes": [
+        "A-body",
+        "X-body",
+        "V-body"
+      ],
+      "category": "Muscle Car",
+      "yearStart": 1964,
+      "yearEnd": 2006,
+      "yearRanges": [
+        {
+          "yearStart": 1964,
+          "yearEnd": 1967,
+          "engineIds": [],
+          "transmissionIds": [
+            "gm_th400",
+            "muncieM20",
+            "muncieM21"
+          ],
+          "trimNote": "1st Gen A-body (Pontiac 389 / 400)"
+        },
+        {
+          "yearStart": 1968,
+          "yearEnd": 1972,
+          "engineIds": [],
+          "transmissionIds": [
+            "gm_th350",
+            "gm_th400",
+            "muncieM20",
+            "muncieM21",
+            "muncieM22"
+          ],
+          "trimNote": "2nd Gen A-body (400 / 455 HO, The Judge)"
+        },
+        {
+          "yearStart": 1973,
+          "yearEnd": 1974,
+          "engineIds": [],
+          "transmissionIds": [
+            "gm_th350",
+            "gm_th400",
+            "muncieM20"
+          ],
+          "trimNote": "3rd Gen A-body (1973) & 4th Gen X-body Ventura (1974)"
+        },
+        {
+          "yearStart": 2004,
+          "yearEnd": 2006,
+          "engineIds": [],
+          "transmissionIds": [
+            "gm_r4l60e",
+            "tremecT56"
+          ],
+          "trimNote": "5th Gen V-body Monaro-based (LS1 / LS2)"
+        }
+      ],
+      "engineIds": [],
+      "transmissionIds": [
+        "gm_th350",
+        "gm_th400",
+        "gm_r4l60e",
+        "muncieM20",
+        "muncieM21",
+        "muncieM22",
+        "tremecT56"
+      ],
+      "partIds": [],
+      "sources": [
+        "Pontiac Historic Services (PHS)",
+        "GM Heritage Archive"
+      ],
+      "verificationStatus": "PARTIAL"
+    },
+    {
+      "id": "oldsmobile_cutlass_442",
+      "make": "Oldsmobile",
+      "parentMake": "General Motors",
+      "model": "Cutlass / 4-4-2",
+      "chassisCodes": [
+        "A-body",
+        "G-body",
+        "N-body"
+      ],
+      "category": "Intermediate / Muscle Car",
+      "yearStart": 1961,
+      "yearEnd": 1999,
+      "yearRanges": [
+        {
+          "yearStart": 1964,
+          "yearEnd": 1972,
+          "engineIds": [],
+          "transmissionIds": [
+            "gm_th350",
+            "gm_th400",
+            "muncieM20",
+            "muncieM21",
+            "muncieM22"
+          ],
+          "trimNote": "A-body Cutlass & 4-4-2 (Olds 330, 350, 400, 455)"
+        },
+        {
+          "yearStart": 1973,
+          "yearEnd": 1988,
+          "engineIds": [],
+          "transmissionIds": [
+            "gm_th350",
+            "gm_th400",
+            "gm_r2004r"
+          ],
+          "trimNote": "Colonnade A-body & G-body Cutlass Supreme / Hurst/Olds"
+        }
+      ],
+      "engineIds": [],
+      "transmissionIds": [
+        "gm_th350",
+        "gm_th400",
+        "gm_r2004r",
+        "muncieM20",
+        "muncieM21",
+        "muncieM22"
+      ],
+      "partIds": [],
+      "sources": [
+        "GM Heritage Archive",
+        "Oldsmobile Chassis Service Manuals"
+      ],
+      "verificationStatus": "PARTIAL"
+    },
+    {
+      "id": "buick_regal_gnx",
+      "make": "Buick",
+      "parentMake": "General Motors",
+      "model": "Regal / Grand National / GNX",
+      "chassisCodes": [
+        "A-body",
+        "G-body",
+        "W-body",
+        "Epsilon II"
+      ],
+      "category": "Personal Luxury / Muscle Car",
+      "yearStart": 1973,
+      "yearEnd": 2020,
+      "yearRanges": [
+        {
+          "yearStart": 1973,
+          "yearEnd": 1977,
+          "engineIds": [],
+          "transmissionIds": [
+            "gm_th350",
+            "gm_th400"
+          ],
+          "trimNote": "1st Gen A-body"
+        },
+        {
+          "yearStart": 1978,
+          "yearEnd": 1987,
+          "engineIds": [],
+          "transmissionIds": [
+            "gm_th350",
+            "gm_r2004r"
+          ],
+          "trimNote": "2nd Gen G-body (incl. 1984-1987 Turbo Regal / Grand National / GNX 3.8L LC2)"
+        }
+      ],
+      "engineIds": [],
+      "transmissionIds": [
+        "gm_th350",
+        "gm_th400",
+        "gm_r2004r"
+      ],
+      "partIds": [],
+      "sources": [
+        "GM Heritage Archive",
+        "Buick Chassis Service Manuals"
+      ],
+      "verificationStatus": "PARTIAL"
+    },
+    {
+      "id": "gmc_sierra",
+      "make": "GMC",
+      "parentMake": "General Motors",
+      "model": "Sierra (1500 / 2500HD / 3500HD)",
+      "chassisCodes": [
+        "GMT400",
+        "GMT800",
+        "GMT900",
+        "K2XX",
+        "T1XX"
+      ],
+      "category": "Full-Size Pickup",
+      "yearStart": 1988,
+      "yearEnd": null,
+      "yearRanges": [
+        {
+          "yearStart": 1988,
+          "yearEnd": 1998,
+          "engineIds": [
+            "gm_sbc_350",
+            "gm_bbc_454"
+          ],
+          "transmissionIds": [
+            "gm_r7004",
+            "gm_r4l60e",
+            "gm_r4l80e"
+          ],
+          "trimNote": "GMT400"
+        },
+        {
+          "yearStart": 1999,
+          "yearEnd": 2007,
+          "engineIds": [],
+          "transmissionIds": [
+            "gm_r4l60e",
+            "gm_r4l80e",
+            "allison_1000"
+          ],
+          "trimNote": "GMT800"
+        },
+        {
+          "yearStart": 2007,
+          "yearEnd": null,
+          "engineIds": [],
+          "transmissionIds": [
+            "gm_r4l60e",
+            "gm_r6l80e",
+            "gm_r10l90",
+            "allison_1000"
+          ],
+          "trimNote": "GMT900 / K2XX / T1XX"
+        }
+      ],
+      "engineIds": [
+        "gm_sbc_350",
+        "gm_bbc_454"
+      ],
+      "transmissionIds": [
+        "gm_r7004",
+        "gm_r4l60e",
+        "gm_r4l80e",
+        "gm_r6l80e",
+        "gm_r10l90",
+        "allison_1000"
+      ],
+      "partIds": [],
+      "sources": [
+        "GM Truck Heritage Archive"
+      ],
+      "verificationStatus": "PARTIAL"
+    },
+    {
+      "id": "ford_fairlane_torino",
+      "make": "Ford",
+      "parentMake": "Ford Motor Company",
+      "model": "Fairlane / Torino",
+      "chassisCodes": [
+        "Intermediate"
+      ],
+      "category": "Intermediate / Muscle Car",
+      "yearStart": 1955,
+      "yearEnd": 1976,
+      "yearRanges": [
+        {
+          "yearStart": 1962,
+          "yearEnd": 1971,
+          "engineIds": [
+            "ford_302"
+          ],
+          "transmissionIds": [
+            "ford_c4",
+            "ford_c6",
+            "ford_toploader"
+          ],
+          "trimNote": "Intermediate Fairlane / Fairlane 500 / Torino GT / Cobra"
+        },
+        {
+          "yearStart": 1972,
+          "yearEnd": 1976,
+          "engineIds": [
+            "ford_302"
+          ],
+          "transmissionIds": [
+            "ford_c4",
+            "ford_c6"
+          ],
+          "trimNote": "Gran Torino (302, 351C, 351W, 400, 429, 460)"
+        }
+      ],
+      "engineIds": [
+        "ford_302"
+      ],
+      "transmissionIds": [
+        "ford_c4",
+        "ford_c6",
+        "ford_toploader"
+      ],
+      "partIds": [],
+      "sources": [
+        "Ford Motor Company Shop Manuals"
+      ],
+      "verificationStatus": "PARTIAL"
+    },
+    {
+      "id": "ford_thunderbird",
+      "make": "Ford",
+      "parentMake": "Ford Motor Company",
+      "model": "Thunderbird",
+      "chassisCodes": [
+        "Squarebird",
+        "Bulletbird",
+        "Flairbird",
+        "Fox",
+        "MN12",
+        "DEW98"
+      ],
+      "category": "Personal Luxury / Sports Car",
+      "yearStart": 1955,
+      "yearEnd": 2005,
+      "yearRanges": [
+        {
+          "yearStart": 1955,
+          "yearEnd": 1979,
+          "engineIds": [
+            "ford_302"
+          ],
+          "transmissionIds": [
+            "ford_c4",
+            "ford_c6"
+          ],
+          "trimNote": "1st through 7th Gen (Y-block, FE, 385-series, Windsor)"
+        },
+        {
+          "yearStart": 1980,
+          "yearEnd": 1988,
+          "engineIds": [
+            "ford_302"
+          ],
+          "transmissionIds": [
+            "ford_aod",
+            "tremecT5"
+          ],
+          "trimNote": "8th & 9th Gen Fox-body (5.0 HO & 2.3L Turbo Coupe)"
+        },
+        {
+          "yearStart": 1989,
+          "yearEnd": 1997,
+          "engineIds": [
+            "ford_302"
+          ],
+          "transmissionIds": [
+            "ford_aod"
+          ],
+          "trimNote": "10th Gen MN12 (3.8 V6, 3.8 Supercharged, 5.0L, 4.6L)"
+        }
+      ],
+      "engineIds": [
+        "ford_302"
+      ],
+      "transmissionIds": [
+        "ford_c4",
+        "ford_c6",
+        "ford_aod",
+        "tremecT5"
+      ],
+      "partIds": [],
+      "sources": [
+        "Ford Motor Company Heritage Vault"
+      ],
+      "verificationStatus": "PARTIAL"
+    },
+    {
+      "id": "mercury_cougar",
+      "make": "Mercury",
+      "parentMake": "Ford Motor Company",
+      "model": "Cougar",
+      "chassisCodes": [
+        "1st-Gen",
+        "Fox",
+        "MN12"
+      ],
+      "category": "Pony Car / Personal Luxury",
+      "yearStart": 1967,
+      "yearEnd": 2002,
+      "yearRanges": [
+        {
+          "yearStart": 1967,
+          "yearEnd": 1973,
+          "engineIds": [
+            "ford_302"
+          ],
+          "transmissionIds": [
+            "ford_c4",
+            "ford_c6",
+            "ford_toploader"
+          ],
+          "trimNote": "1st & 2nd Gen Mustang-platform (289, 302, 351, 390, 428 CJ, 429)"
+        },
+        {
+          "yearStart": 1980,
+          "yearEnd": 1988,
+          "engineIds": [
+            "ford_302"
+          ],
+          "transmissionIds": [
+            "ford_aod"
+          ],
+          "trimNote": "Fox-body XR-7"
+        }
+      ],
+      "engineIds": [
+        "ford_302"
+      ],
+      "transmissionIds": [
+        "ford_c4",
+        "ford_c6",
+        "ford_aod",
+        "ford_toploader"
+      ],
+      "partIds": [],
+      "sources": [
+        "Ford Motor Company Shop Manuals"
+      ],
+      "verificationStatus": "PARTIAL"
+    },
+    {
+      "id": "plymouth_barracuda",
+      "make": "Plymouth",
+      "parentMake": "Stellantis (Chrysler)",
+      "model": "Barracuda / 'Cuda",
+      "chassisCodes": [
+        "A-body",
+        "E-body"
+      ],
+      "category": "Pony Car / Muscle Car",
+      "yearStart": 1964,
+      "yearEnd": 1974,
+      "yearRanges": [
+        {
+          "yearStart": 1964,
+          "yearEnd": 1969,
+          "engineIds": [],
+          "transmissionIds": [
+            "mopar_727",
+            "mopar_a833"
+          ],
+          "trimNote": "1st & 2nd Gen A-body (Slant-6, 273, 318, 340, 383, 440)"
+        },
+        {
+          "yearStart": 1970,
+          "yearEnd": 1974,
+          "engineIds": [],
+          "transmissionIds": [
+            "mopar_727",
+            "mopar_a833"
+          ],
+          "trimNote": "3rd Gen E-body ('Cuda 340, 383, 440, 426 Hemi)"
+        }
+      ],
+      "engineIds": [],
+      "transmissionIds": [
+        "mopar_727",
+        "mopar_a833"
+      ],
+      "partIds": [],
+      "sources": [
+        "Chrysler / Plymouth Service Manuals"
+      ],
+      "verificationStatus": "PARTIAL"
+    },
+    {
+      "id": "plymouth_road_runner",
+      "make": "Plymouth",
+      "parentMake": "Stellantis (Chrysler)",
+      "model": "Road Runner / GTX / Satellite",
+      "chassisCodes": [
+        "B-body",
+        "F-body"
+      ],
+      "category": "Muscle Car",
+      "yearStart": 1965,
+      "yearEnd": 1980,
+      "yearRanges": [
+        {
+          "yearStart": 1968,
+          "yearEnd": 1974,
+          "engineIds": [],
+          "transmissionIds": [
+            "mopar_727",
+            "mopar_a833"
+          ],
+          "trimNote": "B-body Road Runner / Superbird / GTX (383, 400, 440, 426 Hemi)"
+        }
+      ],
+      "engineIds": [],
+      "transmissionIds": [
+        "mopar_727",
+        "mopar_a833"
+      ],
+      "partIds": [],
+      "sources": [
+        "Chrysler / Plymouth Service Manuals"
+      ],
+      "verificationStatus": "PARTIAL"
+    },
+    {
+      "id": "dodge_ram_pickup",
+      "make": "Dodge / Ram",
+      "parentMake": "Stellantis (Chrysler)",
+      "model": "D/W Series / Ram 1500 / 2500 / 3500",
+      "chassisCodes": [
+        "D/W",
+        "BR/BE",
+        "DR/DH",
+        "DS/DJ",
+        "DT"
+      ],
+      "category": "Full-Size Pickup",
+      "yearStart": 1961,
+      "yearEnd": null,
+      "yearRanges": [
+        {
+          "yearStart": 1961,
+          "yearEnd": 1993,
+          "engineIds": [],
+          "transmissionIds": [
+            "mopar_727",
+            "mopar_a500_42re"
+          ],
+          "trimNote": "D/W Series (LA 318/360, B/RB 383/440, Cummins 6BT)"
+        },
+        {
+          "yearStart": 1994,
+          "yearEnd": 2002,
+          "engineIds": [],
+          "transmissionIds": [
+            "mopar_a500_42re"
+          ],
+          "trimNote": "2nd Gen BR/BE Ram"
+        },
+        {
+          "yearStart": 2013,
+          "yearEnd": null,
+          "engineIds": [],
+          "transmissionIds": [
+            "mopar_8hp70"
+          ],
+          "trimNote": "4th & 5th Gen Ram 1500 (ZF 8HP70 / 8HP75)"
+        }
+      ],
+      "engineIds": [],
+      "transmissionIds": [
+        "mopar_727",
+        "mopar_a500_42re",
+        "mopar_8hp70"
+      ],
+      "partIds": [],
+      "sources": [
+        "Chrysler / Ram Truck Service Manuals"
+      ],
+      "verificationStatus": "PARTIAL"
+    },
+    {
+      "id": "jeep_wrangler_cj",
+      "make": "Jeep",
+      "parentMake": "Stellantis (Chrysler)",
+      "model": "CJ / Wrangler (YJ / TJ / JK / JL)",
+      "chassisCodes": [
+        "CJ-5",
+        "CJ-7",
+        "YJ",
+        "TJ",
+        "JK",
+        "JL"
+      ],
+      "category": "Off-Road / 4x4",
+      "yearStart": 1945,
+      "yearEnd": null,
+      "yearRanges": [
+        {
+          "yearStart": 1972,
+          "yearEnd": 1986,
+          "engineIds": [],
+          "transmissionIds": [
+            "mopar_727",
+            "tremecT5"
+          ],
+          "trimNote": "CJ-5 / CJ-7 / CJ-8 (AMC 232/258 I6, 304 V8)"
+        },
+        {
+          "yearStart": 1987,
+          "yearEnd": 2006,
+          "engineIds": [],
+          "transmissionIds": [
+            "mopar_a500_42re"
+          ],
+          "trimNote": "YJ & TJ Wrangler (2.5L I4, 4.0L I6; 42RLE in late TJ)"
+        },
+        {
+          "yearStart": 2018,
+          "yearEnd": null,
+          "engineIds": [],
+          "transmissionIds": [
+            "mopar_8hp70"
+          ],
+          "trimNote": "JL Wrangler (850RE / 8HP75)"
+        }
+      ],
+      "engineIds": [],
+      "transmissionIds": [
+        "mopar_727",
+        "mopar_a500_42re",
+        "mopar_8hp70",
+        "tremecT5"
+      ],
+      "partIds": [],
+      "sources": [
+        "Jeep Factory Service Manuals"
+      ],
+      "verificationStatus": "PARTIAL"
+    },
+    {
+      "id": "subaru_wrx_sti",
+      "make": "Subaru",
+      "parentMake": "Subaru Corporation",
+      "model": "Impreza WRX / WRX STI",
+      "chassisCodes": [
+        "GC8",
+        "GF8",
+        "GD",
+        "GG",
+        "GR",
+        "GV",
+        "VA",
+        "VB"
+      ],
+      "category": "Sports Compact / Rally",
+      "yearStart": 1992,
+      "yearEnd": null,
+      "yearRanges": [
+        {
+          "yearStart": 2001,
+          "yearEnd": 2021,
+          "engineIds": [],
+          "transmissionIds": [
+            "subaru_ty85_6mt"
+          ],
+          "trimNote": "GD/GG, GR/GV, VA WRX STI (EJ207 / EJ257 with TY85 6-speed DCCD)"
+        }
+      ],
+      "engineIds": [],
+      "transmissionIds": [
+        "subaru_ty85_6mt"
+      ],
+      "partIds": [],
+      "sources": [
+        "Subaru Factory Service Manuals"
+      ],
+      "verificationStatus": "PARTIAL"
+    },
+    {
+      "id": "chevrolet_malibu",
+      "make": "Chevrolet",
+      "parentMake": "General Motors",
+      "model": "Malibu",
+      "chassisCodes": [
+        "A-body",
+        "G-body",
+        "N-body",
+        "Epsilon",
+        "Epsilon II",
+        "E2XX"
+      ],
+      "category": "Intermediate / Mid-Size",
+      "yearStart": 1964,
+      "yearEnd": 2025,
+      "yearRanges": [
+        {
+          "yearStart": 1964,
+          "yearEnd": 1977,
+          "engineIds": [
+            "gm_sbc_327",
+            "gm_sbc_350",
+            "gm_bbc_396",
+            "gm_bbc_454"
+          ],
+          "transmissionIds": [
+            "gm_powerglide",
+            "gm_th350",
+            "gm_th400",
+            "muncieM20",
+            "muncieM21"
+          ],
+          "trimNote": "Chevelle Malibu trim & 1973-1976 Chevelle Laguna S-3 (A-body); exact per-year RPO pairings PARTIAL"
+        },
+        {
+          "yearStart": 1978,
+          "yearEnd": 1983,
+          "engineIds": [
+            "gm_sbc_350"
+          ],
+          "transmissionIds": [
+            "gm_th350",
+            "gm_r2004r"
+          ],
+          "trimNote": "4th Gen standalone G-body Malibu (incl. 9C1 / 350 V8 police & base V6/305 engines pending Packet 4)"
+        },
+        {
+          "yearStart": 1997,
+          "yearEnd": 2025,
+          "engineIds": [],
+          "transmissionIds": [],
+          "trimNote": "FWD N-body / Epsilon / Epsilon II / E2XX generations (modern FWD engine/transaxle IDs in Packet 4+)"
+        }
+      ],
+      "engineIds": [
+        "gm_sbc_327",
+        "gm_sbc_350",
+        "gm_bbc_396",
+        "gm_bbc_454"
+      ],
+      "transmissionIds": [
+        "gm_powerglide",
+        "gm_th350",
+        "gm_th400",
+        "gm_r2004r",
+        "muncieM20",
+        "muncieM21"
+      ],
+      "partIds": [],
+      "sources": [
+        "GM Heritage Archive",
+        "Chevrolet Service Manuals 1964-1983"
+      ],
+      "verificationStatus": "PARTIAL"
+    },
+    {
+      "id": "chevrolet_caprice_bel_air",
+      "make": "Chevrolet",
+      "parentMake": "General Motors",
+      "model": "Bel Air / Biscayne / Caprice",
+      "chassisCodes": [
+        "B-body"
+      ],
+      "category": "Full-Size",
+      "yearStart": 1950,
+      "yearEnd": 1996,
+      "yearRanges": [
+        {
+          "yearStart": 1950,
+          "yearEnd": 1964,
+          "engineIds": [
+            "gm_sbc_327"
+          ],
+          "transmissionIds": [
+            "gm_powerglide"
+          ],
+          "trimNote": "Early Bel Air / 1955-1957 Tri-Five / X-frame B-body (216/235 I6, 265/283/327/348/409 V8s)"
+        },
+        {
+          "yearStart": 1965,
+          "yearEnd": 1976,
+          "engineIds": [
+            "gm_sbc_327",
+            "gm_sbc_350",
+            "gm_bbc_396",
+            "gm_bbc_427",
+            "gm_bbc_454"
+          ],
+          "transmissionIds": [
+            "gm_powerglide",
+            "gm_th350",
+            "gm_th400",
+            "muncieM20"
+          ],
+          "trimNote": "B-body Bel Air / Biscayne / Caprice Classic"
+        },
+        {
+          "yearStart": 1977,
+          "yearEnd": 1996,
+          "engineIds": [
+            "gm_sbc_350"
+          ],
+          "transmissionIds": [
+            "gm_th350",
+            "gm_r2004r",
+            "gm_r7004",
+            "gm_r4l60e"
+          ],
+          "trimNote": "Downsized Box B-body & 4th Gen Aero B-body (incl. 9C1 / LT1 350)"
+        }
+      ],
+      "engineIds": [
+        "gm_sbc_327",
+        "gm_sbc_350",
+        "gm_bbc_396",
+        "gm_bbc_427",
+        "gm_bbc_454"
+      ],
+      "transmissionIds": [
+        "gm_powerglide",
+        "gm_th350",
+        "gm_th400",
+        "gm_r2004r",
+        "gm_r7004",
+        "gm_r4l60e",
+        "muncieM20"
+      ],
+      "partIds": [],
+      "sources": [
+        "GM Heritage Archive",
+        "Chevrolet Chassis Service Manuals"
+      ],
+      "verificationStatus": "PARTIAL"
+    },
+    {
+      "id": "dodge_coronet_super_bee",
+      "make": "Dodge",
+      "parentMake": "Stellantis (Chrysler)",
+      "model": "Coronet / Super Bee",
+      "chassisCodes": [
+        "B-body"
+      ],
+      "category": "Intermediate / Muscle Car",
+      "yearStart": 1949,
+      "yearEnd": 1976,
+      "yearRanges": [
+        {
+          "yearStart": 1949,
+          "yearEnd": 1959,
+          "engineIds": [],
+          "transmissionIds": [],
+          "trimNote": "1st-4th Gen full-size Coronet (Flathead 6 / Early Red Ram Hemi \u2014 not yet loaded)"
+        },
+        {
+          "yearStart": 1965,
+          "yearEnd": 1970,
+          "engineIds": [
+            "mopar_rb_440",
+            "mopar_426_hemi"
+          ],
+          "transmissionIds": [
+            "mopar_727",
+            "mopar_a833"
+          ],
+          "trimNote": "5th Gen B-body Coronet R/T & 1968-1970 Super Bee (273/318/383/440 Six Pack/426 Hemi)"
+        },
+        {
+          "yearStart": 1971,
+          "yearEnd": 1976,
+          "engineIds": [
+            "mopar_la_340",
+            "mopar_la_360",
+            "mopar_rb_440"
+          ],
+          "transmissionIds": [
+            "mopar_727"
+          ],
+          "trimNote": "6th-7th Gen Coronet sedan/wagon (Super Bee moved to Charger in 1971)"
+        }
+      ],
+      "engineIds": [
+        "mopar_la_340",
+        "mopar_la_360",
+        "mopar_rb_440",
+        "mopar_426_hemi"
+      ],
+      "transmissionIds": [
+        "mopar_727",
+        "mopar_a833"
+      ],
+      "partIds": [],
+      "sources": [
+        "Chrysler Historical Collection",
+        "Dodge Chassis Service Manuals 1965-1976"
+      ],
+      "verificationStatus": "PARTIAL"
+    },
+    {
+      "id": "dodge_dart_plymouth_duster",
+      "make": "Dodge / Plymouth",
+      "parentMake": "Stellantis (Chrysler)",
+      "model": "Dart / Demon / Duster",
+      "chassisCodes": [
+        "A-body"
+      ],
+      "category": "Compact / Muscle Car",
+      "yearStart": 1960,
+      "yearEnd": 1976,
+      "yearRanges": [
+        {
+          "yearStart": 1960,
+          "yearEnd": 1967,
+          "engineIds": [],
+          "transmissionIds": [
+            "mopar_727",
+            "mopar_a833"
+          ],
+          "trimNote": "Early B-body (1962) & 1st-3rd Gen A-body (Slant-6 / LA 273 \u2014 engine IDs not yet loaded)"
+        },
+        {
+          "yearStart": 1968,
+          "yearEnd": 1976,
+          "engineIds": [
+            "mopar_la_340",
+            "mopar_la_360",
+            "mopar_rb_440"
+          ],
+          "transmissionIds": [
+            "mopar_727",
+            "mopar_a833"
+          ],
+          "trimNote": "A-body Dart GTS / Swinger 340, Demon 340, Duster 340/360 & 1968-1969 383/440 GTS"
+        }
+      ],
+      "engineIds": [
+        "mopar_la_340",
+        "mopar_la_360",
+        "mopar_rb_440"
+      ],
+      "transmissionIds": [
+        "mopar_727",
+        "mopar_a833"
+      ],
+      "partIds": [],
+      "sources": [
+        "Chrysler Corporation Service Manuals 1963-1976"
+      ],
+      "verificationStatus": "PARTIAL"
+    },
+    {
+      "id": "ford_galaxie_500",
+      "make": "Ford",
+      "parentMake": "Ford Motor Company",
+      "model": "Galaxie / Galaxie 500",
+      "chassisCodes": [
+        "Full-Size"
+      ],
+      "category": "Full-Size",
+      "yearStart": 1959,
+      "yearEnd": 1974,
+      "yearRanges": [
+        {
+          "yearStart": 1959,
+          "yearEnd": 1964,
+          "engineIds": [
+            "ford_289"
+          ],
+          "transmissionIds": [
+            "ford_c4",
+            "ford_toploader"
+          ],
+          "trimNote": "1st & 2nd Gen Galaxie / 500 XL (289, plus FE 352/390/406/427 not yet loaded)"
+        },
+        {
+          "yearStart": 1965,
+          "yearEnd": 1974,
+          "engineIds": [
+            "ford_289",
+            "ford_302",
+            "ford_351w"
+          ],
+          "transmissionIds": [
+            "ford_c4",
+            "ford_c6",
+            "ford_toploader"
+          ],
+          "trimNote": "3rd & 4th Gen Galaxie 500 / 7-Litre (289/302/351W, plus FE 390/427/428 & 429/460)"
+        }
+      ],
+      "engineIds": [
+        "ford_289",
+        "ford_302",
+        "ford_351w"
+      ],
+      "transmissionIds": [
+        "ford_c4",
+        "ford_c6",
+        "ford_toploader"
+      ],
+      "partIds": [],
+      "sources": [
+        "Ford Motor Company Car Shop Manuals 1959-1974"
+      ],
+      "verificationStatus": "PARTIAL"
+    },
+    {
+      "id": "ford_falcon",
+      "make": "Ford",
+      "parentMake": "Ford Motor Company",
+      "model": "Falcon (North America)",
+      "chassisCodes": [
+        "Compact (1st-3rd Gen US)"
+      ],
+      "category": "Compact",
+      "yearStart": 1960,
+      "yearEnd": 1970,
+      "yearRanges": [
+        {
+          "yearStart": 1960,
+          "yearEnd": 1965,
+          "engineIds": [
+            "ford_289"
+          ],
+          "transmissionIds": [
+            "ford_c4",
+            "ford_toploader"
+          ],
+          "trimNote": "1st & 2nd Gen Falcon / Sprint (144/170/200 I6, 260/289 V8)"
+        },
+        {
+          "yearStart": 1966,
+          "yearEnd": 1970,
+          "engineIds": [
+            "ford_289",
+            "ford_302"
+          ],
+          "transmissionIds": [
+            "ford_c4",
+            "ford_toploader"
+          ],
+          "trimNote": "3rd Gen US Falcon (incl. 1970.5 intermediate Falcon 302)"
+        }
+      ],
+      "engineIds": [
+        "ford_289",
+        "ford_302"
+      ],
+      "transmissionIds": [
+        "ford_c4",
+        "ford_toploader"
+      ],
+      "partIds": [],
+      "sources": [
+        "Ford Falcon / Comet Shop Manuals 1960-1970"
+      ],
+      "verificationStatus": "PARTIAL"
+    },
+    {
+      "id": "pontiac_lemans_tempest",
+      "make": "Pontiac",
+      "parentMake": "General Motors",
+      "model": "Tempest / LeMans",
+      "chassisCodes": [
+        "Y-body",
+        "A-body",
+        "G-body"
+      ],
+      "category": "Intermediate / Muscle Car",
+      "yearStart": 1961,
+      "yearEnd": 1981,
+      "yearRanges": [
+        {
+          "yearStart": 1961,
+          "yearEnd": 1963,
+          "engineIds": [],
+          "transmissionIds": [],
+          "trimNote": "1st Gen Y-body rope-drive transaxle (Trophy 4 / 215 V8 / 326)"
+        },
+        {
+          "yearStart": 1964,
+          "yearEnd": 1977,
+          "engineIds": [
+            "gm_sbc_350"
+          ],
+          "transmissionIds": [
+            "gm_th350",
+            "gm_th400",
+            "muncieM20",
+            "muncieM21"
+          ],
+          "trimNote": "2nd-4th Gen A-body (Pontiac 326/350/400/455 engines awaiting family packet; late Chevy 305/350 corporate swaps)"
+        },
+        {
+          "yearStart": 1978,
+          "yearEnd": 1981,
+          "engineIds": [],
+          "transmissionIds": [
+            "gm_th350"
+          ],
+          "trimNote": "5th Gen downsized A/G-body"
+        }
+      ],
+      "engineIds": [
+        "gm_sbc_350"
+      ],
+      "transmissionIds": [
+        "gm_th350",
+        "gm_th400",
+        "muncieM20",
+        "muncieM21"
+      ],
+      "partIds": [],
+      "sources": [
+        "Pontiac Historic Services (PHS)",
+        "GM Heritage Archive"
+      ],
+      "verificationStatus": "PARTIAL"
+    },
+    {
+      "id": "amc_amx_javelin",
+      "make": "AMC",
+      "parentMake": "American Motors Corporation",
+      "model": "Javelin / AMX",
+      "chassisCodes": [
+        "AMC Pony / Javelin"
+      ],
+      "category": "Pony Car / Muscle Car",
+      "yearStart": 1968,
+      "yearEnd": 1974,
+      "yearRanges": [
+        {
+          "yearStart": 1968,
+          "yearEnd": 1970,
+          "engineIds": [],
+          "transmissionIds": [
+            "super_t10"
+          ],
+          "trimNote": "1st Gen Javelin & 2-seat AMX (AMC 290/343/390; BorgWarner T-10 / Shift-Command automatic)"
+        },
+        {
+          "yearStart": 1971,
+          "yearEnd": 1974,
+          "engineIds": [],
+          "transmissionIds": [
+            "mopar_727",
+            "super_t10"
+          ],
+          "trimNote": "2nd Gen Javelin & Javelin AMX (AMC 304/360/401; Torque-Command 727)"
+        }
+      ],
+      "engineIds": [],
+      "transmissionIds": [
+        "mopar_727",
+        "super_t10"
+      ],
+      "partIds": [],
+      "sources": [
+        "American Motors Technical Service Manuals 1968-1974"
+      ],
+      "verificationStatus": "PARTIAL"
+    }
+  ],
+  "engines": [
+    {
+      "id": "gm_sbc_350",
+      "make": "Chevrolet",
+      "family": "GM Small-Block Gen I (SBC)",
+      "name": "Chevrolet Small-Block 350 CID (5.7L)",
+      "cylinders": 8,
+      "layout": "90 deg V8 OHV",
+      "bankAngleDeg": 90,
+      "boreIn": 4.0,
+      "boreMm": 101.6,
+      "strokeIn": 3.48,
+      "strokeMm": 88.39,
+      "displacementCid": 349.85,
+      "rodLengthIn": 5.7,
+      "boreSpacingIn": 4.4,
+      "deckHeightIn": 9.025,
+      "deckHeightNote": "9.025 in measured ALONG THE BORE AXIS in repo GM-3970010 spec \u2014 definition open, awaiting Ray",
+      "deckClearanceIn": 0.015,
+      "headGasketIn": 0.039,
+      "camToCrankCenterIn": "UNVERIFIED \u2014 awaiting Ray measurement",
+      "flywheelToothCount": "UNVERIFIED \u2014 awaiting Ray (153T vs 168T)",
+      "oilPanBoltCount": "UNVERIFIED \u2014 awaiting Ray",
+      "mainBearingBoreMm": "62.205 \u00b10.012 mm",
+      "rodJournalMm": "53.34 mm",
+      "firingOrder": "1-8-4-3-6-5-7-2",
+      "sources": [
+        "GM Heritage Archive",
+        "Chevrolet Service Manuals (GM-3970010)",
+        "Ray baseline specs (deck clearance 0.015 in, gasket 0.039 in)"
+      ],
+      "verificationStatus": "PARTIAL"
+    },
+    {
+      "id": "gm_sbc_327",
+      "make": "Chevrolet",
+      "family": "GM Small-Block Gen I (SBC)",
+      "name": "Chevrolet Small-Block 327 CID (5.4L)",
+      "cylinders": 8,
+      "layout": "90 deg V8 OHV",
+      "bankAngleDeg": 90,
+      "boreIn": 4.0,
+      "boreMm": 101.6,
+      "strokeIn": 3.25,
+      "strokeMm": 82.55,
+      "displacementCid": 326.73,
+      "rodLengthIn": 5.7,
+      "boreSpacingIn": 4.4,
+      "deckHeightIn": "UNVERIFIED \u2014 verify small-journal 1962-1967 vs large-journal 1968-1969 print",
+      "firingOrder": "1-8-4-3-6-5-7-2",
+      "sources": [
+        "GM Heritage Archive Vehicle Information Kits (1962-1969 Camaro/Corvette/Chevelle)"
+      ],
+      "verificationStatus": "PARTIAL"
+    },
+    {
+      "id": "gm_bbc_396",
+      "make": "Chevrolet",
+      "family": "GM Big-Block Mark IV (BBC)",
+      "name": "Chevrolet Mark IV Big-Block 396 CID (6.5L)",
+      "cylinders": 8,
+      "layout": "90 deg V8 OHV",
+      "bankAngleDeg": 90,
+      "boreIn": 4.094,
+      "strokeIn": 3.76,
+      "displacementCid": 396.0,
+      "boreSpacingIn": 4.84,
+      "deckHeightIn": "UNVERIFIED \u2014 confirm against Chevrolet Chassis Service Manual 1965-1969 Mark IV print",
+      "rodLengthIn": "UNVERIFIED \u2014 confirm against Chevrolet Chassis Service Manual",
+      "firingOrder": "1-8-4-3-6-5-7-2",
+      "note": "1970-1972 402 CID shared Mark IV casting with 4.125 in bore (UNVERIFIED trim split per year)",
+      "sources": [
+        "GM Heritage Archive Vehicle Information Kits (1965-1969 Chevelle/Camaro/Impala)"
+      ],
+      "verificationStatus": "PARTIAL"
+    },
+    {
+      "id": "gm_bbc_427",
+      "make": "Chevrolet",
+      "family": "GM Big-Block Mark IV (BBC)",
+      "name": "Chevrolet Mark IV Big-Block 427 CID (7.0L)",
+      "cylinders": 8,
+      "layout": "90 deg V8 OHV",
+      "bankAngleDeg": 90,
+      "boreIn": 4.251,
+      "strokeIn": 3.76,
+      "displacementCid": 426.9,
+      "boreSpacingIn": 4.84,
+      "deckHeightIn": "UNVERIFIED \u2014 confirm against Chevrolet Chassis Service Manual Mark IV print",
+      "rodLengthIn": "UNVERIFIED \u2014 confirm against Chevrolet Chassis Service Manual",
+      "firingOrder": "1-8-4-3-6-5-7-2",
+      "sources": [
+        "GM Heritage Archive Vehicle Information Kits (1966-1969 Corvette/Camaro/Chevelle/Impala)"
+      ],
+      "verificationStatus": "PARTIAL"
+    },
+    {
+      "id": "gm_bbc_454",
+      "make": "Chevrolet",
+      "family": "GM Big-Block Mark IV (BBC)",
+      "name": "Chevrolet Mark IV Big-Block 454 CID (7.4L)",
+      "cylinders": 8,
+      "layout": "90 deg V8 OHV",
+      "bankAngleDeg": 90,
+      "boreIn": 4.251,
+      "strokeIn": 4.0,
+      "displacementCid": 454.1,
+      "boreSpacingIn": 4.84,
+      "deckHeightIn": "UNVERIFIED \u2014 confirm against Chevrolet Chassis Service Manual 1970+ Mark IV print",
+      "rodLengthIn": "UNVERIFIED \u2014 confirm against Chevrolet Chassis Service Manual",
+      "firingOrder": "1-8-4-3-6-5-7-2",
+      "sources": [
+        "GM Heritage Archive Vehicle Information Kits (1970+ Chevelle SS 454 / Corvette / C/K)"
+      ],
+      "verificationStatus": "PARTIAL"
+    },
+    {
+      "id": "ford_289",
+      "make": "Ford",
+      "family": "Ford Small-Block Windsor",
+      "name": "Ford Windsor 289 CID (4.7L)",
+      "cylinders": 8,
+      "layout": "90 deg V8 OHV",
+      "bankAngleDeg": 90,
+      "boreIn": 4.0,
+      "strokeIn": 2.87,
+      "displacementCid": 288.5,
+      "boreSpacingIn": "UNVERIFIED \u2014 confirm against Ford Shop Manual blueprint",
+      "deckHeightIn": "UNVERIFIED \u2014 confirm against Ford Shop Manual",
+      "rodLengthIn": "UNVERIFIED \u2014 confirm against Ford Shop Manual",
+      "firingOrder": "1-5-4-2-6-3-7-8",
+      "sources": [
+        "Ford Motor Company Car Shop Manuals (1965-1968 Mustang/Fairlane/Falcon)"
+      ],
+      "verificationStatus": "PARTIAL"
+    },
+    {
+      "id": "ford_302",
+      "make": "Ford",
+      "family": "Ford Small-Block Windsor",
+      "name": "Ford Windsor 302 CID (4.9L / 5.0L HO)",
+      "cylinders": 8,
+      "layout": "90 deg V8 OHV",
+      "bankAngleDeg": 90,
+      "boreIn": 4.0,
+      "strokeIn": 3.0,
+      "displacementCid": 301.6,
+      "boreSpacingIn": "UNVERIFIED \u2014 confirm against Ford Shop Manual blueprint",
+      "deckHeightIn": "UNVERIFIED \u2014 confirm against Ford Shop Manual",
+      "rodLengthIn": "UNVERIFIED \u2014 confirm against Ford Shop Manual",
+      "firingOrder": "1-5-4-2-6-3-7-8 (standard); 1-3-7-2-6-5-4-8 (5.0L HO)",
+      "sources": [
+        "Ford Motor Company Car & Truck Shop Manuals (1968-1995 Mustang/F-Series/Bronco)"
+      ],
+      "verificationStatus": "PARTIAL"
+    },
+    {
+      "id": "ford_351w",
+      "make": "Ford",
+      "family": "Ford Small-Block Windsor",
+      "name": "Ford Windsor 351W CID (5.8L)",
+      "cylinders": 8,
+      "layout": "90 deg V8 OHV",
+      "bankAngleDeg": 90,
+      "boreIn": 4.0,
+      "strokeIn": 3.5,
+      "displacementCid": 351.9,
+      "boreSpacingIn": "UNVERIFIED \u2014 confirm against Ford Shop Manual blueprint",
+      "deckHeightIn": "UNVERIFIED \u2014 confirm against Ford Shop Manual",
+      "rodLengthIn": "UNVERIFIED \u2014 confirm against Ford Shop Manual",
+      "firingOrder": "1-3-7-2-6-5-4-8",
+      "sources": [
+        "Ford Motor Company Car & Truck Shop Manuals (1969-1997 Mustang/Torino/F-Series)"
+      ],
+      "verificationStatus": "PARTIAL"
+    },
+    {
+      "id": "mopar_la_340",
+      "make": "Chrysler / Dodge / Plymouth",
+      "family": "Chrysler LA Small-Block",
+      "name": "Mopar LA 340 CID (5.6L)",
+      "cylinders": 8,
+      "layout": "90 deg V8 OHV",
+      "bankAngleDeg": 90,
+      "boreIn": 4.04,
+      "strokeIn": 3.31,
+      "displacementCid": 339.5,
+      "boreSpacingIn": "UNVERIFIED \u2014 confirm against Chrysler Service Manual",
+      "deckHeightIn": "UNVERIFIED \u2014 confirm against Chrysler Service Manual",
+      "rodLengthIn": "UNVERIFIED \u2014 confirm against Chrysler Service Manual",
+      "firingOrder": "1-8-4-3-6-5-7-2",
+      "sources": [
+        "Chrysler Corporation Chassis Service Manuals (1968-1973 Barracuda/Challenger/Dart)"
+      ],
+      "verificationStatus": "PARTIAL"
+    },
+    {
+      "id": "mopar_la_360",
+      "make": "Chrysler / Dodge / Plymouth",
+      "family": "Chrysler LA Small-Block",
+      "name": "Mopar LA 360 CID (5.9L)",
+      "cylinders": 8,
+      "layout": "90 deg V8 OHV",
+      "bankAngleDeg": 90,
+      "boreIn": 4.0,
+      "strokeIn": 3.58,
+      "displacementCid": 359.9,
+      "boreSpacingIn": "UNVERIFIED \u2014 confirm against Chrysler Service Manual",
+      "deckHeightIn": "UNVERIFIED \u2014 confirm against Chrysler Service Manual",
+      "rodLengthIn": "UNVERIFIED \u2014 confirm against Chrysler Service Manual",
+      "firingOrder": "1-8-4-3-6-5-7-2",
+      "sources": [
+        "Chrysler Corporation Service Manuals (1971-1992)"
+      ],
+      "verificationStatus": "PARTIAL"
+    },
+    {
+      "id": "mopar_rb_440",
+      "make": "Chrysler / Dodge / Plymouth",
+      "family": "Chrysler RB Big-Block",
+      "name": "Mopar RB 440 CID (7.2L)",
+      "cylinders": 8,
+      "layout": "90 deg V8 OHV",
+      "bankAngleDeg": 90,
+      "boreIn": 4.32,
+      "strokeIn": 3.75,
+      "displacementCid": 439.7,
+      "boreSpacingIn": "UNVERIFIED \u2014 confirm against Chrysler Service Manual",
+      "deckHeightIn": "UNVERIFIED \u2014 confirm against Chrysler Service Manual",
+      "rodLengthIn": "UNVERIFIED \u2014 confirm against Chrysler Service Manual",
+      "firingOrder": "1-8-4-3-6-5-7-2",
+      "sources": [
+        "Chrysler Corporation Service Manuals (1966-1978 Charger/Road Runner/Coronet/GTX)"
+      ],
+      "verificationStatus": "PARTIAL"
+    },
+    {
+      "id": "mopar_426_hemi",
+      "make": "Chrysler / Dodge / Plymouth",
+      "family": "Chrysler RB / Gen II Street Hemi",
+      "name": "Mopar 426 Street Hemi (7.0L)",
+      "cylinders": 8,
+      "layout": "90 deg V8 Hemispherical OHV",
+      "bankAngleDeg": 90,
+      "boreIn": 4.25,
+      "strokeIn": 3.75,
+      "displacementCid": 425.6,
+      "boreSpacingIn": "UNVERIFIED \u2014 confirm against Chrysler Service Manual",
+      "deckHeightIn": "UNVERIFIED \u2014 confirm against Chrysler Service Manual",
+      "rodLengthIn": "UNVERIFIED \u2014 confirm against Chrysler Service Manual",
+      "firingOrder": "1-8-4-3-6-5-7-2",
+      "sources": [
+        "Chrysler Corporation Street Hemi Service Manuals (1966-1971)"
+      ],
+      "verificationStatus": "PARTIAL"
+    }
+  ],
+  "transmissions": [
+    {
+      "id": "gm_powerglide",
+      "make": "General Motors",
+      "name": "GM Powerglide 2-Speed Automatic",
+      "type": "2-Speed Automatic",
+      "gearRatios": "UNVERIFIED \u2014 1.76:1 vs 1.82:1 low planetary set varies by year/application; confirm per GM Hydramatic manual",
+      "torqueRating": "UNVERIFIED",
+      "sources": [
+        "GM Hydramatic / Chevrolet Chassis Service Manuals"
+      ],
+      "verificationStatus": "PARTIAL"
+    },
+    {
+      "id": "gm_th350",
+      "make": "General Motors",
+      "name": "GM Turbo-Hydramatic 350 (TH350)",
+      "type": "3-Speed Automatic",
+      "gearRatios": "UNVERIFIED \u2014 confirm exact ratio & case length variants against GM Hydramatic Service Manual",
+      "torqueRating": "UNVERIFIED",
+      "sources": [
+        "GM Hydramatic Division Service Manuals"
+      ],
+      "verificationStatus": "PARTIAL"
+    },
+    {
+      "id": "gm_th400",
+      "make": "General Motors",
+      "name": "GM Turbo-Hydramatic 400 (TH400)",
+      "type": "3-Speed Automatic",
+      "gearRatios": "2.48 / 1.48 / 1.00:1",
+      "dimensionsMm": "616.0 x \u00d8342.0 mm case",
+      "torqueRating": "UNVERIFIED factory OEM limit (repo aftermarket billet assembly rated 1,650 Nm)",
+      "sources": [
+        "GM Hydramatic Division Spec (automotiveMatrix.ts)"
+      ],
+      "verificationStatus": "PARTIAL"
+    },
+    {
+      "id": "gm_r2004r",
+      "make": "General Motors",
+      "name": "GM Turbo-Hydramatic 200-4R",
+      "type": "4-Speed Overdrive Automatic",
+      "gearRatios": "UNVERIFIED \u2014 confirm exact ratios & BOP/Chevy dual bellhousing dims per GM Service Manual",
+      "torqueRating": "UNVERIFIED",
+      "sources": [
+        "GM Hydramatic / Buick Chassis Service Manuals"
+      ],
+      "verificationStatus": "PARTIAL"
+    },
+    {
+      "id": "gm_r7004",
+      "make": "General Motors",
+      "name": "GM Turbo-Hydramatic 700R4 (4L60)",
+      "type": "4-Speed Overdrive Automatic",
+      "gearRatios": "UNVERIFIED \u2014 confirm 3.06/1.62/1.00/0.70 against GM Service Manual",
+      "torqueRating": "UNVERIFIED",
+      "sources": [
+        "GM Hydramatic Service Manuals"
+      ],
+      "verificationStatus": "PARTIAL"
+    },
+    {
+      "id": "gm_r4l60e",
+      "make": "General Motors",
+      "name": "GM 4L60E",
+      "type": "4-Speed Electronically Controlled Automatic",
+      "gearRatios": "UNVERIFIED \u2014 confirm against GM Powertrain Service Manual",
+      "torqueRating": "UNVERIFIED",
+      "sources": [
+        "GM Powertrain Service Manuals"
+      ],
+      "verificationStatus": "PARTIAL"
+    },
+    {
+      "id": "gm_r4l80e",
+      "make": "General Motors",
+      "name": "GM 4L80E",
+      "type": "4-Speed Heavy-Duty Electronic Automatic",
+      "gearRatios": "UNVERIFIED \u2014 confirm against GM Powertrain Service Manual",
+      "torqueRating": "UNVERIFIED",
+      "sources": [
+        "GM Powertrain Service Manuals"
+      ],
+      "verificationStatus": "PARTIAL"
+    },
+    {
+      "id": "muncieM20",
+      "make": "General Motors",
+      "name": "Muncie M20 Wide-Ratio 4-Speed",
+      "type": "4-Speed Manual",
+      "gearRatios": "UNVERIFIED \u2014 1963-1965 (2.56 first) vs 1966-1974 (2.52 first); confirm tooth counts per Chevrolet Service Manual",
+      "torqueRating": "UNVERIFIED",
+      "sources": [
+        "Chevrolet Chassis Service Manuals 1963-1974"
+      ],
+      "verificationStatus": "PARTIAL"
+    },
+    {
+      "id": "muncieM21",
+      "make": "General Motors",
+      "name": "Muncie M21 Close-Ratio 4-Speed",
+      "type": "4-Speed Manual",
+      "gearRatios": "UNVERIFIED \u2014 2.20 first ratio; confirm 2nd/3rd/4th ratios & tooth counts per Chevrolet Service Manual",
+      "torqueRating": "UNVERIFIED",
+      "sources": [
+        "Chevrolet Chassis Service Manuals 1963-1974"
+      ],
+      "verificationStatus": "PARTIAL"
+    },
+    {
+      "id": "muncieM22",
+      "make": "General Motors",
+      "name": "Muncie M22 Rock Crusher Close-Ratio 4-Speed",
+      "type": "4-Speed Manual",
+      "gearRatios": "UNVERIFIED \u2014 2.20 first ratio with lower-helix gearset; confirm exact helix angle & tooth counts per Chevrolet Service Manual",
+      "torqueRating": "UNVERIFIED",
+      "sources": [
+        "Chevrolet Chassis Service Manuals 1965-1974"
+      ],
+      "verificationStatus": "PARTIAL"
+    },
+    {
+      "id": "super_t10",
+      "make": "BorgWarner",
+      "name": "BorgWarner Super T-10 4-Speed",
+      "type": "4-Speed Manual",
+      "gearRatios": "UNVERIFIED \u2014 multiple OEM ratio codes across GM/AMC; confirm per application tag",
+      "torqueRating": "UNVERIFIED",
+      "sources": [
+        "GM / AMC Chassis Service Manuals",
+        "BorgWarner T-10 Service Literature"
+      ],
+      "verificationStatus": "PARTIAL"
+    },
+    {
+      "id": "tremecT5",
+      "make": "BorgWarner / TREMEC",
+      "name": "BorgWarner / TREMEC T-5 5-Speed",
+      "type": "5-Speed Overdrive Manual",
+      "gearRatios": "UNVERIFIED \u2014 Non-World-Class & World-Class ratio sets vary by GM/Ford/Jeep tag",
+      "torqueRating": "UNVERIFIED",
+      "sources": [
+        "TREMEC T-5 Service Manual",
+        "Ford / GM / Jeep Service Manuals"
+      ],
+      "verificationStatus": "PARTIAL"
+    },
+    {
+      "id": "tremecT56",
+      "make": "TREMEC",
+      "name": "TREMEC T-56 / T-56 Magnum 6-Speed",
+      "type": "6-Speed Manual",
+      "gearRatios": "2.66 / 1.78 / 1.30 / 1.00 / 0.80 / 0.63 (T-56 Magnum close-ratio)",
+      "dimensionsMm": "842.0 x 412.0 x 386.0 mm (26-spline input / 31-spline output, 85.00 mm center distance, 22 deg helix)",
+      "toothCounts": "UNVERIFIED \u2014 needs factory gear tooth table",
+      "torqueRating": "950 Nm (700 lb-ft) Continuous",
+      "sources": [
+        "Tremec TUET-11009 / AGMA 2015 Q12 / SFI 6.1 (automotiveMatrix.ts)"
+      ],
+      "verificationStatus": "PARTIAL"
+    },
+    {
+      "id": "ford_c4",
+      "make": "Ford",
+      "name": "Ford C4 3-Speed Automatic",
+      "type": "3-Speed Automatic",
+      "gearRatios": "UNVERIFIED \u2014 confirm against Ford Shop Manual",
+      "torqueRating": "UNVERIFIED",
+      "sources": [
+        "Ford Motor Company Car & Truck Shop Manuals"
+      ],
+      "verificationStatus": "PARTIAL"
+    },
+    {
+      "id": "ford_c6",
+      "make": "Ford",
+      "name": "Ford C6 Heavy-Duty 3-Speed Automatic",
+      "type": "3-Speed Automatic",
+      "gearRatios": "UNVERIFIED \u2014 confirm against Ford Shop Manual",
+      "torqueRating": "UNVERIFIED",
+      "sources": [
+        "Ford Motor Company Car & Truck Shop Manuals"
+      ],
+      "verificationStatus": "PARTIAL"
+    },
+    {
+      "id": "ford_aod",
+      "make": "Ford",
+      "name": "Ford AOD 4-Speed Overdrive Automatic",
+      "type": "4-Speed Overdrive Automatic",
+      "gearRatios": "UNVERIFIED \u2014 confirm against Ford Shop Manual",
+      "torqueRating": "UNVERIFIED",
+      "sources": [
+        "Ford Motor Company Shop Manuals 1980-1993"
+      ],
+      "verificationStatus": "PARTIAL"
+    },
+    {
+      "id": "ford_toploader",
+      "make": "Ford",
+      "name": "Ford Top-Loader 4-Speed Manual",
+      "type": "4-Speed Manual",
+      "gearRatios": "UNVERIFIED \u2014 wide-ratio vs close-ratio (289/302/351/390/427/428) varies by tag",
+      "torqueRating": "UNVERIFIED",
+      "sources": [
+        "Ford Motor Company Car Shop Manuals 1964-1973"
+      ],
+      "verificationStatus": "PARTIAL"
+    },
+    {
+      "id": "mopar_a833",
+      "make": "Chrysler",
+      "name": "Chrysler A-833 New Process 4-Speed",
+      "type": "4-Speed Manual",
+      "gearRatios": "UNVERIFIED \u2014 standard/close-ratio vs 18-spline Hemi vs OD variant; confirm per Chrysler FSM",
+      "torqueRating": "UNVERIFIED",
+      "sources": [
+        "Chrysler Corporation Chassis Service Manuals"
+      ],
+      "verificationStatus": "PARTIAL"
+    },
+    {
+      "id": "mopar_727",
+      "make": "Chrysler",
+      "name": "Chrysler TorqueFlite A-727 (TF-8)",
+      "type": "3-Speed Automatic",
+      "gearRatios": "UNVERIFIED \u2014 confirm against Chrysler Corporation Service Manual",
+      "torqueRating": "UNVERIFIED",
+      "sources": [
+        "Chrysler / AMC Service Manuals"
+      ],
+      "verificationStatus": "PARTIAL"
+    },
+    {
+      "id": "mopar_a500_42re",
+      "make": "Chrysler",
+      "name": "Chrysler A500 / 42RE 4-Speed Overdrive",
+      "type": "4-Speed Overdrive Automatic",
+      "gearRatios": "UNVERIFIED \u2014 confirm against Chrysler / Jeep / Ram Service Manuals",
+      "torqueRating": "UNVERIFIED",
+      "sources": [
+        "Chrysler / Jeep / Ram Service Manuals"
+      ],
+      "verificationStatus": "PARTIAL"
+    }
+  ],
+  "parts": [],
+  "meta": {
+    "source": "Gemini \u2014 Ray's word: trust Gemini, she is accurate",
+    "counts": {
+      "models": 38,
+      "engines": 12,
+      "transmissions": 20,
+      "parts": 0
+    },
+    "note": "Grows with each packet; Batch M packets 2-6, then Batch 0.",
+    "packetsLanded": [
+      "Batch M Packets 1-2 of 6",
+      "Batch M Packet 3 of 6"
+    ],
+    "packet3Note": "Packet 3 (Golden-Era Domestic, 8 models / 12 engines / 20 transmissions) landed Nov 27 2026; unverified dims tagged UNVERIFIED per entry; Ray measurements pending (cam-to-crank CL, flywheel 153T vs 168T, pan bolt count)."
+  }
+}
