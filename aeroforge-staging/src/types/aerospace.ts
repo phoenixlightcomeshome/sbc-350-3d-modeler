@@ -27,7 +27,9 @@ export type MaterialId =
   | 'kevlar_aramid'
   | 'automotive_paint_gloss'
   | 'vulcanized_rubber'
-  | 'sapphire_glass';
+  | 'sapphire_glass'
+  | 'chevy_orange_enamel'
+  | 'polished_billet_al';
 
 export type SubsystemKey = 'airframe' | 'wings' | 'propulsion' | 'internal';
 
@@ -512,3 +514,16 @@ export interface PublicLibraryRecord {
   sourceOrganization: string;
   referenceUrl: string;
 }
+
+export type SbcHeadVariant = 'cammed_ohv' | 'camless_billet';
+export type SbcInductionStyle = 'blower_671' | 'cross_ram';
+
+export interface SbcBlockLiveConfig {
+  boreIn: number;
+  strokeIn: number;
+  deckClearanceIn: number;
+  gasketIn: number;
+  headVariant: SbcHeadVariant;
+  inductionStyle: SbcInductionStyle;
+}
+

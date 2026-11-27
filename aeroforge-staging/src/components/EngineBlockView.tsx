@@ -18,6 +18,11 @@ import {
   torqueAt,
   type DynoTune,
 } from '../three/engineKinetics';
+import {
+  SbcBlockLiveConfig,
+  SbcHeadVariant,
+  SbcInductionStyle,
+} from '../types/aerospace';
 import { EngineTelemetry } from './Viewport3D';
 
 /**
@@ -80,6 +85,8 @@ interface EngineBlockViewProps {
   tune: DynoTune;
   onChangeTune: (tune: DynoTune) => void;
   telemetry: EngineTelemetry | null;
+  sbcConfig?: SbcBlockLiveConfig;
+  onChangeSbcConfig?: (patch: Partial<SbcBlockLiveConfig>) => void;
 }
 
 function Stepper({
@@ -147,15 +154,51 @@ export function EngineBlockView({
   tune,
   onChangeTune,
   telemetry,
+  sbcConfig,
+  onChangeSbcConfig,
 }: EngineBlockViewProps) {
   const [tab, setTab] = useState<EngineBlockTab>('block');
-  const [bore, setBore] = useState(BORE_IN);
-  const [stroke, setStroke] = useState(STROKE_IN);
-  const [deckClearance, setDeckClearance] = useState(DECK_CLEARANCE_IN);
-  const [gasket, setGasket] = useState(GASKET_IN);
+  const [localBore, setLocalBore] = useState(BORE_IN);
+  const [localStroke, setLocalStroke] = useState(STROKE_IN);
+  const [localDeckClearance, setLocalDeckClearance] = useState(DECK_CLEARANCE_IN);
+  const [localGasket, setLocalGasket] = useState(GASKET_IN);
+  const [localHeadVariant, setLocalHeadVariant] = useState<SbcHeadVariant>('cammed_ohv');
+  const [localInductionStyle, setLocalInductionStyle] = useState<SbcInductionStyle>('blower_671');
   const [cam, setCam] = useState<CamChoice>('crower_00980');
   const [oilPct, setOilPct] = useState(100);
   const [coolantPct, setCoolantPct] = useState(100);
+
+  const bore = sbcConfig?.boreIn ?? localBore;
+  const stroke = sbcConfig?.strokeIn ?? localStroke;
+  const deckClearance = sbcConfig?.deckClearanceIn ?? localDeckClearance;
+  const gasket = sbcConfig?.gasketIn ?? localGasket;
+  const headVariant = sbcConfig?.headVariant ?? localHeadVariant;
+  const inductionStyle = sbcConfig?.inductionStyle ?? localInductionStyle;
+
+  const setBore = (v: number) => {
+    setLocalBore(v);
+    onChangeSbcConfig?.({ boreIn: v });
+  };
+  const setStroke = (v: number) => {
+    setLocalStroke(v);
+    onChangeSbcConfig?.({ strokeIn: v });
+  };
+  const setDeckClearance = (v: number) => {
+    setLocalDeckClearance(v);
+    onChangeSbcConfig?.({ deckClearanceIn: v });
+  };
+  const setGasket = (v: number) => {
+    setLocalGasket(v);
+    onChangeSbcConfig?.({ gasketIn: v });
+  };
+  const setHeadVariant = (v: SbcHeadVariant) => {
+    setLocalHeadVariant(v);
+    onChangeSbcConfig?.({ headVariant: v });
+  };
+  const setInductionStyle = (v: SbcInductionStyle) => {
+    setLocalInductionStyle(v);
+    onChangeSbcConfig?.({ inductionStyle: v });
+  };
 
   const block = AUTOMOTIVE_PARTS_CATALOG.sbc350_block;
   const rpm = telemetry?.rpm ?? 850;
@@ -279,6 +322,56 @@ export function EngineBlockView({
               <option value="mpfi">MPFI — 408 HP / 431 TQ (provisional)</option>
             </select>
           </label>
+          <div className="space-y-1.5 pt-1 border-t border-slate-800/80">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-[11px] text-slate-400">Head Variant</span>
+              <div className="grid grid-cols-2 gap-1">
+                {(
+                  [
+                    { id: 'cammed_ohv', label: 'Cammed OHV (Default)' },
+                    { id: 'camless_billet', label: 'Camless Billet (Variant)' },
+                  ] as { id: SbcHeadVariant; label: string }[]
+                ).map((opt) => (
+                  <button
+                    key={opt.id}
+                    type="button"
+                    onClick={() => setHeadVariant(opt.id)}
+                    className={`px-2 py-1 text-[11px] font-medium rounded border transition-colors cursor-pointer ${
+                      headVariant === opt.id
+                        ? 'bg-slate-800 border-amber-500 text-amber-300'
+                        : 'bg-[#0e141c] border-slate-700 text-slate-300 hover:border-slate-500'
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-[11px] text-slate-400">3D Induction</span>
+              <div className="grid grid-cols-2 gap-1">
+                {(
+                  [
+                    { id: 'blower_671', label: '6-71 Blower (Concept)' },
+                    { id: 'cross_ram', label: 'Cross-Ram Carbon' },
+                  ] as { id: SbcInductionStyle; label: string }[]
+                ).map((opt) => (
+                  <button
+                    key={opt.id}
+                    type="button"
+                    onClick={() => setInductionStyle(opt.id)}
+                    className={`px-2 py-1 text-[11px] font-medium rounded border transition-colors cursor-pointer ${
+                      inductionStyle === opt.id
+                        ? 'bg-slate-800 border-amber-500 text-amber-300'
+                        : 'bg-[#0e141c] border-slate-700 text-slate-300 hover:border-slate-500'
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
         </div>
 
         {/* Live readings strip */}
@@ -330,10 +423,16 @@ export function EngineBlockView({
                   <button
                     type="button"
                     onClick={() => {
-                      setBore(BORE_IN);
-                      setStroke(STROKE_IN);
-                      setDeckClearance(DECK_CLEARANCE_IN);
-                      setGasket(GASKET_IN);
+                      setLocalBore(BORE_IN);
+                      setLocalStroke(STROKE_IN);
+                      setLocalDeckClearance(DECK_CLEARANCE_IN);
+                      setLocalGasket(GASKET_IN);
+                      onChangeSbcConfig?.({
+                        boreIn: BORE_IN,
+                        strokeIn: STROKE_IN,
+                        deckClearanceIn: DECK_CLEARANCE_IN,
+                        gasketIn: GASKET_IN,
+                      });
                     }}
                     className="w-full px-4 py-2 text-xs font-semibold rounded bg-slate-800 text-slate-200 hover:bg-slate-700 transition-colors cursor-pointer"
                   >
@@ -443,11 +542,37 @@ export function EngineBlockView({
                       : `Live lift shows when the engine runs (sourced max ${CAM_LIFT_MAX_IN.toFixed(3)} in).`}
                   </div>
                 </div>
-                <p className="text-[11px] text-slate-500 leading-relaxed">
-                  Camless variant: the billet heads with vertical solenoid actuators, EFI rail
-                  and return springs (Ray&apos;s reference drawings) are a design variant of
-                  this head unit — the live engine stays cammed unless Ray says otherwise.
-                </p>
+                <div className="bg-[#0e141c] border border-slate-800 rounded-lg p-3 space-y-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-xs font-medium text-slate-300">3D Head Design Variant</span>
+                    <div className="grid grid-cols-2 gap-1">
+                      {(
+                        [
+                          { id: 'cammed_ohv', label: 'Cammed OHV (Default)' },
+                          { id: 'camless_billet', label: 'Camless Billet (Variant)' },
+                        ] as { id: SbcHeadVariant; label: string }[]
+                      ).map((opt) => (
+                        <button
+                          key={opt.id}
+                          type="button"
+                          onClick={() => setHeadVariant(opt.id)}
+                          className={`px-2 py-1 text-[11px] font-medium rounded border transition-colors cursor-pointer ${
+                            headVariant === opt.id
+                              ? 'bg-slate-800 border-amber-500 text-amber-300'
+                              : 'bg-[#10161f] border-slate-700 text-slate-300 hover:border-slate-500'
+                          }`}
+                        >
+                          {opt.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <p className="text-[11px] text-slate-500 leading-relaxed">
+                    Camless variant: the billet heads with vertical solenoid actuators, EFI rail
+                    and return springs (Ray&apos;s reference drawings) are a design variant of
+                    this head unit — the live engine stays cammed unless Ray says otherwise.
+                  </p>
+                </div>
               </>
             )}
 

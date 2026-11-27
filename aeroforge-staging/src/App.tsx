@@ -15,7 +15,16 @@ import { ShotGalleryView } from './components/ShotGalleryView';
 import { TechnicalDrawingView } from './components/TechnicalDrawingView';
 import { VehicleCatalogView } from './components/VehicleCatalogView';
 import { EngineTelemetry, Viewport3D, Viewport3DHandle } from './components/Viewport3D';
-import { DynoTune, engineConfigFor, IDLE_RPM, REDLINE_RPM } from './three/engineKinetics';
+import {
+  BORE_IN,
+  DECK_CLEARANCE_IN,
+  DynoTune,
+  engineConfigFor,
+  GASKET_IN,
+  IDLE_RPM,
+  REDLINE_RPM,
+  STROKE_IN,
+} from './three/engineKinetics';
 import {
   AEROSPACE_MATERIALS,
   ASSEMBLY_PROFILES,
@@ -39,6 +48,7 @@ import {
   MaterialId,
   ParametricConfig,
   RenderOverlayMode,
+  SbcBlockLiveConfig,
   SubsystemKey,
   SubsystemMaterials,
   ViewMode,
@@ -86,6 +96,14 @@ export default function App() {
   const [engineTelemetry, setEngineTelemetry] = useState<EngineTelemetry | null>(null);
   const [displayPrefs, setDisplayPrefs] = useState<DisplayPrefs>(DEFAULT_DISPLAY_PREFS);
   const [latestShot, setLatestShot] = useState<string | null>(null);
+  const [sbcBlockConfig, setSbcBlockConfig] = useState<SbcBlockLiveConfig>({
+    boreIn: BORE_IN,
+    strokeIn: STROKE_IN,
+    deckClearanceIn: DECK_CLEARANCE_IN,
+    gasketIn: GASKET_IN,
+    headVariant: 'cammed_ohv',
+    inductionStyle: 'blower_671',
+  });
 
   const viewportRef = useRef<Viewport3DHandle | null>(null);
 
@@ -252,6 +270,10 @@ export default function App() {
 
   const handleChangeParams = useCallback((next: Partial<ParametricConfig>) => {
     setParams((prev) => ({ ...prev, ...next }));
+  }, []);
+
+  const handleChangeSbcBlockConfig = useCallback((patch: Partial<SbcBlockLiveConfig>) => {
+    setSbcBlockConfig((prev) => ({ ...prev, ...patch }));
   }, []);
 
   const handleResetParams = useCallback(() => {
@@ -562,6 +584,8 @@ export default function App() {
           bloomIntensity={bloomIntensity}
           camConfig={camConfig}
           customDesign={customDesign}
+          sbcBlockConfig={sbcBlockConfig}
+          throttlePct={throttlePct}
           isVisible={
             viewMode === 'studio' ||
             viewMode === 'builder' ||
@@ -644,6 +668,8 @@ export default function App() {
             tune={dynoTune}
             onChangeTune={setDynoTune}
             telemetry={engineTelemetry}
+            sbcConfig={sbcBlockConfig}
+            onChangeSbcConfig={handleChangeSbcBlockConfig}
           />
         </div>
       )}
@@ -797,6 +823,8 @@ export default function App() {
             onChangePrefs: (next) => setDisplayPrefs((p) => ({ ...p, ...next })),
             onCapture4K: handleCapture4K,
           }}
+          sbcConfig={sbcBlockConfig}
+          onChangeSbcConfig={handleChangeSbcBlockConfig}
         />
       )}
 
