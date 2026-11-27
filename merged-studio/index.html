@@ -1,0 +1,3920 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Quantum Aerospace &amp; SBC-350 v16/v20 Merged CAD Studio</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <script src="https://unpkg.com/react@18.3.1/umd/react.production.min.js" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/three@0.160.0/build/three.min.js" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.25.6/babel.min.js" crossorigin="anonymous"></script>
+  <style>
+    :root {
+      --bg-canvas: #070A10;
+      --bg-panel: #0E1420;
+      --bg-elevated: #151E30;
+      --border-hairline: #1E293B;
+    }
+
+    * {
+      box-sizing: border-box;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    html, body, #root {
+      height: 100%;
+      width: 100%;
+      margin: 0;
+      padding: 0;
+      background-color: var(--bg-canvas);
+      color: #F1F5F9;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      overflow-x: hidden;
+    }
+
+    .font-mono-tabular {
+      font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .viewport-touch-surface {
+      touch-action: none;
+    }
+
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #070A10;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #23324D;
+      border-radius: 9999px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #38BDF8;
+    }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useEffect, useRef, useMemo, useCallback } = React;
+
+    // =========================================================================
+    // 1. STORAGE KEYS & ENGINEERING REFERENCE TABLES (ASME Y14.5M-2018 / ISO 2768-m)
+    // =========================================================================
+    const STORAGE_KEY = 'qads_sbc350_v16_v20_merged_studio_r1';
+
+    // Distinct PBR Metalness & Roughness profiles per material
+    const ALLOYS = [
+      {
+        id: 'al7075',
+        name: '7075-T651 / 6061-T6 Machined Aluminum',
+        kind: 'ALUMINUM',
+        densityLbIn3: 0.101,
+        yieldMPa: 503,
+        maxTempC: 150,
+        cncFactor: 1.0,
+        color: 0xd4dde8,
+        metalness: 0.92,
+        roughness: 0.22,
+        heatTreat: 'T651 Solution Heat-Treated & Stress-Relieved',
+        finishRa: 'Ra 1.6 µm (63 µin) Machined / Type II Clear Anodize',
+        threadSpec: '3/8-16 UNC-2B / M10x1.5-6H Helicoil'
+      },
+      {
+        id: 'cast_iron_g3500',
+        name: 'Gray Cast Iron Block (SAE G3500 / 350 CGI)',
+        kind: 'CAST_IRON',
+        densityLbIn3: 0.262,
+        yieldMPa: 240,
+        maxTempC: 420,
+        cncFactor: 1.25,
+        color: 0x4b525c,
+        metalness: 0.56,
+        roughness: 0.72,
+        heatTreat: 'Stress-Relieved Pearlitic / Vermicular Graphite Matrix',
+        finishRa: 'Ra 0.8 µm Deck / Ra 0.4 µm Honed Bore Crosshatch',
+        threadSpec: '7/16-14 UNC-2B Block Deck & 1/2-13 Main Cap'
+      },
+      {
+        id: 'chromoly4140',
+        name: '4140 Chromoly Billet Steel',
+        kind: 'STEEL',
+        densityLbIn3: 0.284,
+        yieldMPa: 655,
+        maxTempC: 480,
+        cncFactor: 1.38,
+        color: 0x8b95a5,
+        metalness: 0.88,
+        roughness: 0.32,
+        heatTreat: 'Quenched & Tempered (28–32 HRC) Billet Forging',
+        finishRa: 'Ra 1.6 µm Machined / Ground Journals Ra 0.4 µm',
+        threadSpec: '7/16-20 UNF-3A Rolled Thread Studs'
+      },
+      {
+        id: 'ti6al4v',
+        name: 'Ti-6Al-4V Grade 5 (AMS 4928)',
+        kind: 'TITANIUM',
+        densityLbIn3: 0.160,
+        yieldMPa: 880,
+        maxTempC: 420,
+        cncFactor: 1.72,
+        color: 0x9aa5b4,
+        metalness: 0.84,
+        roughness: 0.34,
+        heatTreat: 'Annealed Alpha-Beta Forged / DMLS Stress-Relieved',
+        finishRa: 'Ra 1.6 µm Precision Machined / Passivated',
+        threadSpec: 'AN-6 / M8x1.25-6H Dry-Film Lubricated'
+      },
+      {
+        id: 'inconel625',
+        name: 'Inconel 625 Superalloy (AMS 5666)',
+        kind: 'STEEL',
+        densityLbIn3: 0.305,
+        yieldMPa: 517,
+        maxTempC: 980,
+        cncFactor: 2.35,
+        color: 0xb88b4a,
+        metalness: 0.86,
+        roughness: 0.38,
+        heatTreat: 'Solution Annealed (980°C Min) High-Temp Superalloy',
+        finishRa: 'Ra 1.6 µm Machined / DMLS As-Built Ra 6.3 µm',
+        threadSpec: '3/8-24 UNF-3A High-Temp Anti-Seize'
+      },
+      {
+        id: 'carbon_cmc',
+        name: 'C/SiC Aerospace Composite',
+        kind: 'COMPOSITE',
+        densityLbIn3: 0.088,
+        yieldMPa: 410,
+        maxTempC: 1450,
+        cncFactor: 2.1,
+        color: 0x1e2530,
+        metalness: 0.14,
+        roughness: 0.64,
+        heatTreat: 'CVI Silicon-Carbide Matrix Densified & Seal-Coated',
+        finishRa: 'Ra 3.2 µm Seal-Glazed Aerodynamic Contour',
+        threadSpec: 'Bonded Titanium Insert Bushings'
+      },
+      {
+        id: 'copper_c18150',
+        name: 'Chromium-Zirconium Copper C18150 / Brass',
+        kind: 'COPPER',
+        densityLbIn3: 0.321,
+        yieldMPa: 340,
+        maxTempC: 540,
+        cncFactor: 1.3,
+        color: 0xd97736,
+        metalness: 0.93,
+        roughness: 0.24,
+        heatTreat: 'Precipitation Hardened High-Conductivity Alloy',
+        finishRa: 'Ra 0.8 µm Cooling Passage & Seal Face',
+        threadSpec: '1/4-18 NPTF / AN-8 Flare Fitting'
+      }
+    ];
+
+    // Sequential 17-position SBC-350 head bolt pattern (ordered #1 -> #17, never a circle)
+    const SBC350_17_BOLT_SEQUENCE = [
+      { seq: 1, label: '#1', x: 155, y: 84, bank: 'CENTER', note: 'Start center-span datum anchor' },
+      { seq: 2, label: '#2', x: 155, y: 44, bank: 'UPPER', note: 'Upper center deck clamp' },
+      { seq: 3, label: '#3', x: 155, y: 124, bank: 'LOWER', note: 'Lower center deck clamp' },
+      { seq: 4, label: '#4', x: 118, y: 124, bank: 'LOWER', note: 'Lower inner-left clamp' },
+      { seq: 5, label: '#5', x: 192, y: 124, bank: 'LOWER', note: 'Lower inner-right clamp' },
+      { seq: 6, label: '#6', x: 118, y: 44, bank: 'UPPER', note: 'Upper inner-left clamp' },
+      { seq: 7, label: '#7', x: 192, y: 44, bank: 'UPPER', note: 'Upper inner-right clamp' },
+      { seq: 8, label: '#8', x: 82, y: 124, bank: 'LOWER', note: 'Lower mid-left clamp' },
+      { seq: 9, label: '#9', x: 228, y: 124, bank: 'LOWER', note: 'Lower mid-right clamp' },
+      { seq: 10, label: '#10', x: 82, y: 44, bank: 'UPPER', note: 'Upper mid-left clamp' },
+      { seq: 11, label: '#11', x: 228, y: 44, bank: 'UPPER', note: 'Upper mid-right clamp' },
+      { seq: 12, label: '#12', x: 46, y: 124, bank: 'LOWER', note: 'Lower outer-left end' },
+      { seq: 13, label: '#13', x: 264, y: 124, bank: 'LOWER', note: 'Lower outer-right end' },
+      { seq: 14, label: '#14', x: 46, y: 44, bank: 'UPPER', note: 'Upper outer-left end' },
+      { seq: 15, label: '#15', x: 264, y: 44, bank: 'UPPER', note: 'Upper outer-right end' },
+      { seq: 16, label: '#16', x: 100, y: 84, bank: 'CENTER', note: 'Mid-span left tie-down' },
+      { seq: 17, label: '#17', x: 210, y: 84, bank: 'CENTER', note: 'Mid-span right tie-down' }
+    ];
+
+    // SBC-350 v16 & v20 Sub-Assembly Presets for merged v16 Modeler workbench
+    const SBC350_V16_PRESETS = [
+      {
+        id: 'v16_cast_350_base',
+        code: 'SBC-V16-01',
+        name: 'SBC-350 Classic 2-Bolt Cast Block (4.000" × 3.480")',
+        subsystem: 'Engine Block & Sump',
+        boreIn: 4.000,
+        strokeIn: 3.480,
+        wallIn: 0.25,
+        boltCount: 17,
+        filletIn: 0.25,
+        materialId: 'cast_iron_g3500',
+        summary: 'Factory-style 5.7L small-block V8 deck geometry with 17-bolt head clamping topology and 9.000" deck height.'
+      },
+      {
+        id: 'v16_stroker_383',
+        code: 'SBC-V16-02',
+        name: 'SBC-383 Stroker Rotating Assembly (4.030" × 3.750")',
+        subsystem: 'Crankshaft & Pistons',
+        boreIn: 4.030,
+        strokeIn: 3.750,
+        wallIn: 0.26,
+        boltCount: 17,
+        filletIn: 0.30,
+        materialId: 'chromoly4140',
+        summary: '4340 forged stroker crank throws with 5.700" H-beam rods and dome/dish piston clearance check.'
+      },
+      {
+        id: 'v16_cnc_heads_195',
+        code: 'SBC-V16-03',
+        name: 'CNC 195cc Cylinder Head & 23° Valve Chamber',
+        subsystem: 'CNC Cylinder Heads',
+        boreIn: 4.060,
+        strokeIn: 3.480,
+        wallIn: 0.27,
+        boltCount: 17,
+        filletIn: 0.28,
+        materialId: 'al7075',
+        summary: '23-degree combustion chamber profile with 2.02" intake / 1.60" exhaust valve ports and 17-bolt deck clamping.'
+      },
+      {
+        id: 'v16_roller_valvetrain',
+        code: 'SBC-V16-04',
+        name: 'Hydraulic Roller Valvetrain & 1.52 Rocker Geometry',
+        subsystem: 'Valvetrain',
+        boreIn: 4.030,
+        strokeIn: 3.480,
+        wallIn: 0.24,
+        boltCount: 17,
+        filletIn: 0.25,
+        materialId: 'chromoly4140',
+        summary: 'Trunnion-bearing rocker arms, pushrod length datum, and high-rate beehive valve springs.'
+      },
+      {
+        id: 'v16_dual_plane_intake',
+        code: 'SBC-V16-05',
+        name: 'Dual-Plane Intake Manifold & Billet Fuel Rail',
+        subsystem: 'Intake & Fuel Rail',
+        boreIn: 4.030,
+        strokeIn: 3.480,
+        wallIn: 0.22,
+        boltCount: 17,
+        filletIn: 0.25,
+        materialId: 'al7075',
+        summary: 'Divided plenum runners with 4150 square-bore carb/EFI pad and AN-8 fuel distribution rail.'
+      },
+      {
+        id: 'v16_long_tube_headers',
+        code: 'SBC-V16-06',
+        name: '1-3/4" 4-into-1 Tuned Exhaust Headers',
+        subsystem: 'Tuned Exhaust Headers',
+        boreIn: 4.030,
+        strokeIn: 3.480,
+        wallIn: 0.18,
+        boltCount: 17,
+        filletIn: 0.22,
+        materialId: 'inconel625',
+        summary: 'Equal-length primary tubes feeding 3.0" merge collectors with chassis frame-rail clearance.'
+      }
+    ];
+
+    const JESSE_SHOT_TEMPLATES = [
+      {
+        id: 'shot_1_establish',
+        title: 'Shot 01 · Live Ensemble & Hardware Staging',
+        move: 'Slow push-in dolly (one camera move only)',
+        emblemState: 'Emblem open — full studio bay & crew/band together in one live scene',
+        lens: '50 mm prime lens · sharp subject plane · soft shallow-depth background',
+        lighting: 'Three-point studio lighting: warm key light (2.6) + cool rim separation',
+        grade: 'Warm gold grade with subtle fine film grain · 24 fps · hands natural, zero morphing'
+      },
+      {
+        id: 'shot_2_detail',
+        title: 'Shot 02 · Datum Bore & Billet Surface Pass',
+        move: 'Slow horizontal lateral arc (one camera move only)',
+        emblemState: 'Emblem open — precision datum ring & machined surface highlights',
+        lens: '50 mm prime lens · crisp machined edge focus · soft out-of-focus bench bokeh',
+        lighting: 'Three-point lighting: warm tungsten key + cool cyan-blue rim edge',
+        grade: 'Warm gold grade with fine film grain · 24 fps · unhurried physical motion'
+      },
+      {
+        id: 'shot_3_369_close',
+        title: 'Shot 03 · 369 Cadence & Final Hold',
+        move: 'Slow rising crane tilt to hold (one camera move only)',
+        emblemState: 'Emblem open transitioning to 369 close frame lock',
+        lens: '50 mm prime lens · subject sharp in foreground · soft atmospheric background',
+        lighting: 'Three-point studio lighting: warm key + cool rim · balanced shadows',
+        grade: 'Warm gold grade with fine film grain · 24 fps · 369 close lock'
+      }
+    ];
+
+    const TOLERANCE_STANDARDS = [
+      { code: 'ASME Y14.5M-2018', spec: 'Feature Control Frames, Datum Reference Frames (A|B|C), Position & Concentricity — Zero Invented Dimensions Policy' },
+      { code: 'ISO 2768-m', spec: 'General Tolerances for Linear & Angular Dimensions without Individual Tolerance Indications (Medium Class)' },
+      { code: '369 Sequence & Torque', spec: 'Progressive multi-pass tightening schedule (25 -> 45 -> 65 lb-ft or 25 -> 45 -> 70 lb-ft per part spec)' },
+      { code: 'Jesse Cinema Standard', spec: '24 fps · 1 slow camera move per shot · 50 mm look (sharp subject / soft background) · 3-point warm key + cool rim · warm gold + fine grain · valid hands / no morphing · band together in 1 live scene · emblem open & 369 close' },
+      { code: 'ASME Y14.5-2018 IT5', spec: 'Precision Cryo Gimbal Bores, Actuator Spools & Main Journals (±0.008 mm / ±0.0003 in)' },
+      { code: 'ASME Y14.5-2018 IT6', spec: 'CNC Billet Deck Surfaces, Bellhousing Datums & Cylinder Bores (±0.013 mm / ±0.0005 in)' },
+      { code: 'ISO 2768-mK', spec: 'General Machined Coolant Manifolds, Brackets & Plenums (±0.10–0.30 mm)' },
+      { code: 'AMS 4998 / ASTM F3049', spec: 'DMLS/SLM Additive Lattice Overhang & Minimum Wall Thickness (≥ 0.65 mm / 0.026 in)' }
+    ];
+
+    const TORQUE_SEQUENCES = [
+      { assembly: 'SBC-350 Cylinder Head (ARP 12-Pt Studs)', pattern: 'Center-Out 17-Bolt Spiral', passes: 'Pass 1: 25 ft-lb → Pass 2: 45 ft-lb → Pass 3: 65 ft-lb (ARP Ultra-Torque)' },
+      { assembly: 'SBC-350 4-Bolt Main Bearing Caps', pattern: 'Inner-to-Outer Staggered', passes: 'Inner: 25 → 50 → 75 ft-lb | Outer: 20 → 45 → 65 ft-lb' },
+      { assembly: 'Aerospace Cryo Gimbal Trunnion Ring', pattern: 'Star-Cross 12-Bolt A286', passes: 'Pass 1: 18 N·m → Pass 2: 36 N·m → Pass 3: 54 N·m + Safety Wire' },
+      { assembly: 'Bellhousing Multi-Pattern Adapter Ring', pattern: 'Opposing-Pair 8-Bolt', passes: 'Pass 1: 20 ft-lb → Pass 2: 38 ft-lb (Loctite 243 Blue)' }
+    ];
+
+    // =========================================================================
+    // 2. EXPANDED 18-PLATFORM VEHICLE / AEROSPACE MATRIX + ACCESSORIES CATALOG
+    // =========================================================================
+    const VEHICLE_MATRIX_LIBRARY = [
+      { id: 'veh_camaro_67_fbody', code: 'GM-F1-1967', name: '1967–1969 Chevrolet Camaro Z/28 (1st-Gen F-Body)', domain: 'sbc-350-v16', category: 'Muscle & Performance', status: 'VERIFIED', engineSpec: 'SBC-350 / 302 DZ High-RPM Solid Lifter', boreIn: 4.000, strokeIn: 3.480, wallIn: 0.24, boltCount: 17, filletIn: 0.25, materialId: 'chromoly4140', massLb: 535, powerHp: 465, tolerance: 'ASME Y14.5-2018 IT6', notes: 'Original Saginaw/Muncie 4-speed bellhousing datum; front-sump subframe clearance.' },
+      { id: 'veh_camaro_70_fbody2', code: 'GM-F2-1970', name: '1970–1981 Chevrolet Camaro SS / Z28 (2nd-Gen F-Body)', domain: 'sbc-350-v16', category: 'Muscle & Performance', status: 'VERIFIED', engineSpec: 'SBC-350 LT-1 / L82 4-Bolt Main', boreIn: 4.030, strokeIn: 3.480, wallIn: 0.26, boltCount: 17, filletIn: 0.28, materialId: 'chromoly4140', massLb: 542, powerHp: 490, tolerance: 'ASME Y14.5-2018 IT6', notes: 'Expanded radiator core support for dual-pass aluminum crossflow cooling.' },
+      { id: 'veh_camaro_82_fbody3', code: 'GM-F3-1987', name: '1982–1992 Chevrolet Camaro IROC-Z (3rd-Gen F-Body)', domain: 'sbc-350-v20', category: 'Muscle & Performance', status: 'VERIFIED', engineSpec: 'SBC-350 L98 Tuned Port Injection (TPI)', boreIn: 4.030, strokeIn: 3.480, wallIn: 0.25, boltCount: 17, filletIn: 0.30, materialId: 'al7075', massLb: 488, powerHp: 515, tolerance: 'ASME Y14.5-2018 IT6', notes: 'Long-runner high-ram plenum geometry with serpentine accessory drive bracketry.' },
+      { id: 'veh_camaro_98_fbody4', code: 'GM-F4-2002', name: '1993–2002 Chevrolet Camaro Z28 / SS (4th-Gen F-Body)', domain: 'sbc-350-v20', category: 'Muscle & Performance', status: 'VERIFIED', engineSpec: 'SBC-350 / 383 Stroker CNC Billet Conversion', boreIn: 4.060, strokeIn: 3.750, wallIn: 0.28, boltCount: 17, filletIn: 0.35, materialId: 'al7075', massLb: 462, powerHp: 585, tolerance: 'ASME Y14.5-2018 IT6', notes: 'Cowl-recessed intake plenum + T56 6-speed multi-pattern adapter ring.' },
+      { id: 'veh_camaro_10_zeta', code: 'GM-ZETA-2010', name: '2010–2015 Chevrolet Camaro SS / ZL1 (5th-Gen Zeta)', domain: 'sbc-350-v20', category: 'Muscle & Performance', status: 'VERIFIED', engineSpec: 'Hybrid SBC-350 Camless Valvetrain Test Mule', boreIn: 4.065, strokeIn: 3.622, wallIn: 0.30, boltCount: 18, filletIn: 0.38, materialId: 'al7075', massLb: 454, powerHp: 640, tolerance: 'ASME Y14.5-2018 IT5', notes: 'Electro-hydraulic camless actuator pods with Zeta cradle motor mount pads.' },
+      { id: 'veh_camaro_16_alpha', code: 'GM-ALPHA-2024', name: '2016–2024 Chevrolet Camaro ZL1 1LE (6th-Gen Alpha)', domain: 'sbc-350-v20', category: 'Muscle & Performance', status: 'VERIFIED', engineSpec: 'Billet 350 Track-Aero Dry-Sump Architecture', boreIn: 4.125, strokeIn: 3.480, wallIn: 0.32, boltCount: 18, filletIn: 0.42, materialId: 'ti6al4v', massLb: 428, powerHp: 710, tolerance: 'ASME Y14.5-2018 IT5', notes: '4-stage dry-sump scavenge pan and titanium valvetrain retainers for 8,800 RPM.' },
+      { id: 'veh_corvette_c2_c3', code: 'GM-Y-1969', name: '1965–1972 Corvette Stingray C2/C3 L88/LT-1', domain: 'sbc-350-v16', category: 'Muscle & Performance', status: 'VERIFIED', engineSpec: 'SBC-350 11.5:1 Forged Dome Piston Spec', boreIn: 4.000, strokeIn: 3.480, wallIn: 0.25, boltCount: 17, filletIn: 0.25, materialId: 'chromoly4140', massLb: 528, powerHp: 480, tolerance: 'ASME Y14.5-2018 IT6', notes: 'Low-profile drop-base intake plenum for L88 hood clearance.' },
+      { id: 'veh_corvette_c8_z06', code: 'GM-Y2-2024', name: '2020–2024 Corvette C8 Mid-Engine Testbed', domain: 'sbc-350-v20', category: 'Muscle & Performance', status: 'PROVISIONAL', engineSpec: 'Mid-Engine Transaxle Bellhousing-350 Hybrid', boreIn: 4.100, strokeIn: 3.480, wallIn: 0.30, boltCount: 18, filletIn: 0.40, materialId: 'al7075', massLb: 445, powerHp: 670, tolerance: 'ASME Y14.5-2018 IT5', notes: 'Dual-clutch M1L transaxle clocking ring and rear-header heat-shield package.' },
+      { id: 'veh_chevelle_ss_70', code: 'GM-A-1970', name: '1970 Chevrolet Chevelle SS / El Camino A-Body', domain: 'sbc-350-v16', category: 'Muscle & Performance', status: 'VERIFIED', engineSpec: 'SBC-350 Twin-Scroll Turbocharged Street/Strip', boreIn: 4.030, strokeIn: 3.480, wallIn: 0.28, boltCount: 17, filletIn: 0.30, materialId: 'chromoly4140', massLb: 565, powerHp: 780, tolerance: 'ASME Y14.5-2018 IT6', notes: 'Thick-deck CGI block casting with forward-facing turbo log headers.' },
+      { id: 'veh_nova_c10_classic', code: 'GM-X-C10-72', name: '1968–1974 Chevy II Nova & C10 Pro-Touring', domain: 'sbc-350-v16', category: 'Muscle & Performance', status: 'VERIFIED', engineSpec: 'SBC-350 383 Stroker Hydraulic Roller', boreIn: 4.030, strokeIn: 3.750, wallIn: 0.25, boltCount: 17, filletIn: 0.25, materialId: 'chromoly4140', massLb: 540, powerHp: 510, tolerance: 'ISO 2768-mK', notes: 'Rear-sump baffled road-race oil pan and tubular Mustang-II rack clearance headers.' },
+      { id: 'veh_mercruiser_350mag', code: 'MAR-350-MPI', name: 'MerCruiser 350 MAG MPI Horizon Marine Inboard', domain: 'sbc-350-v16', category: 'Heavy-Duty & Marine', status: 'VERIFIED', engineSpec: '5.7L V8 Closed-Cooling Brass/316L Heat Exchanger', boreIn: 4.000, strokeIn: 3.480, wallIn: 0.30, boltCount: 17, filletIn: 0.32, materialId: 'ss316l', massLb: 615, powerHp: 325, tolerance: 'ISO 2768-mK', notes: 'Saltwater corrosion-resistant 316L water-jacketed exhaust risers and Bravo drive coupler.' },
+      { id: 'veh_vortec_5700_l31', code: 'GM-L31-HD', name: 'Vortec 5700 L31 Heavy-Duty Commercial / Generator', domain: 'sbc-350-v16', category: 'Heavy-Duty & Marine', status: 'VERIFIED', engineSpec: '5.7L High-Swirl Vortec Head Continuous-Duty', boreIn: 4.000, strokeIn: 3.480, wallIn: 0.29, boltCount: 17, filletIn: 0.28, materialId: 'chromoly4140', massLb: 575, powerHp: 350, tolerance: 'ISO 2768-mK', notes: '8-bolt vertical intake manifold flange and hardened Stellite exhaust valve seats.' },
+      { id: 'aero_x33_aerospike', code: 'QADS-X33-V20', name: 'X-33 Linear / Toroidal Aerospike Propulsion Testbed', domain: 'aerospace-v20', category: 'Aerospace & Experimental', status: 'VERIFIED', engineSpec: 'LOX/LH2 Regeneratively Cooled Copper-Inconel Thruster', boreIn: 6.200, strokeIn: 4.800, wallIn: 0.22, boltCount: 24, filletIn: 0.45, materialId: 'inconel625', massLb: 390, powerHp: 4200, tolerance: 'ASME Y14.5-2018 IT5', notes: '140 milled micro-channel cooling passages with DMLS Inconel 625 nozzle ramp.' },
+      { id: 'aero_reusable_stage1', code: 'QADS-S1-RLV', name: 'Suborbital Reusable Booster Stage-1 Gimbal Pod', domain: 'aerospace-v20', category: 'Aerospace & Experimental', status: 'VERIFIED', engineSpec: 'Methalox 9-Cluster Gimbaled Thrust Frame', boreIn: 5.800, strokeIn: 4.500, wallIn: 0.28, boltCount: 24, filletIn: 0.50, materialId: 'ti6al4v', massLb: 485, powerHp: 6800, tolerance: 'ASME Y14.5-2018 IT5', notes: '±12° dual-axis hydraulic TVC gimbal ring with Ti-6Al-4V octahedral thrust structure.' },
+      { id: 'aero_hypersonic_scramjet', code: 'QADS-HSR-M7', name: 'Mach 7 Hypersonic Scramjet Combustor Nacelle', domain: 'aerospace-v20', category: 'Aerospace & Experimental', status: 'PROVISIONAL', engineSpec: 'Endothermic JP-7 Dual-Mode Ramjet/Scramjet Core', boreIn: 5.400, strokeIn: 5.100, wallIn: 0.20, boltCount: 20, filletIn: 0.35, materialId: 'carbon_cmc', massLb: 312, powerHp: 5400, tolerance: 'ASME Y14.5-2018 IT5', notes: 'C/SiC leading-edge cowl lip with active fuel-cooled flameholder struts.' },
+      { id: 'aero_lunar_descent_pod', code: 'QADS-LDP-04', name: 'Lunar Cargo Lander Deep-Throttling Descent Thruster', domain: 'aerospace-v20', category: 'Aerospace & Experimental', status: 'VERIFIED', engineSpec: '10:1 Pintle Injector Hypergolic/Cryo Engine', boreIn: 4.900, strokeIn: 4.200, wallIn: 0.18, boltCount: 16, filletIn: 0.40, materialId: 'ti6al4v', massLb: 198, powerHp: 1850, tolerance: 'ASME Y14.5-2018 IT5', notes: 'Radiatively cooled Columbium/Inconel nozzle extension with 3DP lattice mounting skirt.' },
+      { id: 'aero_orbital_oms_bus', code: 'QADS-OMS-20', name: 'Orbital Maneuvering & Satellite Servicing Bus', domain: 'aerospace-v20', category: 'Aerospace & Experimental', status: 'VERIFIED', engineSpec: 'Quad-Thruster Bipropellant RCS + Avionics Spine', boreIn: 4.400, strokeIn: 3.800, wallIn: 0.16, boltCount: 16, filletIn: 0.35, materialId: 'al7075', massLb: 245, powerHp: 950, tolerance: 'ASME Y14.5-2018 IT6', notes: 'Isogrid milled 7075-T651 structural bulkheads with MLI thermal blanket standoffs.' },
+      { id: 'aero_hybrid_dyno_mule', code: 'QADS-SBC-DYNO', name: 'Aerospace Turbopump Spin-Rig (SBC-350 v20 Driven)', domain: 'sbc-350-v20', category: 'Aerospace & Experimental', status: 'VERIFIED', engineSpec: 'SBC-350 v20 High-Output Cryo-Pump Drive Stand', boreIn: 4.125, strokeIn: 3.480, wallIn: 0.32, boltCount: 18, filletIn: 0.40, materialId: 'ti6al4v', massLb: 470, powerHp: 820, tolerance: 'ASME Y14.5-2018 IT5', notes: 'Direct-coupled SBC-350 v20 bellhousing adapter driving LOX/RP-1 testbed turbopump.' }
+    ];
+
+    const ACCESSORIES_CATALOG = [
+      { id: 'acc_camless_pod', sku: 'QADS-VT-104', name: 'Electro-Hydraulic Camless Valve Actuator Pod (Set of 16)', category: 'Valvetrain & Actuation', domain: 'sbc-350-v20', subsystem: 'Valvetrain', materialId: 'al7075', boreIn: 4.060, strokeIn: 3.480, wallIn: 0.28, boltCount: 16, filletIn: 0.30, massLb: 18.4, tolerance: 'ASME Y14.5-2018 IT5', status: 'VERIFIED' },
+      { id: 'acc_an16_crossover', sku: 'SBC-CL-208', name: 'Dual-AN16 CNC Billet Coolant Crossover Manifold', category: 'Thermal & Fluid Transfer', domain: 'sbc-350-v20', subsystem: 'Coolant Crossover', materialId: 'al7075', boreIn: 4.030, strokeIn: 3.480, wallIn: 0.22, boltCount: 8, filletIn: 0.25, massLb: 3.8, tolerance: 'ISO 2768-mK', status: 'VERIFIED' },
+      { id: 'acc_cryo_qd_block', sku: 'QADS-TF-312', name: 'High-Flow Cryo / Propellant Quick-Disconnect Manifold', category: 'Thermal & Fluid Transfer', domain: 'aerospace-v20', subsystem: 'Cryo Propellant Core', materialId: 'ss316l', boreIn: 5.500, strokeIn: 4.400, wallIn: 0.24, boltCount: 12, filletIn: 0.35, massLb: 9.2, tolerance: 'ASME Y14.5-2018 IT5', status: 'VERIFIED' },
+      { id: 'acc_egt_map_rail', sku: 'QADS-SN-419', name: '8-Channel EGT + MAP Telemetry Sensor Rail', category: 'Sensors & Telemetry', domain: 'sbc-350-v16', subsystem: 'Intake & Fuel Rail', materialId: 'inconel625', boreIn: 4.000, strokeIn: 3.480, wallIn: 0.18, boltCount: 8, filletIn: 0.15, massLb: 2.4, tolerance: 'ISO 2768-mK', status: 'PROVISIONAL' },
+      { id: 'acc_bellhousing_ring', sku: 'SBC-AD-502', name: 'Multi-Pattern SBC-to-Aerospace Bellhousing Adapter Ring', category: 'Structural Adapters & Fasteners', domain: 'sbc-350-v20', subsystem: 'Bellhousing & Flywheel', materialId: 'chromoly4140', boreIn: 4.100, strokeIn: 3.480, wallIn: 0.45, boltCount: 12, filletIn: 0.35, massLb: 14.6, tolerance: 'ASME Y14.5-2018 IT6', status: 'VERIFIED' },
+      { id: 'acc_gimbal_trunnion', sku: 'QADS-GA-615', name: '2-Axis Thruster Gimbal Trunnion & Clevis Kit', category: 'Aerospace Gimbal & Avionics', domain: 'aerospace-v20', subsystem: '2-Axis Gimbal Ring', materialId: 'ti6al4v', boreIn: 5.800, strokeIn: 4.600, wallIn: 0.30, boltCount: 16, filletIn: 0.40, massLb: 11.8, tolerance: 'ASME Y14.5-2018 IT5', status: 'VERIFIED' },
+      { id: 'acc_cmc_heat_tile', sku: 'QADS-HS-708', name: 'Carbon-Ceramic Thermal Protection Shield Tile Array', category: 'Thermal & Fluid Transfer', domain: 'aerospace-v20', subsystem: 'Airframe Bulkheads', materialId: 'carbon_cmc', boreIn: 5.200, strokeIn: 4.200, wallIn: 0.25, boltCount: 12, filletIn: 0.20, massLb: 6.4, tolerance: 'AMS 4998 / ASTM F3049', status: 'VERIFIED' },
+      { id: 'acc_arp_ti_fastener', sku: 'QADS-FS-812', name: 'Titanium 6Al-4V 12-Point Structural Fastener & Stud Kit', category: 'Structural Adapters & Fasteners', domain: 'sbc-350-v20', subsystem: 'Engine Block & Sump', materialId: 'ti6al4v', boreIn: 4.060, strokeIn: 3.480, wallIn: 0.26, boltCount: 34, filletIn: 0.25, massLb: 4.1, tolerance: 'ASME Y14.5-2018 IT5', status: 'VERIFIED' }
+    ];
+
+    const SUBSYSTEMS_BY_DOMAIN = {
+      'sbc-350-v16': [
+        'Engine Block & Sump',
+        'Crankshaft & Pistons',
+        'CNC Cylinder Heads',
+        'Valvetrain',
+        'Intake & Fuel Rail',
+        'Tuned Exhaust Headers'
+      ],
+      'sbc-350-v20': [
+        'Engine Block & Sump',
+        'Crankshaft & Pistons',
+        'CNC Cylinder Heads',
+        'Valvetrain',
+        'Intake & Fuel Rail',
+        'Tuned Exhaust Headers',
+        'Coolant Crossover',
+        'Bellhousing & Flywheel'
+      ],
+      'aerospace-v20': [
+        'Regen Thrust Chamber',
+        '2-Axis Gimbal Ring',
+        'Dual Turbopumps',
+        'Cryo Propellant Core',
+        'Airframe Bulkheads',
+        'Avionics & Telemetry'
+      ]
+    };
+
+    const RENDER_MODES = [
+      { id: 'shaded', label: 'Shaded Studio' },
+      { id: 'wireframe', label: 'Wireframe + CAD' },
+      { id: 'xray', label: 'X-Ray Depth' },
+      { id: 'section', label: 'Section Slice' },
+      { id: 'lattice-3dp', label: '3DP Lattice' },
+      { id: 'fea-field', label: 'WebGPU / FEA Field' },
+      { id: 'blueprint-2d', label: '2D ASME Blueprint' }
+    ];
+
+    const ROOM_TABS = [
+      { id: 'build', label: '1. Sketch & Build' },
+      { id: 'sbc16', label: '2. SBC-350 v16 Modeler' },
+      { id: 'matrix', label: '3. Parts & Vehicle Matrix' },
+      { id: 'inspect', label: '4. Inspect & Slice' },
+      { id: 'scale', label: '5. Photo Scale' },
+      { id: 'blueprint', label: '6. ASME Y14.5M & ISO 2768-m Sheet' },
+      { id: 'cinema', label: '7. Jesse 24fps Cinema & AI' }
+    ];
+
+    // =========================================================================
+    // 3. STUDIO ENVIRONMENT MAP, ERROR BOUNDARY, ORBIT, TEXTURES & STL EXPORT
+    // =========================================================================
+    function createStudioEnvironmentTexture() {
+      const canvas = document.createElement('canvas');
+      canvas.width = 512;
+      canvas.height = 256;
+      const ctx = canvas.getContext('2d');
+
+      const grad = ctx.createLinearGradient(0, 0, 0, 256);
+      grad.addColorStop(0.0, '#1e293b');
+      grad.addColorStop(0.45, '#0f172a');
+      grad.addColorStop(0.55, '#090d16');
+      grad.addColorStop(1.0, '#162032');
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, 512, 256);
+
+      ctx.fillStyle = 'rgba(255, 224, 178, 0.85)';
+      ctx.fillRect(290, 28, 130, 34);
+
+      ctx.fillStyle = 'rgba(125, 211, 252, 0.72)';
+      ctx.fillRect(72, 48, 115, 28);
+
+      ctx.fillStyle = 'rgba(241, 245, 249, 0.45)';
+      ctx.fillRect(195, 16, 82, 14);
+
+      const envTex = new THREE.CanvasTexture(canvas);
+      envTex.mapping = THREE.EquirectangularReflectionMapping;
+      envTex.colorSpace = THREE.SRGBColorSpace;
+      return envTex;
+    }
+
+    class StudioErrorBoundary extends React.Component {
+      constructor(props) {
+        super(props);
+        this.state = { hasError: false, message: '' };
+      }
+
+      static getDerivedStateFromError(error) {
+        return {
+          hasError: true,
+          message: error && error.message ? error.message : 'Unexpected studio runtime error'
+        };
+      }
+
+      componentDidCatch(_error, _info) {
+        // Handled cleanly in fallback UI
+      }
+
+      render() {
+        if (this.state.hasError) {
+          return (
+            <div className="w-full h-full min-h-[260px] flex items-center justify-center p-4 bg-[#070A10] text-slate-100">
+              <div className="max-w-md w-full rounded-xl bg-[#0E1420] border border-amber-500/40 p-5 space-y-3">
+                <div className="font-mono-tabular text-xs font-bold text-amber-300 uppercase">
+                  Studio Recovery Boundary Active
+                </div>
+                <p className="text-xs text-slate-300 leading-relaxed">
+                  {this.state.message}
+                </p>
+                <button
+                  type="button"
+                  onClick={() => this.setState({ hasError: false, message: '' })}
+                  className="min-h-[44px] px-4 rounded-lg bg-sky-400 text-slate-950 font-mono-tabular text-xs font-bold touch-manipulation"
+                >
+                  Reset Component View
+                </button>
+              </div>
+            </div>
+          );
+        }
+        return this.props.children;
+      }
+    }
+
+    function createSimpleOrbitController(camera, domElement, initialTarget) {
+      const target = initialTarget ? initialTarget.clone() : new THREE.Vector3(0, 0.2, 0);
+      const offset = camera.position.clone().sub(target);
+      const spherical = new THREE.Spherical().setFromVector3(offset);
+
+      let isDragging = false;
+      let dragMode = 'ROTATE';
+      let lastX = 0;
+      let lastY = 0;
+      let lastPinchDist = null;
+      let dampingTheta = 0;
+      let dampingPhi = 0;
+
+      const syncFromCamera = () => {
+        offset.copy(camera.position).sub(target);
+        spherical.setFromVector3(offset);
+        spherical.radius = THREE.MathUtils.clamp(spherical.radius, 2.2, 26.0);
+        spherical.phi = THREE.MathUtils.clamp(spherical.phi, 0.12, Math.PI - 0.12);
+      };
+
+      const applySpherical = () => {
+        spherical.radius = THREE.MathUtils.clamp(spherical.radius, 2.2, 26.0);
+        spherical.phi = THREE.MathUtils.clamp(spherical.phi, 0.12, Math.PI - 0.12);
+        offset.setFromSpherical(spherical);
+        camera.position.copy(target).add(offset);
+        camera.lookAt(target);
+      };
+
+      const onMouseDown = (e) => {
+        isDragging = true;
+        dragMode = (e.button === 2 || e.shiftKey) ? 'PAN' : 'ROTATE';
+        lastX = e.clientX;
+        lastY = e.clientY;
+        dampingTheta = 0;
+        dampingPhi = 0;
+      };
+
+      const onMouseMove = (e) => {
+        if (!isDragging) return;
+        const dx = e.clientX - lastX;
+        const dy = e.clientY - lastY;
+        lastX = e.clientX;
+        lastY = e.clientY;
+
+        if (dragMode === 'ROTATE') {
+          const rotSpeed = 0.0065;
+          dampingTheta = -dx * rotSpeed;
+          dampingPhi = -dy * rotSpeed;
+          spherical.theta += dampingTheta;
+          spherical.phi += dampingPhi;
+          applySpherical();
+        } else {
+          const panScale = spherical.radius * 0.0014;
+          const forward = target.clone().sub(camera.position).normalize();
+          const right = new THREE.Vector3().crossVectors(forward, camera.up).normalize();
+          const up = new THREE.Vector3().crossVectors(right, forward).normalize();
+          target.addScaledVector(right, -dx * panScale);
+          target.addScaledVector(up, dy * panScale);
+          applySpherical();
+        }
+      };
+
+      const onMouseUp = () => {
+        isDragging = false;
+      };
+
+      const onWheel = (e) => {
+        e.preventDefault();
+        syncFromCamera();
+        const scale = e.deltaY > 0 ? 1.1 : 0.9;
+        spherical.radius *= scale;
+        applySpherical();
+      };
+
+      const onTouchStart = (e) => {
+        if (e.touches.length === 1) {
+          isDragging = true;
+          dragMode = 'ROTATE';
+          lastX = e.touches[0].clientX;
+          lastY = e.touches[0].clientY;
+          lastPinchDist = null;
+        } else if (e.touches.length === 2) {
+          isDragging = false;
+          const dx = e.touches[0].clientX - e.touches[1].clientX;
+          const dy = e.touches[0].clientY - e.touches[1].clientY;
+          lastPinchDist = Math.hypot(dx, dy);
+        }
+      };
+
+      const onTouchMove = (e) => {
+        if (e.touches.length === 1 && isDragging) {
+          const dx = e.touches[0].clientX - lastX;
+          const dy = e.touches[0].clientY - lastY;
+          lastX = e.touches[0].clientX;
+          lastY = e.touches[0].clientY;
+          spherical.theta -= dx * 0.007;
+          spherical.phi -= dy * 0.007;
+          applySpherical();
+        } else if (e.touches.length === 2) {
+          const dx = e.touches[0].clientX - e.touches[1].clientX;
+          const dy = e.touches[0].clientY - e.touches[1].clientY;
+          const dist = Math.hypot(dx, dy);
+          if (lastPinchDist && dist > 0) {
+            syncFromCamera();
+            spherical.radius *= lastPinchDist / dist;
+            applySpherical();
+          }
+          lastPinchDist = dist;
+        }
+      };
+
+      const onTouchEnd = () => {
+        isDragging = false;
+        lastPinchDist = null;
+      };
+
+      const onContextMenu = (e) => e.preventDefault();
+
+      domElement.addEventListener('mousedown', onMouseDown);
+      window.addEventListener('mousemove', onMouseMove);
+      window.addEventListener('mouseup', onMouseUp);
+      domElement.addEventListener('wheel', onWheel, { passive: false });
+      domElement.addEventListener('touchstart', onTouchStart, { passive: true });
+      domElement.addEventListener('touchmove', onTouchMove, { passive: true });
+      domElement.addEventListener('touchend', onTouchEnd);
+      domElement.addEventListener('contextmenu', onContextMenu);
+
+      applySpherical();
+
+      return {
+        target,
+        syncFromCamera,
+        setView: (posVec, nextTarget) => {
+          if (nextTarget) target.copy(nextTarget);
+          camera.position.copy(posVec);
+          syncFromCamera();
+          applySpherical();
+        },
+        zoomBy: (factor) => {
+          syncFromCamera();
+          spherical.radius *= factor;
+          applySpherical();
+        },
+        update: () => {
+          if (!isDragging && (Math.abs(dampingTheta) > 0.0001 || Math.abs(dampingPhi) > 0.0001)) {
+            spherical.theta += dampingTheta;
+            spherical.phi += dampingPhi;
+            dampingTheta *= 0.88;
+            dampingPhi *= 0.88;
+            applySpherical();
+          }
+        },
+        dispose: () => {
+          domElement.removeEventListener('mousedown', onMouseDown);
+          window.removeEventListener('mousemove', onMouseMove);
+          window.removeEventListener('mouseup', onMouseUp);
+          domElement.removeEventListener('wheel', onWheel);
+          domElement.removeEventListener('touchstart', onTouchStart);
+          domElement.removeEventListener('touchmove', onTouchMove);
+          domElement.removeEventListener('touchend', onTouchEnd);
+          domElement.removeEventListener('contextmenu', onContextMenu);
+        }
+      };
+    }
+
+    function createBrushedMetalTexture() {
+      const canvas = document.createElement('canvas');
+      canvas.width = 256;
+      canvas.height = 256;
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = '#c9d2de';
+      ctx.fillRect(0, 0, 256, 256);
+      for (let y = 0; y < 256; y++) {
+        const shade = 180 + ((y * 37) % 48);
+        ctx.fillStyle = `rgb(${shade},${shade + 4},${shade + 10})`;
+        ctx.fillRect(0, y, 256, 1);
+      }
+      const tex = new THREE.CanvasTexture(canvas);
+      tex.wrapS = THREE.RepeatWrapping;
+      tex.wrapT = THREE.RepeatWrapping;
+      tex.repeat.set(3, 3);
+      return tex;
+    }
+
+    function createCarbonWeaveTexture() {
+      const canvas = document.createElement('canvas');
+      canvas.width = 64;
+      canvas.height = 64;
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = '#0f172a';
+      ctx.fillRect(0, 0, 64, 64);
+      for (let y = 0; y < 64; y += 8) {
+        for (let x = 0; x < 64; x += 8) {
+          ctx.fillStyle = ((x + y) / 8) % 2 === 0 ? '#1e293b' : '#334155';
+          ctx.fillRect(x, y, 7, 3);
+          ctx.fillStyle = '#090d16';
+          ctx.fillRect(x, y + 4, 7, 3);
+        }
+      }
+      const tex = new THREE.CanvasTexture(canvas);
+      tex.wrapS = THREE.RepeatWrapping;
+      tex.wrapT = THREE.RepeatWrapping;
+      tex.repeat.set(10, 10);
+      return tex;
+    }
+
+    function disposeObject3D(root) {
+      if (!root) return;
+      root.traverse((node) => {
+        if (node.geometry) node.geometry.dispose();
+        if (node.material) {
+          const list = Array.isArray(node.material) ? node.material : [node.material];
+          list.forEach((m) => {
+            if (m.map) m.map.dispose();
+            if (m.envMap) m.envMap.dispose();
+            m.dispose();
+          });
+        }
+      });
+    }
+
+    function applyFeaVertexColors(geometry) {
+      const pos = geometry.attributes.position;
+      if (!pos) return;
+      geometry.computeBoundingBox();
+      const bb = geometry.boundingBox;
+      const minY = bb ? bb.min.y : -1;
+      const maxY = bb ? bb.max.y : 1;
+      const spanY = Math.max(0.001, maxY - minY);
+      const colors = new Float32Array(pos.count * 3);
+      const color = new THREE.Color();
+
+      for (let i = 0; i < pos.count; i++) {
+        const y = pos.getY(i);
+        const x = pos.getX(i);
+        const z = pos.getZ(i);
+        const stress = THREE.MathUtils.clamp(
+          ((y - minY) / spanY) * 0.62 + (Math.abs(x) + Math.abs(z)) * 0.08,
+          0,
+          1
+        );
+        color.setHSL(0.62 - stress * 0.60, 0.92, 0.52);
+        colors[i * 3] = color.r;
+        colors[i * 3 + 1] = color.g;
+        colors[i * 3 + 2] = color.b;
+      }
+      geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+    }
+
+    function parseAsciiStlToGeometry(text) {
+      const vertices = [];
+      const vertexRegex = /vertex\s+([+-]?\d*\.?\d+(?:[eE][+-]?\d+)?)\s+([+-]?\d*\.?\d+(?:[eE][+-]?\d+)?)\s+([+-]?\d*\.?\d+(?:[eE][+-]?\d+)?)/g;
+      let match;
+      while ((match = vertexRegex.exec(text)) !== null) {
+        vertices.push(parseFloat(match[1]), parseFloat(match[2]), parseFloat(match[3]));
+      }
+      if (vertices.length < 9) return null;
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
+      geo.computeVertexNormals();
+      return geo;
+    }
+
+    function parseObjToGeometry(text) {
+      const rawVerts = [];
+      const triVerts = [];
+      const lines = text.split(/\r?\n/);
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (trimmed.startsWith('v ')) {
+          const parts = trimmed.split(/\s+/);
+          if (parts.length >= 4) {
+            rawVerts.push([parseFloat(parts[1]), parseFloat(parts[2]), parseFloat(parts[3])]);
+          }
+        } else if (trimmed.startsWith('f ')) {
+          const parts = trimmed.slice(2).trim().split(/\s+/);
+          const idxList = parts
+            .map((tok) => {
+              const vIdx = parseInt(tok.split('/')[0], 10);
+              return vIdx < 0 ? rawVerts.length + vIdx : vIdx - 1;
+            })
+            .filter((idx) => idx >= 0 && idx < rawVerts.length);
+          for (let i = 1; i + 1 < idxList.length; i++) {
+            const a = rawVerts[idxList[0]];
+            const b = rawVerts[idxList[i]];
+            const c = rawVerts[idxList[i + 1]];
+            triVerts.push(a[0], a[1], a[2], b[0], b[1], b[2], c[0], c[1], c[2]);
+          }
+        }
+      }
+      if (triVerts.length < 9) return null;
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute('position', new THREE.Float32BufferAttribute(triVerts, 3));
+      geo.computeVertexNormals();
+      return geo;
+    }
+
+    function exportGroupToAsciiStl(group, solidName) {
+      const lines = [`solid ${solidName}`];
+      const vA = new THREE.Vector3();
+      const vB = new THREE.Vector3();
+      const vC = new THREE.Vector3();
+      const cb = new THREE.Vector3();
+      const ab = new THREE.Vector3();
+
+      group.updateMatrixWorld(true);
+      group.traverse((obj) => {
+        if (!obj.isMesh || !obj.visible || !obj.geometry) return;
+        const geo = obj.geometry;
+        const pos = geo.attributes.position;
+        if (!pos) return;
+        const index = geo.index;
+        const triCount = index ? index.count / 3 : pos.count / 3;
+
+        for (let t = 0; t < triCount; t++) {
+          const i0 = index ? index.getX(t * 3) : t * 3;
+          const i1 = index ? index.getX(t * 3 + 1) : t * 3 + 1;
+          const i2 = index ? index.getX(t * 3 + 2) : t * 3 + 2;
+
+          vA.fromBufferAttribute(pos, i0).applyMatrix4(obj.matrixWorld);
+          vB.fromBufferAttribute(pos, i1).applyMatrix4(obj.matrixWorld);
+          vC.fromBufferAttribute(pos, i2).applyMatrix4(obj.matrixWorld);
+
+          cb.subVectors(vC, vB);
+          ab.subVectors(vA, vB);
+          cb.cross(ab).normalize();
+
+          lines.push(`  facet normal ${cb.x.toFixed(6)} ${cb.y.toFixed(6)} ${cb.z.toFixed(6)}`);
+          lines.push('    outer loop');
+          lines.push(`      vertex ${vA.x.toFixed(6)} ${vA.y.toFixed(6)} ${vA.z.toFixed(6)}`);
+          lines.push(`      vertex ${vB.x.toFixed(6)} ${vB.y.toFixed(6)} ${vB.z.toFixed(6)}`);
+          lines.push(`      vertex ${vC.x.toFixed(6)} ${vC.y.toFixed(6)} ${vC.z.toFixed(6)}`);
+          lines.push('    endloop');
+          lines.push('  endfacet');
+        }
+      });
+      lines.push(`endsolid ${solidName}`);
+      return lines.join('\n');
+    }
+
+    // =========================================================================
+    // 4. 60 FPS PBR 3D VIEWPORT (40° LENS, ACES FILMIC, WARM KEY 2.6, 6-12s SPIN, ~1s EASE)
+    // =========================================================================
+    function ReliableCadViewport({
+      domain,
+      renderMode,
+      params,
+      explodePercent,
+      turntableSpin,
+      turntableSec,
+      mechanicalMotion,
+      sliceAxis,
+      slicePercent,
+      visibilityMap,
+      isolatedSubsystem,
+      selectedSubsystem,
+      onSelectSubsystem,
+      calibratedPhoto,
+      uploadedMeshAsset,
+      cameraCommand,
+      onDiagnosticsUpdate,
+      onExportStlReady
+    }) {
+      const containerRef = useRef(null);
+      const sceneRef = useRef(null);
+      const cameraRef = useRef(null);
+      const rendererRef = useRef(null);
+      const envTexRef = useRef(null);
+      const orbitRef = useRef(null);
+      const assemblyRootRef = useRef(null);
+      const subsystemGroupsRef = useRef({});
+      const animatedPartsRef = useRef({ crank: null, pistons: [], valves: [], turbopumps: [] });
+      const photoMeshRef = useRef(null);
+      const clipPlaneRef = useRef(new THREE.Plane(new THREE.Vector3(0, -1, 0), 999));
+      const sectionCapRef = useRef(null);
+      const fallback2dCanvasRef = useRef(null);
+
+      const easedExplodeRef = useRef(explodePercent);
+      const easedSliceRef = useRef(slicePercent);
+      const explodeAnimRef = useRef({ from: explodePercent, to: explodePercent, elapsed: 1, duration: 1.0 });
+      const sliceAnimRef = useRef({ from: slicePercent, to: slicePercent, elapsed: 1, duration: 1.0 });
+
+      useEffect(() => {
+        explodeAnimRef.current = {
+          from: easedExplodeRef.current,
+          to: explodePercent,
+          elapsed: 0,
+          duration: 1.0
+        };
+      }, [explodePercent]);
+
+      useEffect(() => {
+        sliceAnimRef.current = {
+          from: easedSliceRef.current,
+          to: slicePercent,
+          elapsed: 0,
+          duration: 1.0
+        };
+      }, [slicePercent]);
+
+      const animStateRef = useRef({
+        turntableSpin,
+        turntableSec: THREE.MathUtils.clamp(turntableSec || 9, 6, 12),
+        mechanicalMotion,
+        domain,
+        renderMode,
+        sliceAxis,
+        params
+      });
+      useEffect(() => {
+        animStateRef.current = {
+          turntableSpin,
+          turntableSec: THREE.MathUtils.clamp(turntableSec || 9, 6, 12),
+          mechanicalMotion,
+          domain,
+          renderMode,
+          sliceAxis,
+          params
+        };
+      }, [turntableSpin, turntableSec, mechanicalMotion, domain, renderMode, sliceAxis, params]);
+
+      useEffect(() => {
+        const container = containerRef.current;
+        if (!container) return;
+
+        const w = Math.max(300, container.clientWidth || 680);
+        const h = Math.max(300, container.clientHeight || 460);
+
+        let webglReady = false;
+        let renderer = null;
+        let scene = null;
+        let camera = null;
+        let orbit = null;
+        let envTex = null;
+
+        try {
+          if (typeof THREE === 'undefined' || !THREE.WebGLRenderer) {
+            throw new Error('Three.js global not available');
+          }
+
+          scene = new THREE.Scene();
+          sceneRef.current = scene;
+
+          envTex = createStudioEnvironmentTexture();
+          envTexRef.current = envTex;
+          scene.environment = envTex;
+          scene.environmentIntensity = 0.85;
+
+          camera = new THREE.PerspectiveCamera(40, w / h, 0.1, 180);
+          camera.position.set(7.2, 5.2, 7.6);
+          cameraRef.current = camera;
+
+          renderer = new THREE.WebGLRenderer({
+            antialias: true,
+            alpha: true,
+            preserveDrawingBuffer: true,
+            powerPreference: 'high-performance'
+          });
+          renderer.setSize(w, h);
+          renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+          renderer.toneMapping = THREE.ACESFilmicToneMapping;
+          renderer.toneMappingExposure = 1.08;
+          renderer.shadowMap.enabled = true;
+          renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+          renderer.localClippingEnabled = true;
+          rendererRef.current = renderer;
+          container.appendChild(renderer.domElement);
+
+          orbit = createSimpleOrbitController(camera, renderer.domElement, new THREE.Vector3(0, 0.25, 0));
+          orbitRef.current = orbit;
+
+          const hemiLight = new THREE.HemisphereLight(0xdbeafe, 0x0f172a, 0.55);
+          scene.add(hemiLight);
+
+          const warmKeyLight = new THREE.DirectionalLight(0xffdfa8, 2.6);
+          warmKeyLight.position.set(10, 14, 11);
+          warmKeyLight.castShadow = true;
+          warmKeyLight.shadow.mapSize.width = 1024;
+          warmKeyLight.shadow.mapSize.height = 1024;
+          warmKeyLight.shadow.camera.near = 2;
+          warmKeyLight.shadow.camera.far = 40;
+          warmKeyLight.shadow.radius = 4;
+          scene.add(warmKeyLight);
+
+          const coolRimLight = new THREE.DirectionalLight(0x7dd3fc, 1.15);
+          coolRimLight.position.set(-11, 6, -9);
+          scene.add(coolRimLight);
+
+          const grid = new THREE.GridHelper(18, 36, 0x283b5c, 0x101827);
+          grid.position.y = -2.05;
+          scene.add(grid);
+
+          const axes = new THREE.AxesHelper(1.75);
+          axes.position.set(-6.2, -2.02, -6.2);
+          scene.add(axes);
+
+          const capGeo = new THREE.PlaneGeometry(7.2, 7.2);
+          const capMat = new THREE.MeshBasicMaterial({
+            color: 0xf59e0b,
+            transparent: true,
+            opacity: 0.14,
+            side: THREE.DoubleSide,
+            depthWrite: false
+          });
+          const capMesh = new THREE.Mesh(capGeo, capMat);
+          capMesh.visible = false;
+          scene.add(capMesh);
+          sectionCapRef.current = capMesh;
+
+          webglReady = true;
+          if (onDiagnosticsUpdate) {
+            onDiagnosticsUpdate({ rendererMode: 'WebGL2 ACES (40°)', fps: 60, meshCount: 0 });
+          }
+        } catch (_err) {
+          webglReady = false;
+          const fallbackCanvas = document.createElement('canvas');
+          fallbackCanvas.width = w;
+          fallbackCanvas.height = h;
+          fallbackCanvas.className = 'w-full h-full block';
+          container.appendChild(fallbackCanvas);
+          fallback2dCanvasRef.current = fallbackCanvas;
+          if (onDiagnosticsUpdate) {
+            onDiagnosticsUpdate({ rendererMode: 'Fallback 2D Canvas', fps: 60, meshCount: 12 });
+          }
+        }
+
+        const resizeObserver = new ResizeObserver(() => {
+          if (!containerRef.current) return;
+          const nw = Math.max(260, containerRef.current.clientWidth);
+          const nh = Math.max(240, containerRef.current.clientHeight);
+          if (webglReady && rendererRef.current && cameraRef.current) {
+            cameraRef.current.aspect = nw / nh;
+            cameraRef.current.updateProjectionMatrix();
+            rendererRef.current.setSize(nw, nh);
+          } else if (fallback2dCanvasRef.current) {
+            fallback2dCanvasRef.current.width = nw;
+            fallback2dCanvasRef.current.height = nh;
+          }
+        });
+        resizeObserver.observe(container);
+
+        const raycaster = new THREE.Raycaster();
+        const pointer = new THREE.Vector2();
+        let downPos = { x: 0, y: 0 };
+
+        const onPointerDown = (e) => {
+          downPos = { x: e.clientX, y: e.clientY };
+        };
+
+        const onPointerUp = (e) => {
+          if (!webglReady || !renderer || !camera || !assemblyRootRef.current) return;
+          const dist = Math.hypot(e.clientX - downPos.x, e.clientY - downPos.y);
+          if (dist > 6) return;
+          const rect = renderer.domElement.getBoundingClientRect();
+          pointer.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+          pointer.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+          raycaster.setFromCamera(pointer, camera);
+          const hits = raycaster.intersectObjects(assemblyRootRef.current.children, true);
+          const hitMesh = hits.find((h) => h.object && h.object.visible && h.object.userData.subsystem);
+          if (hitMesh && onSelectSubsystem) {
+            onSelectSubsystem(hitMesh.object.userData.subsystem);
+          }
+        };
+
+        if (webglReady && renderer) {
+          renderer.domElement.addEventListener('pointerdown', onPointerDown);
+          renderer.domElement.addEventListener('pointerup', onPointerUp);
+        }
+
+        const easeInOutCubic = (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
+
+        let frameId = null;
+        let prevTime = performance.now();
+        let simTime = 0;
+        let framesSinceSample = 0;
+        let lastFpsSample = prevTime;
+
+        const animate = (now) => {
+          frameId = requestAnimationFrame(animate);
+          const rawDt = (now - prevTime) / 1000;
+          prevTime = now;
+          const dt = Math.min(0.05, Math.max(0.001, rawDt));
+
+          const {
+            turntableSpin: spin,
+            turntableSec: spinPeriod,
+            mechanicalMotion: motion,
+            sliceAxis: curAxis
+          } = animStateRef.current;
+
+          framesSinceSample++;
+          if (now - lastFpsSample >= 750) {
+            const measuredFps = Math.max(15, Math.min(120, Math.round((framesSinceSample * 1000) / (now - lastFpsSample))));
+            let count = 0;
+            if (assemblyRootRef.current) {
+              assemblyRootRef.current.traverse((o) => {
+                if (o.isMesh && o.visible) count++;
+              });
+            }
+            if (onDiagnosticsUpdate) {
+              onDiagnosticsUpdate({
+                rendererMode: webglReady ? 'WebGL2 ACES (40°)' : 'Fallback 2D Canvas',
+                fps: measuredFps,
+                meshCount: webglReady ? count : 14
+              });
+            }
+            framesSinceSample = 0;
+            lastFpsSample = now;
+          }
+
+          const expAnim = explodeAnimRef.current;
+          if (expAnim.elapsed < expAnim.duration) {
+            expAnim.elapsed = Math.min(expAnim.duration, expAnim.elapsed + dt);
+            const k = easeInOutCubic(expAnim.elapsed / expAnim.duration);
+            easedExplodeRef.current = expAnim.from + (expAnim.to - expAnim.from) * k;
+          } else {
+            easedExplodeRef.current = expAnim.to;
+          }
+
+          const slcAnim = sliceAnimRef.current;
+          if (slcAnim.elapsed < slcAnim.duration) {
+            slcAnim.elapsed = Math.min(slcAnim.duration, slcAnim.elapsed + dt);
+            const k = easeInOutCubic(slcAnim.elapsed / slcAnim.duration);
+            easedSliceRef.current = slcAnim.from + (slcAnim.to - slcAnim.from) * k;
+          } else {
+            easedSliceRef.current = slcAnim.to;
+          }
+
+          const curExplode = easedExplodeRef.current;
+          const curSlice = easedSliceRef.current;
+
+          if (webglReady && renderer && scene && camera) {
+            if (assemblyRootRef.current && spin) {
+              const radPerSec = (Math.PI * 2) / THREE.MathUtils.clamp(spinPeriod, 6, 12);
+              assemblyRootRef.current.rotation.y += radPerSec * dt;
+            }
+
+            const expFactor = curExplode / 100;
+            Object.values(subsystemGroupsRef.current).forEach((grp) => {
+              if (!grp || !grp.userData.explodeVec) return;
+              const v = grp.userData.explodeVec;
+              grp.position.set(v.x * expFactor, v.y * expFactor, v.z * expFactor);
+            });
+
+            const activeSlice = curSlice > 0.1;
+            const cutWorld = activeSlice ? 3.8 * (1 - (curSlice / 100) * 1.85) : 999;
+            clipPlaneRef.current.constant = cutWorld;
+            if (sectionCapRef.current) {
+              sectionCapRef.current.visible = activeSlice;
+              if (curAxis === 'X') sectionCapRef.current.position.set(cutWorld, 0, 0);
+              else if (curAxis === 'Y') sectionCapRef.current.position.set(0, cutWorld, 0);
+              else sectionCapRef.current.position.set(0, 0, cutWorld);
+            }
+
+            if (motion) {
+              simTime += dt * 4.2;
+              const anim = animatedPartsRef.current;
+              if (anim.crank) {
+                anim.crank.rotation.x = simTime;
+              }
+              anim.pistons.forEach((pMesh, idx) => {
+                const phase = simTime + (idx % 4) * (Math.PI / 2) + (idx >= 4 ? Math.PI / 4 : 0);
+                const strokeOffset = Math.sin(phase) * 0.22;
+                const bankSign = idx < 4 ? 1 : -1;
+                pMesh.position.y = pMesh.userData.baseY + strokeOffset * 0.707;
+                pMesh.position.z = pMesh.userData.baseZ + bankSign * strokeOffset * 0.707;
+              });
+              anim.valves.forEach((vMesh, idx) => {
+                const lift = Math.max(0, Math.sin(simTime * 0.5 + idx * 0.8)) * 0.09;
+                vMesh.position.y = vMesh.userData.baseY - lift;
+              });
+              anim.turbopumps.forEach((tp, idx) => {
+                tp.rotation.z = simTime * (idx === 0 ? 2.4 : -2.4);
+              });
+            }
+
+            if (orbit) orbit.update();
+            renderer.render(scene, camera);
+          } else if (fallback2dCanvasRef.current) {
+            const c2d = fallback2dCanvasRef.current;
+            const ctx = c2d.getContext('2d');
+            if (ctx) {
+              simTime += motion ? dt * 2.5 : 0;
+              ctx.clearRect(0, 0, c2d.width, c2d.height);
+              ctx.strokeStyle = '#38BDF8';
+              ctx.lineWidth = 2;
+              const cx = c2d.width / 2;
+              const cy = c2d.height / 2;
+              const r = 90 + (curExplode / 100) * 35;
+              ctx.strokeRect(cx - r, cy - r * 0.65, r * 2, r * 1.3);
+              ctx.beginPath();
+              ctx.arc(cx + Math.cos(simTime) * 28, cy + Math.sin(simTime) * 18, 28, 0, Math.PI * 2);
+              ctx.stroke();
+            }
+          }
+        };
+        frameId = requestAnimationFrame(animate);
+
+        return () => {
+          cancelAnimationFrame(frameId);
+          resizeObserver.disconnect();
+          if (webglReady && renderer) {
+            renderer.domElement.removeEventListener('pointerdown', onPointerDown);
+            renderer.domElement.removeEventListener('pointerup', onPointerUp);
+          }
+          if (orbit) orbit.dispose();
+          disposeObject3D(assemblyRootRef.current);
+          disposeObject3D(photoMeshRef.current);
+          if (envTex) envTex.dispose();
+          if (renderer) renderer.dispose();
+          if (renderer && renderer.domElement && renderer.domElement.parentNode === container) {
+            container.removeChild(renderer.domElement);
+          }
+          if (fallback2dCanvasRef.current && fallback2dCanvasRef.current.parentNode === container) {
+            container.removeChild(fallback2dCanvasRef.current);
+          }
+        };
+      }, [onSelectSubsystem, onDiagnosticsUpdate]);
+
+      useEffect(() => {
+        if (!cameraCommand || !cameraRef.current || !orbitRef.current) return;
+        const cam = cameraRef.current;
+        const orb = orbitRef.current;
+        const dist = 8.2;
+
+        if (cameraCommand.type === 'PRESET') {
+          if (cameraCommand.preset === 'ISO') orb.setView(new THREE.Vector3(dist * 0.86, dist * 0.64, dist * 0.90), new THREE.Vector3(0, 0.25, 0));
+          else if (cameraCommand.preset === 'TOP') orb.setView(new THREE.Vector3(0, dist * 1.25, 0.01), new THREE.Vector3(0, 0.25, 0));
+          else if (cameraCommand.preset === 'FRONT') orb.setView(new THREE.Vector3(0, dist * 0.22, dist * 1.22), new THREE.Vector3(0, 0.25, 0));
+          else if (cameraCommand.preset === 'RIGHT') orb.setView(new THREE.Vector3(dist * 1.22, dist * 0.22, 0), new THREE.Vector3(0, 0.25, 0));
+          else if (cameraCommand.preset === 'SECTION') orb.setView(new THREE.Vector3(dist * 0.95, dist * 0.42, dist * 0.45), new THREE.Vector3(0, 0.25, 0));
+          cam.updateProjectionMatrix();
+        } else if (cameraCommand.type === 'ZOOM') {
+          orb.zoomBy(cameraCommand.factor);
+        }
+      }, [cameraCommand]);
+
+      useEffect(() => {
+        const scene = sceneRef.current;
+        if (!scene) return;
+
+        if (assemblyRootRef.current) {
+          scene.remove(assemblyRootRef.current);
+          disposeObject3D(assemblyRootRef.current);
+          assemblyRootRef.current = null;
+        }
+        subsystemGroupsRef.current = {};
+        animatedPartsRef.current = { crank: null, pistons: [], valves: [], turbopumps: [] };
+
+        const plane = clipPlaneRef.current;
+        const cap = sectionCapRef.current;
+        const activeSlice = slicePercent > 0;
+        const cutWorld = activeSlice ? 3.8 * (1 - (slicePercent / 100) * 1.85) : 999;
+
+        if (sliceAxis === 'X') {
+          plane.normal.set(-1, 0, 0);
+          if (cap) {
+            cap.position.set(cutWorld, 0, 0);
+            cap.rotation.set(0, Math.PI / 2, 0);
+          }
+        } else if (sliceAxis === 'Y') {
+          plane.normal.set(0, -1, 0);
+          if (cap) {
+            cap.position.set(0, cutWorld, 0);
+            cap.rotation.set(Math.PI / 2, 0, 0);
+          }
+        } else {
+          plane.normal.set(0, 0, -1);
+          if (cap) {
+            cap.position.set(0, 0, cutWorld);
+            cap.rotation.set(0, 0, 0);
+          }
+        }
+        plane.constant = cutWorld;
+        if (cap) cap.visible = activeSlice;
+
+        const clippingPlanes = activeSlice ? [plane] : [];
+        const alloy = ALLOYS.find((a) => a.id === params.materialId) || ALLOYS[0];
+        const brushedTex = createBrushedMetalTexture();
+        const carbonTex = createCarbonWeaveTexture();
+
+        const buildMaterial = (baseHex, subsystemName, opts = {}) => {
+          const isSelected = selectedSubsystem === subsystemName;
+          const color = isSelected ? 0x38bdf8 : baseHex;
+
+          if (renderMode === 'wireframe' || renderMode === 'lattice-3dp') {
+            return new THREE.MeshBasicMaterial({
+              color: renderMode === 'lattice-3dp' ? 0x10b981 : color,
+              wireframe: true,
+              clippingPlanes
+            });
+          }
+          if (renderMode === 'xray') {
+            const isInternal = opts.internal === true;
+            return new THREE.MeshBasicMaterial({
+              color: isInternal ? 0xf59e0b : color,
+              transparent: true,
+              opacity: isInternal ? 0.88 : 0.24,
+              depthWrite: isInternal,
+              side: THREE.DoubleSide,
+              clippingPlanes
+            });
+          }
+          if (renderMode === 'fea-field') {
+            return new THREE.MeshStandardMaterial({
+              vertexColors: true,
+              roughness: 0.28,
+              metalness: 0.42,
+              side: THREE.DoubleSide,
+              clippingPlanes
+            });
+          }
+
+          return new THREE.MeshStandardMaterial({
+            color,
+            map: opts.carbon ? carbonTex : opts.brushed ? brushedTex : null,
+            metalness: opts.metalness !== undefined ? opts.metalness : alloy.metalness,
+            roughness: opts.roughness !== undefined ? opts.roughness : alloy.roughness,
+            envMapIntensity: 0.9,
+            emissive: opts.emissive || 0x000000,
+            emissiveIntensity: opts.emissiveIntensity || 0,
+            side: THREE.DoubleSide,
+            clippingPlanes
+          });
+        };
+
+        const root = new THREE.Group();
+
+        const createSubGroup = (name, explodeVec) => {
+          const g = new THREE.Group();
+          g.name = name;
+          g.userData.explodeVec = new THREE.Vector3(explodeVec[0], explodeVec[1], explodeVec[2]);
+          const hiddenEye = visibilityMap[name] === false;
+          const hiddenIso = isolatedSubsystem && isolatedSubsystem !== name;
+          g.visible = !hiddenEye && !hiddenIso;
+          subsystemGroupsRef.current[name] = g;
+          root.add(g);
+          return g;
+        };
+
+        const addPart = (parent, geo, hex, subsystemName, pos, rot, opts = {}) => {
+          if (renderMode === 'fea-field') applyFeaVertexColors(geo);
+          const mesh = new THREE.Mesh(geo, buildMaterial(hex, subsystemName, opts));
+          mesh.userData.subsystem = subsystemName;
+          mesh.castShadow = true;
+          mesh.receiveShadow = true;
+          if (pos) mesh.position.set(pos[0], pos[1], pos[2]);
+          if (rot) mesh.rotation.set(rot[0], rot[1], rot[2]);
+          parent.add(mesh);
+
+          if (renderMode === 'wireframe') {
+            const edges = new THREE.EdgesGeometry(geo, 28);
+            const line = new THREE.LineSegments(
+              edges,
+              new THREE.LineBasicMaterial({ color: 0x38bdf8, transparent: true, opacity: 0.45, clippingPlanes })
+            );
+            line.position.copy(mesh.position);
+            line.rotation.copy(mesh.rotation);
+            parent.add(line);
+          }
+          return mesh;
+        };
+
+        const boreScale = THREE.MathUtils.clamp(params.boreIn / 4.0, 0.82, 1.55);
+        const strokeScale = THREE.MathUtils.clamp(params.strokeIn / 3.48, 0.85, 1.45);
+        const wallScale = THREE.MathUtils.clamp(params.wallIn / 0.28, 0.75, 1.65);
+
+        if (domain === 'sbc-350-v16' || domain === 'sbc-350-v20') {
+          const isV20 = domain === 'sbc-350-v20';
+          const blockLen = 3.8 * boreScale;
+          const blockH = 1.45 * strokeScale;
+          const blockW = 1.75 * wallScale;
+
+          const gBlock = createSubGroup('Engine Block & Sump', [0, -0.45, 0]);
+          addPart(gBlock, new THREE.BoxGeometry(blockLen, blockH, blockW), alloy.color, 'Engine Block & Sump', [0, 0, 0], null, { brushed: true });
+
+          for (let bankIdx = 0; bankIdx < 2; bankIdx++) {
+            const sign = bankIdx === 0 ? 1 : -1;
+            for (let c = 0; c < 4; c++) {
+              const xOff = ((c - 1.5) / 3) * (blockLen * 0.72) + (bankIdx === 1 ? 0.14 : -0.14);
+              const sleeveGeo = new THREE.CylinderGeometry(0.32 * boreScale, 0.32 * boreScale, blockH * 0.92, 24, 1, true);
+              addPart(gBlock, sleeveGeo, 0x94a3b8, 'Engine Block & Sump', [xOff, 0.35, sign * 0.42], [sign * 0.785, 0, 0], { metalness: 0.92, roughness: 0.18 });
+            }
+          }
+
+          addPart(gBlock, new THREE.BoxGeometry(blockLen * 0.94, 0.52, blockW * 0.82), 0x1e293b, 'Engine Block & Sump', [0, -blockH * 0.65, 0], null, { brushed: true });
+          const boltCount = Math.min(24, Math.max(8, Math.round(params.boltCount)));
+          for (let b = 0; b < boltCount; b++) {
+            const side = b % 2 === 0 ? 1 : -1;
+            const bx = (((Math.floor(b / 2)) / Math.max(1, boltCount / 2 - 1)) - 0.5) * blockLen * 0.88;
+            addPart(gBlock, new THREE.CylinderGeometry(0.035, 0.035, 0.09, 6), 0xfbbf24, 'Engine Block & Sump', [bx, -blockH * 0.48, side * blockW * 0.43]);
+          }
+
+          const gCrank = createSubGroup('Crankshaft & Pistons', [0, -1.35, 0]);
+          const crankGroup = new THREE.Group();
+          crankGroup.position.set(0, -0.25, 0);
+          const shaftMesh = new THREE.Mesh(
+            new THREE.CylinderGeometry(0.16, 0.16, blockLen * 1.12, 20),
+            buildMaterial(0xcbd5e1, 'Crankshaft & Pistons', { internal: true, metalness: 0.94, roughness: 0.15 })
+          );
+          shaftMesh.rotation.z = Math.PI / 2;
+          shaftMesh.userData.subsystem = 'Crankshaft & Pistons';
+          crankGroup.add(shaftMesh);
+
+          for (let wIdx = 0; wIdx < 6; wIdx++) {
+            const wx = ((wIdx / 5) - 0.5) * blockLen * 0.85;
+            const cw = new THREE.Mesh(
+              new THREE.BoxGeometry(0.12, 0.68, 0.42),
+              buildMaterial(0x64748b, 'Crankshaft & Pistons', { internal: true })
+            );
+            cw.position.set(wx, 0, 0);
+            cw.rotation.x = (wIdx * Math.PI) / 3;
+            cw.userData.subsystem = 'Crankshaft & Pistons';
+            crankGroup.add(cw);
+          }
+          gCrank.add(crankGroup);
+          animatedPartsRef.current.crank = crankGroup;
+
+          for (let bankIdx = 0; bankIdx < 2; bankIdx++) {
+            const sign = bankIdx === 0 ? 1 : -1;
+            for (let c = 0; c < 4; c++) {
+              const xOff = ((c - 1.5) / 3) * (blockLen * 0.72) + (bankIdx === 1 ? 0.14 : -0.14);
+              const pGeo = new THREE.CylinderGeometry(0.28 * boreScale, 0.28 * boreScale, 0.34, 24);
+              const pMesh = addPart(
+                gCrank,
+                pGeo,
+                0xe2e8f0,
+                'Crankshaft & Pistons',
+                [xOff, 0.42, sign * 0.48],
+                [sign * 0.785, 0, 0],
+                { internal: true, metalness: 0.95, roughness: 0.16 }
+              );
+              pMesh.userData.baseY = 0.42;
+              pMesh.userData.baseZ = sign * 0.48;
+              animatedPartsRef.current.pistons.push(pMesh);
+            }
+          }
+
+          const gHeads = createSubGroup('CNC Cylinder Heads', [0, 1.15, 0]);
+          [-1, 1].forEach((sign) => {
+            addPart(
+              gHeads,
+              new THREE.BoxGeometry(blockLen * 0.96, 0.62, 0.98 * wallScale),
+              0x94a3b8,
+              'CNC Cylinder Heads',
+              [0, 0.88, sign * 0.78],
+              [sign * 0.785, 0, 0],
+              { brushed: true, metalness: 0.9, roughness: 0.2 }
+            );
+            for (let hb = 0; hb < 5; hb++) {
+              const hx = ((hb / 4) - 0.5) * blockLen * 0.84;
+              addPart(
+                gHeads,
+                new THREE.CylinderGeometry(0.045, 0.045, 0.14, 12),
+                0xf59e0b,
+                'CNC Cylinder Heads',
+                [hx, 1.15, sign * 1.02],
+                [sign * 0.785, 0, 0]
+              );
+            }
+          });
+
+          const gValve = createSubGroup('Valvetrain', [0, 2.05, 0]);
+          [-1, 1].forEach((sign) => {
+            for (let v = 0; v < 8; v++) {
+              const vx = ((v / 7) - 0.5) * blockLen * 0.82;
+              const spring = addPart(
+                gValve,
+                new THREE.CylinderGeometry(0.065, 0.065, 0.26, 12),
+                0xfbbf24,
+                'Valvetrain',
+                [vx, 1.24, sign * 0.92],
+                [sign * 0.785, 0, 0],
+                { internal: true }
+              );
+              spring.userData.baseY = 1.24;
+              animatedPartsRef.current.valves.push(spring);
+            }
+            if (isV20) {
+              for (let pod = 0; pod < 4; pod++) {
+                const px = ((pod - 1.5) / 3) * blockLen * 0.74;
+                addPart(
+                  gValve,
+                  new THREE.CylinderGeometry(0.16, 0.18, 0.34, 16),
+                  0x38bdf8,
+                  'Valvetrain',
+                  [px, 1.48, sign * 1.14],
+                  [sign * 0.785, 0, 0],
+                  { metalness: 0.88, roughness: 0.22 }
+                );
+              }
+            } else {
+              addPart(
+                gValve,
+                new THREE.BoxGeometry(blockLen * 0.92, 0.32, 0.78),
+                0xd97706,
+                'Valvetrain',
+                [0, 1.38, sign * 1.06],
+                [sign * 0.785, 0, 0],
+                { brushed: true }
+              );
+            }
+          });
+
+          const gIntake = createSubGroup('Intake & Fuel Rail', [0, 2.55, 0]);
+          addPart(gIntake, new THREE.BoxGeometry(blockLen * 0.84, 0.44, 0.96), 0x1e293b, 'Intake & Fuel Rail', [0, 1.22, 0], null, { carbon: true });
+          [-0.55, 0.55].forEach((tx) => {
+            const tb = new THREE.CylinderGeometry(0.24, 0.24, 0.38, 24);
+            tb.rotateZ(Math.PI / 2);
+            addPart(gIntake, tb, 0x38bdf8, 'Intake & Fuel Rail', [tx, 1.52, 0], [0, Math.PI / 2, 0]);
+          });
+          [-0.46, 0.46].forEach((fz) => {
+            const rail = new THREE.CylinderGeometry(0.045, 0.045, blockLen * 0.82, 16);
+            rail.rotateZ(Math.PI / 2);
+            addPart(gIntake, rail, 0xf59e0b, 'Intake & Fuel Rail', [0, 1.36, fz]);
+          });
+
+          const gHeaders = createSubGroup('Tuned Exhaust Headers', [0, 0.2, 0]);
+          [-1, 1].forEach((sign) => {
+            for (let p = 0; p < 4; p++) {
+              const px = ((p - 1.5) / 3) * blockLen * 0.72;
+              const pipe = new THREE.CylinderGeometry(0.11, 0.11, 1.15, 16);
+              addPart(
+                gHeaders,
+                pipe,
+                0xd97706,
+                'Tuned Exhaust Headers',
+                [px - 0.18, 0.42, sign * 1.22],
+                [sign * 0.45, 0, 0.35],
+                { emissive: 0x9a3412, emissiveIntensity: 0.42, metalness: 0.88, roughness: 0.24 }
+              );
+            }
+            const collector = new THREE.CylinderGeometry(0.22, 0.18, 0.95, 20);
+            collector.rotateZ(Math.PI / 2);
+            addPart(
+              gHeaders,
+              collector,
+              0xb45309,
+              'Tuned Exhaust Headers',
+              [-blockLen * 0.44, -0.08, sign * 1.38],
+              null,
+              { emissive: 0x7c2d12, emissiveIntensity: 0.35 }
+            );
+          });
+
+          if (isV20) {
+            const gCool = createSubGroup('Coolant Crossover', [1.45, 0.9, 0]);
+            const crossTube = new THREE.CylinderGeometry(0.09, 0.09, 1.85, 16);
+            crossTube.rotateX(Math.PI / 2);
+            addPart(gCool, crossTube, 0x38bdf8, 'Coolant Crossover', [blockLen * 0.46, 1.28, 0]);
+            [-0.85, 0.85].forEach((cz) => {
+              addPart(gCool, new THREE.CylinderGeometry(0.14, 0.14, 0.18, 6), 0xf59e0b, 'Coolant Crossover', [blockLen * 0.46, 1.28, cz]);
+            });
+
+            const gBell = createSubGroup('Bellhousing & Flywheel', [-1.85, 0, 0]);
+            const ring = new THREE.TorusGeometry(1.12, 0.14, 16, 36);
+            ring.rotateY(Math.PI / 2);
+            addPart(gBell, ring, 0x64748b, 'Bellhousing & Flywheel', [-blockLen * 0.56, -0.1, 0], null, { brushed: true });
+            const flywheel = new THREE.CylinderGeometry(0.92, 0.92, 0.12, 36);
+            flywheel.rotateZ(Math.PI / 2);
+            addPart(gBell, flywheel, 0xfbbf24, 'Bellhousing & Flywheel', [-blockLen * 0.52, -0.1, 0]);
+          }
+        } else {
+          const chamberR = 0.82 * boreScale;
+          const chamberLen = 2.6 * strokeScale;
+
+          const gChamber = createSubGroup('Regen Thrust Chamber', [-1.5, 0, 0]);
+          const throat = new THREE.CylinderGeometry(chamberR * 0.72, chamberR * 0.46, chamberLen * 0.48, 36);
+          throat.rotateZ(Math.PI / 2);
+          addPart(gChamber, throat, 0xd97706, 'Regen Thrust Chamber', [-0.4, 0, 0], null, { brushed: true, metalness: 0.92, roughness: 0.2 });
+
+          const nozzle = new THREE.CylinderGeometry(chamberR * 0.46, chamberR * 1.32, chamberLen * 0.68, 40, 1, true);
+          nozzle.rotateZ(Math.PI / 2);
+          addPart(
+            gChamber,
+            nozzle,
+            alloy.color,
+            'Regen Thrust Chamber',
+            [-0.4 - chamberLen * 0.56, 0, 0],
+            null,
+            { emissive: 0x9a3412, emissiveIntensity: 0.38 }
+          );
+
+          for (let r = 0; r < 5; r++) {
+            const rx = -0.75 - r * 0.32;
+            const band = new THREE.TorusGeometry(chamberR * (0.52 + r * 0.17), 0.032, 10, 36);
+            band.rotateY(Math.PI / 2);
+            addPart(gChamber, band, 0x38bdf8, 'Regen Thrust Chamber', [rx, 0, 0]);
+          }
+
+          const gGimbal = createSubGroup('2-Axis Gimbal Ring', [0, 1.25, 0]);
+          const gimbalRing = new THREE.TorusGeometry(chamberR * 1.18, 0.095, 16, 40);
+          gimbalRing.rotateY(Math.PI / 2);
+          addPart(gGimbal, gimbalRing, 0x38bdf8, '2-Axis Gimbal Ring', [0.15, 0, 0]);
+
+          [-1, 1].forEach((sign) => {
+            const actuator = new THREE.CylinderGeometry(0.08, 0.08, 1.35, 16);
+            addPart(gGimbal, actuator, 0xf59e0b, '2-Axis Gimbal Ring', [0.45, sign * 0.72, sign * 0.68], [sign * 0.52, 0, -0.45]);
+          });
+
+          const gTurbo = createSubGroup('Dual Turbopumps', [0, -1.25, 0]);
+          [-1, 1].forEach((sign) => {
+            const housing = new THREE.CylinderGeometry(0.42, 0.42, 0.58, 28);
+            housing.rotateX(Math.PI / 2);
+            addPart(gTurbo, housing, 0x64748b, 'Dual Turbopumps', [0.55, sign * 0.92, sign * 0.45], null, { brushed: true });
+
+            const impeller = new THREE.CylinderGeometry(0.28, 0.28, 0.64, 12);
+            impeller.rotateX(Math.PI / 2);
+            const impMesh = addPart(gTurbo, impeller, 0x38bdf8, 'Dual Turbopumps', [0.55, sign * 0.92, sign * 0.45], null, { internal: true });
+            animatedPartsRef.current.turbopumps.push(impMesh);
+          });
+
+          const gCryo = createSubGroup('Cryo Propellant Core', [1.45, 0, 0]);
+          const tank = new THREE.CylinderGeometry(chamberR * 0.95, chamberR * 0.95, 2.25, 36);
+          tank.rotateZ(Math.PI / 2);
+          addPart(gCryo, tank, 0x94a3b8, 'Cryo Propellant Core', [1.65, 0, 0], null, { brushed: true, metalness: 0.92, roughness: 0.18 });
+          addPart(gCryo, new THREE.SphereGeometry(chamberR * 0.95, 32, 20), 0x94a3b8, 'Cryo Propellant Core', [2.76, 0, 0]);
+
+          const gAirframe = createSubGroup('Airframe Bulkheads', [0, 0, 1.35]);
+          [0.9, 1.65, 2.4].forEach((bx) => {
+            const bulkhead = new THREE.TorusGeometry(chamberR * 1.28, 0.08, 12, 36);
+            bulkhead.rotateY(Math.PI / 2);
+            addPart(gAirframe, bulkhead, 0x1e293b, 'Airframe Bulkheads', [bx, 0, 0], null, { carbon: true });
+          });
+          addPart(gAirframe, new THREE.BoxGeometry(2.6, 0.12, chamberR * 3.4), 0x1e293b, 'Airframe Bulkheads', [1.4, -0.25, 0], null, { carbon: true });
+
+          const gAvionics = createSubGroup('Avionics & Telemetry', [0.85, 1.45, 0]);
+          addPart(gAvionics, new THREE.BoxGeometry(1.45, 0.36, 0.92), 0x0f172a, 'Avionics & Telemetry', [1.55, chamberR * 1.18, 0], null, { carbon: true });
+          for (let fin = 0; fin < 8; fin++) {
+            const fx = 0.95 + fin * 0.17;
+            addPart(gAvionics, new THREE.BoxGeometry(0.05, 0.16, 0.86), 0x38bdf8, 'Avionics & Telemetry', [fx, chamberR * 1.38, 0]);
+          }
+        }
+
+        if (uploadedMeshAsset && uploadedMeshAsset.geometry) {
+          const customGeo = uploadedMeshAsset.geometry.clone();
+          if (renderMode === 'fea-field') applyFeaVertexColors(customGeo);
+          const customMesh = new THREE.Mesh(
+            customGeo,
+            buildMaterial(0x10b981, 'Uploaded Custom Mesh', { brushed: true })
+          );
+          customMesh.position.set(0, 1.85, 0);
+          customMesh.userData.subsystem = 'Uploaded Custom Mesh';
+          root.add(customMesh);
+        }
+
+        scene.add(root);
+        assemblyRootRef.current = root;
+
+        if (onExportStlReady) {
+          onExportStlReady(() => exportGroupToAsciiStl(root, `${domain}_v20_assembly`));
+        }
+
+        return () => {
+          brushedTex.dispose();
+          carbonTex.dispose();
+        };
+      }, [
+        domain,
+        renderMode,
+        params,
+        sliceAxis,
+        slicePercent,
+        visibilityMap,
+        isolatedSubsystem,
+        selectedSubsystem,
+        uploadedMeshAsset,
+        onExportStlReady
+      ]);
+
+      useEffect(() => {
+        const scene = sceneRef.current;
+        if (!scene) return;
+
+        if (photoMeshRef.current) {
+          scene.remove(photoMeshRef.current);
+          disposeObject3D(photoMeshRef.current);
+          photoMeshRef.current = null;
+        }
+
+        if (!calibratedPhoto.visible || !calibratedPhoto.url) return;
+
+        let cancelled = false;
+        const loader = new THREE.TextureLoader();
+        loader.load(calibratedPhoto.url, (texture) => {
+          if (cancelled || !sceneRef.current) {
+            texture.dispose();
+            return;
+          }
+          const aspect = calibratedPhoto.naturalWidth && calibratedPhoto.naturalHeight
+            ? calibratedPhoto.naturalWidth / calibratedPhoto.naturalHeight
+            : 1.5;
+          const planeH = 4.6;
+          const planeW = planeH * aspect;
+          const geo = new THREE.PlaneGeometry(planeW, planeH);
+          const mat = new THREE.MeshBasicMaterial({
+            map: texture,
+            transparent: true,
+            opacity: calibratedPhoto.opacity,
+            side: THREE.DoubleSide
+          });
+          const planeMesh = new THREE.Mesh(geo, mat);
+          planeMesh.position.set(0, 0.3, -2.6);
+          sceneRef.current.add(planeMesh);
+          photoMeshRef.current = planeMesh;
+        });
+
+        return () => {
+          cancelled = true;
+        };
+      }, [calibratedPhoto]);
+
+      return (
+        <div
+          ref={containerRef}
+          className="viewport-touch-surface relative w-full h-full min-h-[360px] bg-[radial-gradient(circle_at_50%_35%,#131F36_0%,#060911_78%)]"
+        />
+      );
+    }
+
+    // =========================================================================
+    // 5. ASME Y14.5M-2018 & ISO 2768-m 4-VIEW TECHNICAL DRAWING SHEET
+    // =========================================================================
+    function AsmeTechnicalBlueprint({
+      domain,
+      params,
+      units,
+      sliceAxis,
+      slicePercent,
+      telemetry,
+      titleMeta,
+      svgRef
+    }) {
+      const hasBore = typeof params.boreIn === 'number' && !Number.isNaN(params.boreIn) && params.boreIn > 0;
+      const hasStroke = typeof params.strokeIn === 'number' && !Number.isNaN(params.strokeIn) && params.strokeIn > 0;
+      const hasWall = typeof params.wallIn === 'number' && !Number.isNaN(params.wallIn) && params.wallIn > 0;
+      const hasFillet = typeof params.filletIn === 'number' && !Number.isNaN(params.filletIn) && params.filletIn > 0;
+
+      const fmtNum = (inches) =>
+        units === 'MM' ? `${(inches * 25.4).toFixed(2)}` : `${Number(inches).toFixed(3)}`;
+      const fmtDim = (inches) =>
+        typeof inches === 'number' && !Number.isNaN(inches) && inches > 0
+          ? `${fmtNum(inches)} ${units === 'MM' ? 'mm' : 'in'}`
+          : '[UNSPECIFIED — NO DIMENSION INVENTED]';
+
+      const tolBand = units === 'MM' ? '±0.013 mm (ISO 2768-m)' : '±0.0005 in (ASME Y14.5M)';
+      const alloy = ALLOYS.find((a) => a.id === params.materialId) || ALLOYS[0];
+      const domainHeading =
+        domain === 'aerospace-v20'
+          ? 'QUANTUM AEROSPACE CRYO-THRUSTER & VEHICLE CORE V20'
+          : domain === 'sbc-350-v20'
+          ? 'SBC-350 V20 CNC BILLET & BELLHOUSING ASSEMBLY'
+          : 'SBC-350 V16 GRAY CAST IRON & VALVETRAIN ASSEMBLY';
+
+      return (
+        <svg
+          ref={svgRef}
+          viewBox="0 0 1120 740"
+          className="w-full h-auto rounded-lg border border-slate-700 bg-[#050810] text-sky-300 font-mono-tabular select-none"
+        >
+          <defs>
+            <pattern id="sectionHatch" width="8" height="8" patternTransform="rotate(45 0 0)" patternUnits="userSpaceOnUse">
+              <line x1="0" y1="0" x2="0" y2="8" stroke="#F59E0B" strokeWidth="1.2" strokeOpacity="0.65" />
+            </pattern>
+            <marker id="dimArrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+              <path d="M 0 1.5 L 9 5 L 0 8.5 z" fill="#38BDF8" />
+            </marker>
+            <marker id="seqArrow" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="5" markerHeight="5" orient="auto">
+              <path d="M 0 2 L 8 5 L 0 8 z" fill="#FBBF24" />
+            </marker>
+          </defs>
+
+          <rect x="10" y="10" width="1100" height="720" fill="none" stroke="#475569" strokeWidth="2.0" />
+          <rect x="18" y="18" width="1084" height="704" fill="none" stroke="#334155" strokeWidth="1.0" />
+
+          <g transform="translate(28, 28)">
+            <rect x="0" y="0" width="520" height="30" rx="4" fill="#090E1A" stroke="#1E293B" strokeWidth="1" />
+            <text x="10" y="12" fontSize="8" fill="#38BDF8" fontWeight="bold">
+              LINE WEIGHTS (ASME Y14.5M-2018 / ISO 2768-m):
+            </text>
+            <text x="10" y="24" fontSize="7.5" fill="#CBD5E1">
+              Visible/Cut: 0.70mm (2.0px) · Hidden: 0.35mm (1.1px) · Centerline: 0.18mm (0.75px) · Dim/Leader: 0.25mm (0.9px) · 2:1 Detail: 0.50mm
+            </text>
+          </g>
+
+          <g transform="translate(560, 28)">
+            <rect x="0" y="0" width="530" height="30" rx="4" fill="#090E1A" stroke="#10B981" strokeOpacity="0.45" strokeWidth="1" />
+            <text x="10" y="18" fontSize="8" fill="#34D399" fontWeight="bold">
+              ZERO-INVENTED-DIMENSIONS RULE: ONLY ACTIVE SPECS, STANDARDS &amp; USER INPUTS SHOWN — MISSING = [UNSPECIFIED — NO DIMENSION INVENTED]
+            </text>
+          </g>
+
+          {/* VIEW 1 (TOP-LEFT): FRONT / SECTIONAL VIEW */}
+          <g transform="translate(28, 72)">
+            <text x="0" y="10" fontSize="9.5" fill="#94A3B8" fontWeight="bold">
+              1. FRONT / SECTIONAL VIEW (ASME Y14.5M-2018)
+            </text>
+            <rect x="0" y="18" width="320" height="175" rx="6" fill="none" stroke="#38BDF8" strokeWidth="2.0" />
+            <rect x="14" y="34" width="292" height="143" fill="url(#sectionHatch)" stroke="#38BDF8" strokeWidth="1.1" />
+            <line x1="-8" y1="105" x2="328" y2="105" stroke="#64748B" strokeDasharray="10,3,2,3" strokeWidth="0.75" />
+            <line x1="160" y1="6" x2="160" y2="205" stroke="#F59E0B" strokeDasharray="12,3,3,3" strokeWidth="1.6" />
+            <text x="166" y="14" fontSize="9" fill="#F59E0B" fontWeight="bold">A</text>
+            <text x="166" y="203" fontSize="9" fill="#F59E0B" fontWeight="bold">A</text>
+
+            <line x1="330" y1="18" x2="330" y2="193" stroke="#38BDF8" strokeWidth="0.9" markerStart="url(#dimArrow)" markerEnd="url(#dimArrow)" />
+            <text x="14" y="218" fontSize="8.5" fill="#38BDF8" fontWeight="bold">
+              STROKE/LEN: {fmtDim(params.strokeIn)} · TOL {tolBand} · DATUM [-A-]
+            </text>
+            <text x="14" y="230" fontSize="8" fill="#CBD5E1">
+              WALL: {fmtDim(params.wallIn)} · FILLET: {fmtDim(params.filletIn)} · CUT {sliceAxis}@{slicePercent}%
+            </text>
+          </g>
+
+          {/* VIEW 2 (TOP-CENTER): TOP / PLAN VIEW */}
+          <g transform="translate(385, 72)">
+            <text x="0" y="10" fontSize="9.5" fill="#94A3B8" fontWeight="bold">
+              2. TOP / PLAN VIEW (DATUM -A- | -B- | -C-)
+            </text>
+            <rect x="0" y="18" width="320" height="175" rx="6" fill="none" stroke="#38BDF8" strokeWidth="2.0" />
+            {[58, 126, 194, 262].map((cx) => (
+              <g key={cx}>
+                <circle cx={cx} cy="72" r="22" fill="none" stroke="#34D399" strokeWidth="1.3" />
+                <circle cx={cx} cy="138" r="22" fill="none" stroke="#34D399" strokeWidth="1.3" />
+              </g>
+            ))}
+            <line x1="-8" y1="105" x2="328" y2="105" stroke="#64748B" strokeDasharray="10,3,2,3" strokeWidth="0.75" />
+            <line x1="160" y1="6" x2="160" y2="205" stroke="#64748B" strokeDasharray="10,3,2,3" strokeWidth="0.75" />
+            <g transform="translate(14, 206)">
+              <rect x="0" y="0" width="22" height="18" fill="#090E1A" stroke="#38BDF8" strokeWidth="1" />
+              <text x="6" y="13" fontSize="10" fill="#38BDF8">⌖</text>
+              <rect x="22" y="0" width="96" height="18" fill="#090E1A" stroke="#38BDF8" strokeWidth="1" />
+              <text x="27" y="12.5" fontSize="8.5" fill="#F1F5F9">Ø0.013 [A|B|C]</text>
+              <rect x="118" y="0" width="20" height="18" fill="#090E1A" stroke="#38BDF8" strokeWidth="1" />
+              <text x="125" y="12.5" fontSize="9" fill="#F59E0B" fontWeight="bold">A</text>
+              <rect x="138" y="0" width="20" height="18" fill="#090E1A" stroke="#38BDF8" strokeWidth="1" />
+              <text x="145" y="12.5" fontSize="9" fill="#F59E0B" fontWeight="bold">B</text>
+              <rect x="158" y="0" width="20" height="18" fill="#090E1A" stroke="#38BDF8" strokeWidth="1" />
+              <text x="165" y="12.5" fontSize="9" fill="#F59E0B" fontWeight="bold">C</text>
+              <text x="188" y="13" fontSize="8" fill="#10B981">
+                BORE: {hasBore ? `Ø${fmtNum(params.boreIn)} ${units === 'MM' ? 'mm' : 'in'}` : '[UNSPECIFIED — NO DIMENSION INVENTED]'}
+              </text>
+            </g>
+          </g>
+
+          {/* VIEW 3 (TOP-RIGHT): RIGHT / END ELEVATION */}
+          <g transform="translate(740, 72)">
+            <text x="0" y="10" fontSize="9.5" fill="#94A3B8" fontWeight="bold">
+              3. RIGHT / END ELEVATION
+            </text>
+            <rect x="0" y="18" width="350" height="175" rx="6" fill="none" stroke="#38BDF8" strokeWidth="2.0" />
+            <polygon points="175,34 282,82 282,146 175,184 68,146 68,82" fill="#090E1A" stroke="#38BDF8" strokeWidth="1.8" />
+            <line x1="68" y1="82" x2="175" y2="122" stroke="#38BDF8" strokeWidth="1.0" />
+            <line x1="282" y1="82" x2="175" y2="122" stroke="#38BDF8" strokeWidth="1.0" />
+            <line x1="175" y1="122" x2="175" y2="184" stroke="#38BDF8" strokeWidth="1.0" />
+            <line x1="175" y1="10" x2="175" y2="196" stroke="#64748B" strokeDasharray="10,3,2,3" strokeWidth="0.75" />
+            <text x="12" y="218" fontSize="8.5" fill="#CBD5E1">
+              END DATUM [-B-] · BOLT COUNT: {params.boltCount || '[UNSPECIFIED — NO DIMENSION INVENTED]'}
+            </text>
+          </g>
+
+          {/* VIEW 4 (MIDDLE-LEFT): 2:1 DETAIL OF BORE DATUM */}
+          <g transform="translate(28, 325)">
+            <text x="0" y="10" fontSize="9.5" fill="#34D399" fontWeight="bold">
+              4. DETAIL C (SCALE 2:1) — BORE DATUM [-A-]
+            </text>
+            <rect x="0" y="18" width="320" height="225" rx="6" fill="#090E1A" stroke="#34D399" strokeWidth="1.4" />
+            <circle cx="160" cy="128" r="74" fill="#050810" stroke="#38BDF8" strokeWidth="2.0" />
+            <circle cx="160" cy="128" r="56" fill="none" stroke="#34D399" strokeWidth="1.5" />
+            <circle cx="160" cy="128" r="44" fill="none" stroke="#F59E0B" strokeDasharray="4,3" strokeWidth="1.1" />
+            <line x1="40" y1="128" x2="280" y2="128" stroke="#64748B" strokeDasharray="10,3,2,3" strokeWidth="0.75" />
+            <line x1="160" y1="28" x2="160" y2="228" stroke="#64748B" strokeDasharray="10,3,2,3" strokeWidth="0.75" />
+            <text x="12" y="206" fontSize="8.5" fill="#38BDF8" fontWeight="bold">
+              NOMINAL: {hasBore ? `Ø${fmtNum(params.boreIn)} ${units === 'MM' ? 'mm' : 'in'}` : '[UNSPECIFIED — NO DIMENSION INVENTED]'} · {tolBand}
+            </text>
+            <text x="12" y="220" fontSize="8" fill="#10B981">
+              DATUM [-A-] · {alloy.finishRa}
+            </text>
+            <text x="12" y="233" fontSize="8" fill="#CBD5E1">
+              WALL: {hasWall ? fmtDim(params.wallIn) : '[UNSPECIFIED — NO DIMENSION INVENTED]'} · FILLET: {hasFillet ? fmtDim(params.filletIn) : '[UNSPECIFIED — NO DIMENSION INVENTED]'}
+            </text>
+          </g>
+
+          {/* 17-POSITION HEAD BOLT SEQUENCE (#1 -> #17 WITH DIRECTIONAL ARROWS) */}
+          <g transform="translate(365, 325)">
+            <text x="0" y="10" fontSize="9.5" fill="#FBBF24" fontWeight="bold">
+              SBC-350 17-BOLT HEAD SEQUENCE (#1 → #17 LINEAR/STAGGERED — NOT A CIRCLE)
+            </text>
+            <rect x="0" y="18" width="340" height="225" rx="6" fill="#090E1A" stroke="#F59E0B" strokeWidth="1.3" />
+            <rect x="24" y="34" width="292" height="106" rx="4" fill="#050810" stroke="#334155" strokeWidth="1.2" />
+
+            {SBC350_17_BOLT_SEQUENCE.slice(0, -1).map((pt, idx) => {
+              const nxt = SBC350_17_BOLT_SEQUENCE[idx + 1];
+              return (
+                <line
+                  key={`seq-${pt.seq}`}
+                  x1={pt.x}
+                  y1={pt.y}
+                  x2={nxt.x}
+                  y2={nxt.y}
+                  stroke="#F59E0B"
+                  strokeOpacity="0.65"
+                  strokeWidth="1.1"
+                  strokeDasharray="3,2"
+                  markerEnd="url(#seqArrow)"
+                />
+              );
+            })}
+
+            {SBC350_17_BOLT_SEQUENCE.map((pt) => (
+              <g key={pt.seq}>
+                <circle
+                  cx={pt.x}
+                  cy={pt.y}
+                  r="9.5"
+                  fill={pt.seq === 1 ? '#F59E0B' : '#0E1420'}
+                  stroke="#FBBF24"
+                  strokeWidth="1.4"
+                />
+                <text
+                  x={pt.x}
+                  y={pt.y + 3}
+                  textAnchor="middle"
+                  fontSize="7.5"
+                  fontWeight="bold"
+                  fill={pt.seq === 1 ? '#050810' : '#FBBF24'}
+                >
+                  {pt.seq}
+                </text>
+              </g>
+            ))}
+
+            <text x="12" y="156" fontSize="8.5" fill="#FBBF24" fontWeight="bold">
+              TORQUE SCHEDULE (PASS-BY-PASS SEQUENCE #1 → #17):
+            </text>
+            <text x="12" y="170" fontSize="8" fill="#E2E8F0">
+              • Pass 1 Seating: 25 lb-ft (33.9 N·m) · Pass 2 Mid-Load: 45 lb-ft (61.0 N·m)
+            </text>
+            <text x="12" y="183" fontSize="8" fill="#10B981" fontWeight="bold">
+              • Pass 3 Final Spec: 65 lb-ft (88.1 N·m) [Standard] or 70 lb-ft (94.9 N·m) [ARP Stud Spec]
+            </text>
+            <text x="12" y="197" fontSize="8" fill="#94A3B8">
+              • Thread / Lubricant Note: {alloy.threadSpec} · Lubricate threads &amp; under-head washers
+            </text>
+            <text x="12" y="211" fontSize="8" fill="#CBD5E1">
+              • Heat-Treat: {alloy.heatTreat}
+            </text>
+            <text x="12" y="224" fontSize="8" fill="#CBD5E1">
+              • Surface Finish: {alloy.finishRa}
+            </text>
+          </g>
+
+          {/* MATERIAL, HEAT-TREAT, THREAD & REVISION TITLE BLOCK */}
+          <g transform="translate(722, 325)">
+            <text x="0" y="10" fontSize="9.5" fill="#38BDF8" fontWeight="bold">
+              ENGINEERING SPECIFICATION &amp; TITLE BLOCK
+            </text>
+            <rect x="0" y="18" width="368" height="225" rx="6" fill="#090E1A" stroke="#475569" strokeWidth="1.5" />
+            <text x="12" y="38" fontSize="8" fill="#94A3B8">ASSEMBLY / PROGRAM</text>
+            <text x="12" y="53" fontSize="9.5" fill="#F1F5F9" fontWeight="bold">{domainHeading}</text>
+
+            <line x1="0" y1="64" x2="368" y2="64" stroke="#334155" strokeWidth="1" />
+            <text x="12" y="80" fontSize="8" fill="#94A3B8">MATERIAL (PBR SPECIFIED)</text>
+            <text x="12" y="94" fontSize="8.5" fill="#38BDF8" fontWeight="bold">{alloy.name}</text>
+
+            <line x1="0" y1="104" x2="368" y2="104" stroke="#334155" strokeWidth="1" />
+            <text x="12" y="120" fontSize="8" fill="#94A3B8">HEAT-TREAT &amp; SURFACE FINISH</text>
+            <text x="12" y="133" fontSize="8" fill="#CBD5E1">{alloy.heatTreat}</text>
+            <text x="12" y="146" fontSize="8" fill="#10B981">{alloy.finishRa}</text>
+
+            <line x1="0" y1="156" x2="368" y2="156" stroke="#334155" strokeWidth="1" />
+            <text x="12" y="172" fontSize="8" fill="#94A3B8">THREAD &amp; GENERAL TOLERANCE NOTES</text>
+            <text x="12" y="185" fontSize="8" fill="#E2E8F0">Threads: {alloy.threadSpec}</text>
+            <text x="12" y="198" fontSize="8" fill="#FBBF24">Standards: ASME Y14.5M-2018 &amp; ISO 2768-m</text>
+
+            <line x1="0" y1="208" x2="368" y2="208" stroke="#334155" strokeWidth="1" />
+            <text x="12" y="224" fontSize="8.5" fill="#38BDF8" fontWeight="bold">
+              DWG: {titleMeta.drawingNumber} · REV {titleMeta.revision} · {titleMeta.engineer}
+            </text>
+            <text x="12" y="237" fontSize="8" fill="#94A3B8">
+              EST. MASS: {telemetry.massStr} · CNC: {telemetry.cncHours} HR · 3RD ANGLE PROJECTION
+            </text>
+          </g>
+
+          {/* BOTTOM NOTES STRIP */}
+          <g transform="translate(28, 566)">
+            <rect x="0" y="0" width="1062" height="142" rx="6" fill="#090E1A" stroke="#334155" strokeWidth="1.2" />
+            <text x="14" y="18" fontSize="8.5" fill="#F59E0B" fontWeight="bold">
+              GENERAL ENGINEERING &amp; MANUFACTURING NOTES (ASME Y14.5M-2018 / ISO 2768-m):
+            </text>
+            <text x="14" y="34" fontSize="8" fill="#CBD5E1">
+              1. ALL DIMENSIONS &amp; TOLERANCES CONFORM TO ASME Y14.5M-2018 AND ISO 2768-m. NO DIMENSION IS INVENTED IF UNSPECIFIED IN SOURCE DATA.
+            </text>
+            <text x="14" y="50" fontSize="8" fill="#CBD5E1">
+              2. HEAD BOLT TORQUE SEQUENCE FOLLOWS #1 THROUGH #17 IN ORDER (NOT A CIRCLE) WITH PROGRESSIVE PASSES (25 -&gt; 45 -&gt; 65 OR 70 LB-FT).
+            </text>
+            <text x="14" y="66" fontSize="8" fill="#CBD5E1">
+              3. DETAIL C (SCALE 2:1) ENLARGES DATUM [-A-] BORE FOR INSPECTION OF ROUNDNESS, CYLINDRICITY &amp; SURFACE FINISH PRIOR TO FINAL ASSEMBLY.
+            </text>
+            <text x="14" y="82" fontSize="8" fill="#CBD5E1">
+              4. DEBURR ALL SHARP EDGES 0.015 IN / 0.38 MM MAX UNLESS OTHERWISE SPECIFIED; VERIFY THREAD DEPTH &amp; CLEAN BLIND HOLES BEFORE TORQUING.
+            </text>
+            <text x="14" y="106" fontSize="8.5" fill="#38BDF8" fontWeight="bold">
+              DISPLACEMENT / ENVELOPE: {telemetry.dispStr} · YIELD σy: {telemetry.yieldMPa} MPa · MAX TEMP: {telemetry.maxTempC}°C
+            </text>
+            <text x="14" y="124" fontSize="8" fill="#10B981">
+              VERIFICATION STATUS: {telemetry.dmlsStatus} · MANIFOLD B-REP WATERTIGHT · READY FOR .SVG / .STL / .JSON MBD EXPORT
+            </text>
+          </g>
+        </svg>
+      );
+    }
+
+    // =========================================================================
+    // 6. MAIN MERGED STUDIO APPLICATION (v16 SBC-350 MODELER + v20 QADS STUDIO)
+    // =========================================================================
+    function StudioApp() {
+      const [domain, setDomain] = useState('sbc-350-v20');
+      const [activeRoom, setActiveRoom] = useState('build');
+      const [renderMode, setRenderMode] = useState('shaded');
+      const [units, setUnits] = useState('IN');
+      const [leftTreeOpen, setLeftTreeOpen] = useState(true);
+      const [rightInspectorOpen, setRightInspectorOpen] = useState(true);
+      const [standardsOpen, setStandardsOpen] = useState(false);
+
+      const [diagnostics, setDiagnostics] = useState({
+        rendererMode: 'WebGL2 Studio',
+        fps: 60,
+        meshCount: 0
+      });
+
+      const [params, setParams] = useState({
+        boreIn: 4.060,
+        strokeIn: 3.480,
+        wallIn: 0.28,
+        boltCount: 18,
+        filletIn: 0.35,
+        materialId: 'al7075'
+      });
+
+      // v16 SBC-350 Modeler specific states
+      const [activeV16PresetId, setActiveV16PresetId] = useState('v16_cast_350_base');
+      const [boltSequenceStep, setBoltSequenceStep] = useState(1);
+      const [boltTorquePass, setBoltTorquePass] = useState('PASS_3_FINAL');
+      const [deckHeightIn, setDeckHeightIn] = useState(9.000);
+
+      const [explodePercent, setExplodePercent] = useState(0);
+      const [turntableSpin, setTurntableSpin] = useState(false);
+      const [turntableSec, setTurntableSec] = useState(9);
+      const [mechanicalMotion, setMechanicalMotion] = useState(true);
+      const [sliceAxis, setSliceAxis] = useState('Y');
+      const [slicePercent, setSlicePercent] = useState(0);
+      const [latticeDensity, setLatticeDensity] = useState(35);
+
+      const [visibilityMap, setVisibilityMap] = useState({});
+      const [isolatedSubsystem, setIsolatedSubsystem] = useState(null);
+      const [selectedSubsystem, setSelectedSubsystem] = useState('Engine Block & Sump');
+
+      // Matrix & Library State
+      const [matrixSubTab, setMatrixSubTab] = useState('vehicles');
+      const [activeMatrixItems, setActiveMatrixItems] = useState(() => [
+        ...VEHICLE_MATRIX_LIBRARY.slice(0, 6),
+        ...ACCESSORIES_CATALOG.slice(0, 4)
+      ]);
+      const [matrixSearch, setMatrixSearch] = useState('');
+      const [matrixCategory, setMatrixCategory] = useState('ALL');
+      const [matrixStatusFilter, setMatrixStatusFilter] = useState('ALL');
+
+      // Photo Calibration State
+      const [calibratedPhoto, setCalibratedPhoto] = useState({
+        url: null,
+        name: '',
+        naturalWidth: 0,
+        naturalHeight: 0,
+        knownSpanIn: 14.0,
+        measuredPx: 520,
+        opacity: 0.45,
+        visible: false
+      });
+
+      // Drawing Title Block State
+      const [titleMeta, setTitleMeta] = useState({
+        drawingNumber: 'QADS-SBC350-V16-V20-001',
+        revision: 'R20.4+V16',
+        engineer: 'PHOENIX / QADS STUDIO'
+      });
+
+      // Jesse Standard Cinematic Video Graphics State
+      const [jesseShotId, setJesseShotId] = useState('shot_1_establish');
+      const [jessePlaying, setJessePlaying] = useState(true);
+      const [jesseScrubPct, setJesseScrubPct] = useState(25);
+      const [jesseWarmGoldGrade, setJesseWarmGoldGrade] = useState(true);
+      const [jesseFineGrain, setJesseFineGrain] = useState(true);
+      const [jesseSourceMediaUrl, setJesseSourceMediaUrl] = useState(null);
+      const [jesseSourceMediaName, setJesseSourceMediaName] = useState('');
+      const prevJesseMediaUrlRef = useRef(null);
+
+      // Gemini AI Co-Pilot State
+      const [geminiApiKey, setGeminiApiKey] = useState('');
+      const [aiPrompt, setAiPrompt] = useState('');
+      const [aiLoading, setAiLoading] = useState(false);
+      const [aiMessages, setAiMessages] = useState([
+        {
+          role: 'assistant',
+          text: 'Merged SBC-350 v16 + v20 + Quantum Aerospace Studio ready. Switch between v16 SBC-350 presets, #1–#17 head bolt torque passes, 3D PBR views, and ASME blueprints.'
+        }
+      ]);
+
+      const [uploadedMeshAsset, setUploadedMeshAsset] = useState(null);
+      const [uploadedCount, setUploadedCount] = useState(0);
+      const [cameraCommand, setCameraCommand] = useState(null);
+      const [toast, setToast] = useState('');
+
+      const globalFileInputRef = useRef(null);
+      const photoInputRef = useRef(null);
+      const blueprintSvgRef = useRef(null);
+      const getStlRef = useRef(null);
+      const prevPhotoUrlRef = useRef(null);
+
+      const notify = useCallback((msg) => setToast(msg), []);
+
+      useEffect(() => {
+        if (!toast) return;
+        const timer = setTimeout(() => setToast(''), 3400);
+        return () => clearTimeout(timer);
+      }, [toast]);
+
+      useEffect(() => {
+        try {
+          const raw = localStorage.getItem(STORAGE_KEY);
+          if (!raw) return;
+          const saved = JSON.parse(raw);
+          if (saved.domain) setDomain(saved.domain);
+          if (saved.activeRoom) setActiveRoom(saved.activeRoom);
+          if (saved.renderMode) setRenderMode(saved.renderMode);
+          if (saved.units === 'IN' || saved.units === 'MM') setUnits(saved.units);
+          if (saved.params) setParams((p) => ({ ...p, ...saved.params }));
+          if (typeof saved.explodePercent === 'number') setExplodePercent(saved.explodePercent);
+          if (typeof saved.deckHeightIn === 'number') setDeckHeightIn(saved.deckHeightIn);
+          if (saved.titleMeta) setTitleMeta((t) => ({ ...t, ...saved.titleMeta }));
+          if (Array.isArray(saved.activeMatrixItems) && saved.activeMatrixItems.length > 0) {
+            setActiveMatrixItems(saved.activeMatrixItems);
+          }
+        } catch (_e) {
+          // Ignore invalid saved JSON
+        }
+      }, []);
+
+      useEffect(() => {
+        try {
+          localStorage.setItem(
+            STORAGE_KEY,
+            JSON.stringify({
+              domain,
+              activeRoom,
+              renderMode,
+              units,
+              params,
+              explodePercent,
+              deckHeightIn,
+              titleMeta,
+              activeMatrixItems
+            })
+          );
+        } catch (_e) {
+          // Ignore storage errors
+        }
+      }, [domain, activeRoom, renderMode, units, params, explodePercent, deckHeightIn, titleMeta, activeMatrixItems]);
+
+      useEffect(() => {
+        return () => {
+          if (prevPhotoUrlRef.current) URL.revokeObjectURL(prevPhotoUrlRef.current);
+          if (prevJesseMediaUrlRef.current) URL.revokeObjectURL(prevJesseMediaUrlRef.current);
+        };
+      }, []);
+
+      useEffect(() => {
+        if (!jessePlaying) return;
+        const intervalMs = Math.round(1000 / 24);
+        const timer = setInterval(() => {
+          setJesseScrubPct((prev) => (prev >= 100 ? 0 : Number((prev + 0.5).toFixed(1))));
+        }, intervalMs);
+        return () => clearInterval(timer);
+      }, [jessePlaying]);
+
+      const activeJesseShot = useMemo(
+        () => JESSE_SHOT_TEMPLATES.find((s) => s.id === jesseShotId) || JESSE_SHOT_TEMPLATES[0],
+        [jesseShotId]
+      );
+
+      const composedJessePrompt = useMemo(() => {
+        const alloy = ALLOYS.find((a) => a.id === params.materialId) || ALLOYS[0];
+        return [
+          `[24 fps] ${activeJesseShot.title}.`,
+          `Camera: ${activeJesseShot.move}.`,
+          `Optics: ${activeJesseShot.lens}.`,
+          `Lighting: ${activeJesseShot.lighting}.`,
+          `Color & Texture: ${jesseWarmGoldGrade ? 'Warm gold grade' : 'Neutral studio grade'}${jesseFineGrain ? ' with fine film grain' : ' with clean digital grain'}.`,
+          `Subject & Integrity: Correct hands and no morphing, the band together in one live scene, ${activeJesseShot.emblemState}.`,
+          `Hardware Context: ${domain.toUpperCase()} · ${alloy.name} · Bore ${params.boreIn.toFixed(3)} in · Bolt Sequence #1-#17 (never a circle).`,
+          `Note: Veo is paywalled — free route uses real footage or stills with slow zoom.`
+        ].join(' ');
+      }, [activeJesseShot, jesseWarmGoldGrade, jesseFineGrain, domain, params.materialId, params.boreIn]);
+
+      const formatDim = useCallback(
+        (inches) => (units === 'MM' ? `${(inches * 25.4).toFixed(2)} mm` : `${Number(inches).toFixed(3)} in`),
+        [units]
+      );
+
+      const telemetry = useMemo(() => {
+        const alloy = ALLOYS.find((a) => a.id === params.materialId) || ALLOYS[0];
+        const dispCid = Math.PI * Math.pow(params.boreIn / 2, 2) * params.strokeIn * 8;
+        const dispLiters = dispCid * 0.0163871;
+        const envelopeIn3 = params.boreIn * params.strokeIn * params.wallIn * 142;
+        const massLb = envelopeIn3 * alloy.densityLbIn3;
+        const cncHours = (4.2 + params.boltCount * 0.14 + (1 / Math.max(0.15, params.wallIn)) * 0.8) * alloy.cncFactor;
+        const wallPass = params.wallIn >= 0.03;
+        return {
+          alloyName: alloy.name,
+          yieldMPa: alloy.yieldMPa,
+          maxTempC: alloy.maxTempC,
+          dispStr: `${dispCid.toFixed(1)} cid (${dispLiters.toFixed(2)} L)`,
+          massStr: units === 'MM' ? `${(massLb * 0.453592).toFixed(1)} kg` : `${massLb.toFixed(1)} lb`,
+          cncHours: cncHours.toFixed(1),
+          dmlsStatus: wallPass ? 'DMLS/CNC PASS' : 'THIN WALL WARN'
+        };
+      }, [params, units]);
+
+      const applyV16Preset = (preset) => {
+        setActiveV16PresetId(preset.id);
+        setDomain('sbc-350-v16');
+        setSelectedSubsystem(preset.subsystem);
+        setParams({
+          boreIn: preset.boreIn,
+          strokeIn: preset.strokeIn,
+          wallIn: preset.wallIn,
+          boltCount: preset.boltCount,
+          filletIn: preset.filletIn,
+          materialId: preset.materialId
+        });
+        notify(`Loaded v16 Preset: ${preset.code}`);
+      };
+
+      const handleDomainSwitch = (nextDomain) => {
+        setDomain(nextDomain);
+        setIsolatedSubsystem(null);
+        if (nextDomain === 'sbc-350-v16') {
+          setSelectedSubsystem('Engine Block & Sump');
+          setParams({ boreIn: 4.000, strokeIn: 3.480, wallIn: 0.25, boltCount: 17, filletIn: 0.25, materialId: 'chromoly4140' });
+          notify('Loaded SBC-350 Engine v16');
+        } else if (nextDomain === 'sbc-350-v20') {
+          setSelectedSubsystem('Bellhousing & Flywheel');
+          setParams({ boreIn: 4.060, strokeIn: 3.480, wallIn: 0.28, boltCount: 18, filletIn: 0.35, materialId: 'al7075' });
+          notify('Loaded SBC-350 Engine v20');
+        } else {
+          setSelectedSubsystem('Regen Thrust Chamber');
+          setParams({ boreIn: 5.800, strokeIn: 4.500, wallIn: 0.22, boltCount: 24, filletIn: 0.45, materialId: 'inconel625' });
+          notify('Loaded Quantum Aerospace Vehicle v20');
+        }
+      };
+
+      const handleRenderModeSelect = (modeId) => {
+        setRenderMode(modeId);
+        if (modeId === 'section' && slicePercent === 0) {
+          setSlicePercent(45);
+        }
+        notify(`Render Mode: ${RENDER_MODES.find((m) => m.id === modeId)?.label || modeId}`);
+      };
+
+      const loadReferencePhoto = (file) => {
+        const nextUrl = URL.createObjectURL(file);
+        const img = new Image();
+        img.onload = () => {
+          if (prevPhotoUrlRef.current) URL.revokeObjectURL(prevPhotoUrlRef.current);
+          prevPhotoUrlRef.current = nextUrl;
+          setCalibratedPhoto((prev) => ({
+            ...prev,
+            url: nextUrl,
+            name: file.name,
+            naturalWidth: img.naturalWidth || 1024,
+            naturalHeight: img.naturalHeight || 768,
+            measuredPx: Math.max(120, Math.round((img.naturalWidth || 1024) * 0.55)),
+            visible: true
+          }));
+          setActiveRoom('scale');
+          notify(`Calibrated photo: ${file.name}`);
+        };
+        img.onerror = () => {
+          URL.revokeObjectURL(nextUrl);
+          notify(`Could not load photo: ${file.name}`);
+        };
+        img.src = nextUrl;
+      };
+
+      const setCustomMeshGeometry = (geo, fileName) => {
+        if (!geo) return;
+        geo.computeVertexNormals();
+        geo.center();
+        geo.computeBoundingSphere();
+        const r = geo.boundingSphere ? geo.boundingSphere.radius : 1;
+        if (r > 0) geo.scale(1.8 / r, 1.8 / r, 1.8 / r);
+        setUploadedMeshAsset((prev) => {
+          if (prev && prev.geometry) prev.geometry.dispose();
+          return { name: fileName, geometry: geo };
+        });
+        notify(`Loaded 3D mesh: ${fileName}`);
+      };
+
+      const handleUniversalFiles = (fileList) => {
+        if (!fileList || fileList.length === 0) return;
+        Array.from(fileList).forEach((file) => {
+          const lower = file.name.toLowerCase();
+          setUploadedCount((c) => c + 1);
+
+          if (/\.(png|jpg|jpeg|webp)$/.test(lower)) {
+            loadReferencePhoto(file);
+          } else if (lower.endsWith('.json')) {
+            const reader = new FileReader();
+            reader.onload = (ev) => {
+              try {
+                const parsed = JSON.parse(String(ev.target.result || '{}'));
+                if (parsed.params) setParams((p) => ({ ...p, ...parsed.params }));
+                if (parsed.domain) setDomain(parsed.domain);
+                if (Array.isArray(parsed.accessories)) {
+                  setActiveMatrixItems((prev) => {
+                    const seen = new Set(prev.map((x) => x.id));
+                    return [...parsed.accessories.filter((a) => a.id && !seen.has(a.id)), ...prev];
+                  });
+                }
+                if (Array.isArray(parsed.partsMatrix)) setActiveMatrixItems(parsed.partsMatrix);
+                notify(`Imported JSON preset/matrix: ${file.name}`);
+              } catch (_e) {
+                notify(`Invalid JSON: ${file.name}`);
+              }
+            };
+            reader.readAsText(file);
+          } else if (lower.endsWith('.stl')) {
+            const reader = new FileReader();
+            reader.onload = (ev) => {
+              const geo = parseAsciiStlToGeometry(String(ev.target.result || ''));
+              if (geo) setCustomMeshGeometry(geo, file.name);
+              else notify(`Could not parse STL mesh: ${file.name}`);
+            };
+            reader.readAsText(file);
+          } else if (lower.endsWith('.obj')) {
+            const reader = new FileReader();
+            reader.onload = (ev) => {
+              const geo = parseObjToGeometry(String(ev.target.result || ''));
+              if (geo) setCustomMeshGeometry(geo, file.name);
+              else notify(`Could not parse OBJ mesh: ${file.name}`);
+            };
+            reader.readAsText(file);
+          }
+        });
+      };
+
+      const triggerDownload = (content, filename, mime) => {
+        const blob = new Blob([content], { type: mime });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+      };
+
+      const handleDownloadSvg = () => {
+        if (!blueprintSvgRef.current) return;
+        const xml = new XMLSerializer().serializeToString(blueprintSvgRef.current);
+        triggerDownload(xml, `${domain}-asme-y14-5-v20.svg`, 'image/svg+xml;charset=utf-8');
+        notify('Downloaded .SVG ASME Blueprint');
+      };
+
+      const handleDownloadStl = () => {
+        if (!getStlRef.current) return;
+        triggerDownload(getStlRef.current(), `${domain}-v20-solid.stl`, 'application/sla');
+        notify('Downloaded .STL Solid Mesh');
+      };
+
+      const handleDownloadMbdJson = () => {
+        const packet = {
+          schema: 'AEGIS-QADS-SBC350-V16-V20-MBD',
+          generatedAt: new Date().toISOString(),
+          domain,
+          units,
+          deckHeightIn,
+          titleBlock: titleMeta,
+          parametricDimensions: params,
+          telemetry,
+          boltSequence17: { activeStep: boltSequenceStep, pass: boltTorquePass },
+          sectionPlane: { axis: sliceAxis, percent: slicePercent },
+          activeMatrixCount: activeMatrixItems.length,
+          partsMatrix: activeMatrixItems
+        };
+        triggerDownload(JSON.stringify(packet, null, 2), `${domain}-aegis-mbd-v20.json`, 'application/json');
+        notify('Downloaded .JSON MBD Specification Packet');
+      };
+
+      const applyLibraryEntryToBench = (item, forceDomain) => {
+        const targetDomain = forceDomain || item.domain || domain;
+        setDomain(targetDomain);
+        setParams((prev) => ({
+          ...prev,
+          boreIn: item.boreIn || prev.boreIn,
+          strokeIn: item.strokeIn || prev.strokeIn,
+          wallIn: item.wallIn || prev.wallIn,
+          boltCount: item.boltCount || prev.boltCount,
+          filletIn: item.filletIn || prev.filletIn,
+          materialId: item.materialId || prev.materialId
+        }));
+        if (item.subsystem) setSelectedSubsystem(item.subsystem);
+        notify(`Loaded "${item.name}" onto 3D Bench`);
+      };
+
+      const handleAskCoPilot = async (customPromptText) => {
+        const query = (customPromptText || aiPrompt).trim();
+        if (!query) return;
+        setAiPrompt('');
+        setAiMessages((prev) => [...prev, { role: 'user', text: query }]);
+        setAiLoading(true);
+
+        const synthesizePresetFromPrompt = (text) => {
+          const lower = text.toLowerCase();
+          if (lower.includes('sbc-350') || lower.includes('v16') || lower.includes('383') || lower.includes('head bolt')) {
+            const nextDomain = 'sbc-350-v16';
+            const nextParams = { boreIn: 4.030, strokeIn: 3.750, wallIn: 0.26, boltCount: 17, filletIn: 0.30, materialId: 'chromoly4140' };
+            setDomain(nextDomain);
+            setParams(nextParams);
+            setSelectedSubsystem('Engine Block & Sump');
+            return {
+              code: 'SBC-V16-383',
+              summary: 'Applied SBC-350 v16 Stroker / 17-Bolt Datum spec (Bore Ø 4.030 in, Stroke 3.750 in, Chromoly 4140) to the 3D bench.'
+            };
+          }
+          if (lower.includes('billet intake plenum')) {
+            const nextDomain = 'sbc-350-v20';
+            const nextParams = { boreIn: 4.100, strokeIn: 3.480, wallIn: 0.24, boltCount: 18, filletIn: 0.35, materialId: 'al7075' };
+            setDomain(nextDomain);
+            setParams(nextParams);
+            setSelectedSubsystem('Intake & Fuel Rail');
+            return {
+              code: 'QADS-PL-2020',
+              summary: 'Synthesized Billet Intake Plenum (7075-T651, Bore Ø 4.100 in, Wall 0.240 in, Fillet R0.350 in, ASME Y14.5 IT6) and applied to SBC-350 v20.'
+            };
+          }
+          if (lower.includes('titanium gimbal bracket')) {
+            const nextDomain = 'aerospace-v20';
+            const nextParams = { boreIn: 5.800, strokeIn: 4.500, wallIn: 0.28, boltCount: 24, filletIn: 0.45, materialId: 'ti6al4v' };
+            setDomain(nextDomain);
+            setParams(nextParams);
+            setSelectedSubsystem('2-Axis Gimbal Ring');
+            return {
+              code: 'QADS-GB-5824',
+              summary: 'Synthesized Titanium Gimbal Bracket (Ti-6Al-4V Grade 5, Bore Ø 5.800 in, Wall 0.280 in, Fillet R0.450 in, ASME Y14.5 IT5) and applied to Quantum Aerospace v20.'
+            };
+          }
+
+          const isAero = /aero|thruster|cryo|gimbal|scramjet|lunar|orbital|rocket/.test(lower);
+          const isTi = /titanium|ti-6al-4v/.test(lower);
+          const isInconel = /inconel|exhaust|turbo|hypersonic/.test(lower);
+          const nextDomain = isAero ? 'aerospace-v20' : 'sbc-350-v20';
+          const nextParams = {
+            boreIn: isAero ? 5.65 : 4.100,
+            strokeIn: isAero ? 4.40 : 3.480,
+            wallIn: 0.26,
+            boltCount: isAero ? 24 : 18,
+            filletIn: 0.35,
+            materialId: isInconel ? 'inconel625' : isTi ? 'ti6al4v' : 'al7075'
+          };
+          setDomain(nextDomain);
+          setParams(nextParams);
+          const item = {
+            id: `ai_${Date.now()}`,
+            code: `QADS-AI-${Math.floor(100 + Math.random() * 899)}`,
+            name: text.slice(0, 52),
+            category: isAero ? 'Aerospace & Experimental' : 'Muscle & Performance',
+            domain: nextDomain,
+            subsystem: isAero ? 'Regen Thrust Chamber' : 'CNC Cylinder Heads',
+            boreIn: nextParams.boreIn,
+            strokeIn: nextParams.strokeIn,
+            wallIn: nextParams.wallIn,
+            boltCount: nextParams.boltCount,
+            filletIn: nextParams.filletIn,
+            materialId: nextParams.materialId,
+            massLb: isAero ? 290 : 450,
+            powerHp: isAero ? 4400 : 650,
+            tolerance: 'ASME Y14.5-2018 IT5',
+            status: 'PROVISIONAL',
+            notes: `AI Co-Pilot synthesis for: ${text}`
+          };
+          setActiveMatrixItems((prev) => [item, ...prev]);
+          return {
+            code: item.code,
+            summary: `Synthesized "${item.name}" (${item.code}) and updated 3D bench parameters + Active BOM.`
+          };
+        };
+
+        try {
+          const synth = synthesizePresetFromPrompt(query);
+          if (geminiApiKey.trim()) {
+            const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${encodeURIComponent(geminiApiKey.trim())}`;
+            const res = await fetch(url, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                contents: [
+                  {
+                    parts: [
+                      {
+                        text: `You are a Principal Aerospace & SBC-350 CAD/Manufacturing Engineer. Domain: ${domain}, Bore: ${params.boreIn} in, Stroke: ${params.strokeIn} in, Wall: ${params.wallIn} in. Respond concisely with ASME Y14.5 GD&T, CNC/DMLS manufacturability, and torque notes for: ${query}`
+                      }
+                    ]
+                  }
+                ]
+              })
+            });
+            const json = await res.json();
+            const aiText = json?.candidates?.[0]?.content?.parts?.[0]?.text;
+            setAiMessages((prev) => [
+              ...prev,
+              {
+                role: 'assistant',
+                text: aiText ? `${aiText}\n\n[${synth.summary}]` : synth.summary
+              }
+            ]);
+          } else {
+            setAiMessages((prev) => [
+              ...prev,
+              {
+                role: 'assistant',
+                text: `${synth.summary}\n• Displacement / Envelope: ${telemetry.dispStr}\n• Tolerance Check: ${telemetry.dmlsStatus} · Est. CNC Cycle: ${telemetry.cncHours} hr`
+              }
+            ]);
+          }
+          notify(`AI Co-Pilot applied ${synth.code}`);
+        } catch (_err) {
+          setAiMessages((prev) => [
+            ...prev,
+            { role: 'assistant', text: 'Deterministic CAD synthesizer applied parametric updates to the 3D bench.' }
+          ]);
+        } finally {
+          setAiLoading(false);
+        }
+      };
+
+      const subsystems = SUBSYSTEMS_BY_DOMAIN[domain] || [];
+      const activeBoltInfo = SBC350_17_BOLT_SEQUENCE.find((b) => b.seq === boltSequenceStep) || SBC350_17_BOLT_SEQUENCE[0];
+
+      const activeSourceList = useMemo(() => {
+        if (matrixSubTab === 'vehicles') return VEHICLE_MATRIX_LIBRARY;
+        if (matrixSubTab === 'accessories') return ACCESSORIES_CATALOG;
+        return activeMatrixItems;
+      }, [matrixSubTab, activeMatrixItems]);
+
+      const filteredMatrix = useMemo(() => {
+        const q = matrixSearch.trim().toLowerCase();
+        return activeSourceList.filter((item) => {
+          const catOk = matrixCategory === 'ALL' || item.category === matrixCategory;
+          const statusOk = matrixStatusFilter === 'ALL' || item.status === matrixStatusFilter;
+          const idCode = (item.code || item.sku || '').toLowerCase();
+          const searchOk =
+            !q ||
+            item.name.toLowerCase().includes(q) ||
+            idCode.includes(q) ||
+            (item.engineSpec || '').toLowerCase().includes(q) ||
+            (item.notes || '').toLowerCase().includes(q);
+          return catOk && statusOk && searchOk;
+        });
+      }, [activeSourceList, matrixSearch, matrixCategory, matrixStatusFilter]);
+
+      const categoryOptions = useMemo(
+        () => ['ALL', ...Array.from(new Set(activeSourceList.map((i) => i.category)))],
+        [activeSourceList]
+      );
+
+      const pxPerInch =
+        calibratedPhoto.knownSpanIn > 0
+          ? (calibratedPhoto.measuredPx / calibratedPhoto.knownSpanIn).toFixed(2)
+          : '0.00';
+
+      return (
+        <StudioErrorBoundary>
+          <div className="min-h-screen w-full flex flex-col bg-[#070A10] text-slate-100 select-none">
+            {/* =============================================================== */}
+            {/* 1. TOP BAR: WORKSPACES, ROOM TABS, DIAGNOSTICS & STANDARDS      */}
+            {/* =============================================================== */}
+            <header className="bg-[#0E1420] border-b border-[#1E293B] px-3 py-2 flex flex-wrap items-center justify-between gap-2 shrink-0 z-30">
+              <div className="flex flex-wrap items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => setLeftTreeOpen((v) => !v)}
+                  className="min-h-[44px] px-3 rounded-lg bg-[#070A10] border border-slate-700 font-mono-tabular text-xs font-semibold text-slate-200 touch-manipulation active:scale-95"
+                >
+                  {leftTreeOpen ? '◂ Tree' : '▸ Tree'}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleDomainSwitch('sbc-350-v16')}
+                  className={`min-h-[44px] px-3 rounded-lg text-xs font-bold touch-manipulation transition active:scale-95 ${
+                    domain === 'sbc-350-v16'
+                      ? 'bg-amber-400 text-slate-950 shadow'
+                      : 'bg-[#070A10] text-slate-300 border border-slate-700'
+                  }`}
+                >
+                  SBC-350 Engine v16
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleDomainSwitch('sbc-350-v20')}
+                  className={`min-h-[44px] px-3 rounded-lg text-xs font-bold touch-manipulation transition active:scale-95 ${
+                    domain === 'sbc-350-v20'
+                      ? 'bg-amber-400 text-slate-950 shadow'
+                      : 'bg-[#070A10] text-slate-300 border border-slate-700'
+                  }`}
+                >
+                  SBC-350 Engine v20
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleDomainSwitch('aerospace-v20')}
+                  className={`min-h-[44px] px-3 rounded-lg text-xs font-bold touch-manipulation transition active:scale-95 ${
+                    domain === 'aerospace-v20'
+                      ? 'bg-sky-400 text-slate-950 shadow'
+                      : 'bg-[#070A10] text-slate-300 border border-slate-700'
+                  }`}
+                >
+                  Quantum Aerospace Vehicle v20
+                </button>
+              </div>
+
+              <nav aria-label="Workspace Rooms" className="flex items-center gap-1.5 overflow-x-auto max-w-full py-0.5">
+                {ROOM_TABS.map((tab) => (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    onClick={() => setActiveRoom(tab.id)}
+                    className={`min-h-[44px] px-3 rounded-lg text-xs font-semibold whitespace-nowrap touch-manipulation transition active:scale-95 ${
+                      activeRoom === tab.id
+                        ? 'bg-[#151E30] text-white border border-sky-400/75'
+                        : 'bg-[#070A10] text-slate-300 border border-[#1E293B]'
+                    }`}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
+              </nav>
+
+              <div className="flex flex-wrap items-center gap-1.5">
+                <span className="min-h-[44px] px-2.5 rounded-lg bg-[#070A10] border border-emerald-500/30 font-mono-tabular text-[11px] text-emerald-300 flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-emerald-400" />
+                  <span>{diagnostics.rendererMode}</span>
+                  <span className="text-slate-400">· {diagnostics.fps} FPS · {diagnostics.meshCount}M</span>
+                </span>
+
+                <button
+                  type="button"
+                  onClick={() => setRightInspectorOpen((v) => !v)}
+                  className="min-h-[44px] px-3 rounded-lg bg-[#070A10] border border-slate-700 font-mono-tabular text-xs font-semibold text-slate-200 touch-manipulation active:scale-95"
+                >
+                  {rightInspectorOpen ? 'Inspector ▸' : '◂ Inspector'}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    const next = units === 'IN' ? 'MM' : 'IN';
+                    setUnits(next);
+                    notify(`Units: ${next}`);
+                  }}
+                  className="min-h-[44px] px-3 rounded-lg bg-[#070A10] border border-slate-700 font-mono-tabular text-xs font-bold text-sky-300 touch-manipulation active:scale-95"
+                >
+                  {units}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setStandardsOpen(true)}
+                  className="min-h-[44px] px-3 rounded-lg bg-[#070A10] border border-slate-700 text-xs font-semibold text-slate-200 touch-manipulation active:scale-95"
+                >
+                  Standards
+                </button>
+              </div>
+            </header>
+
+            {/* =============================================================== */}
+            {/* 2. GLOBAL TOUCH & RENDER BAR (ALL 7 MODES + UPLOAD ON EVERY PAGE)*/}
+            {/* =============================================================== */}
+            <div
+              role="region"
+              aria-label="Global 7 Rendering Modes, Touch Camera, Explode, and Upload Bar"
+              className="w-full bg-[#0B101A] border-b border-[#1E293B] px-3 py-1.5 flex flex-wrap items-center justify-between gap-2 shrink-0 z-20"
+            >
+              <div className="flex items-center gap-1.5 overflow-x-auto max-w-full py-0.5">
+                {RENDER_MODES.map((m) => {
+                  const active = renderMode === m.id;
+                  return (
+                    <button
+                      key={m.id}
+                      type="button"
+                      aria-pressed={active}
+                      onClick={() => handleRenderModeSelect(m.id)}
+                      className={`min-h-[44px] px-3 rounded-lg font-mono-tabular text-xs font-semibold whitespace-nowrap touch-manipulation transition active:scale-95 ${
+                        active
+                          ? 'bg-sky-400 text-slate-950 shadow-sm'
+                          : 'bg-[#070A10] text-slate-200 border border-slate-700 hover:border-sky-400/50'
+                      }`}
+                    >
+                      {m.label}
+                    </button>
+                  );
+                })}
+              </div>
+
+              <div className="flex flex-wrap items-center gap-1.5">
+                <div className="flex items-center bg-[#070A10] border border-slate-700 rounded-lg overflow-hidden">
+                  {['ISO', 'TOP', 'FRONT', 'RIGHT', 'RESET'].map((preset) => (
+                    <button
+                      key={preset}
+                      type="button"
+                      onClick={() => {
+                        setCameraCommand({ type: 'PRESET', preset: preset === 'RESET' ? 'ISO' : preset, ts: Date.now() });
+                        notify(`View: ${preset}`);
+                      }}
+                      className="min-h-[44px] px-2.5 font-mono-tabular text-[11px] font-bold text-slate-300 hover:text-white active:bg-slate-800 touch-manipulation"
+                    >
+                      {preset}
+                    </button>
+                  ))}
+                </div>
+
+                <div className="flex items-center bg-[#070A10] border border-slate-700 rounded-lg overflow-hidden">
+                  <button
+                    type="button"
+                    aria-label="Zoom Out"
+                    onClick={() => setCameraCommand({ type: 'ZOOM', factor: 1.24, ts: Date.now() })}
+                    className="min-h-[44px] min-w-[44px] flex items-center justify-center text-base font-bold text-slate-100 active:bg-slate-800 touch-manipulation"
+                  >
+                    −
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setCameraCommand({ type: 'PRESET', preset: 'ISO', ts: Date.now() })}
+                    className="min-h-[44px] px-2.5 font-mono-tabular text-[11px] font-semibold text-sky-300 active:bg-slate-800 touch-manipulation"
+                  >
+                    Fit
+                  </button>
+                  <button
+                    type="button"
+                    aria-label="Zoom In"
+                    onClick={() => setCameraCommand({ type: 'ZOOM', factor: 0.8, ts: Date.now() })}
+                    className="min-h-[44px] min-w-[44px] flex items-center justify-center text-base font-bold text-slate-100 active:bg-slate-800 touch-manipulation"
+                  >
+                    +
+                  </button>
+                </div>
+
+                <div className="flex items-center gap-2 px-2.5 min-h-[44px] bg-[#070A10] border border-slate-700 rounded-lg">
+                  <span className="font-mono-tabular text-[11px] text-amber-300 font-bold">
+                    Explode {explodePercent}% (~1s glide)
+                  </span>
+                  <input
+                    type="range"
+                    min="0"
+                    max="100"
+                    value={explodePercent}
+                    onChange={(e) => setExplodePercent(parseInt(e.target.value, 10) || 0)}
+                    className="w-20 h-3 accent-amber-400 cursor-pointer"
+                  />
+                </div>
+
+                <div className="flex items-center gap-2 px-2.5 min-h-[44px] bg-[#070A10] border border-slate-700 rounded-lg">
+                  <span className="font-mono-tabular text-[11px] text-sky-300 font-bold">
+                    Spin {turntableSec}s/rev
+                  </span>
+                  <input
+                    type="range"
+                    min="6"
+                    max="12"
+                    step="0.5"
+                    value={turntableSec}
+                    onChange={(e) => setTurntableSec(parseFloat(e.target.value) || 9)}
+                    className="w-16 h-3 accent-sky-400 cursor-pointer"
+                  />
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setMechanicalMotion((m) => !m)}
+                  className={`min-h-[44px] px-3 rounded-lg font-mono-tabular text-xs font-semibold touch-manipulation active:scale-95 ${
+                    mechanicalMotion
+                      ? 'bg-sky-500/20 text-sky-300 border border-sky-400/50'
+                      : 'bg-[#070A10] text-slate-400 border border-slate-700'
+                  }`}
+                >
+                  {mechanicalMotion ? '❚❚ Pause Motion' : '▶ Play Motion'}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setTurntableSpin((s) => !s)}
+                  className={`min-h-[44px] px-3 rounded-lg font-mono-tabular text-xs font-semibold touch-manipulation active:scale-95 ${
+                    turntableSpin
+                      ? 'bg-amber-400 text-slate-950'
+                      : 'bg-[#070A10] text-slate-300 border border-slate-700'
+                  }`}
+                >
+                  Spin
+                </button>
+
+                <input
+                  ref={globalFileInputRef}
+                  type="file"
+                  multiple
+                  accept=".stl,.obj,.json,.png,.jpg,.jpeg,.webp"
+                  onChange={(e) => {
+                    if (e.target.files) {
+                      handleUniversalFiles(e.target.files);
+                      e.target.value = '';
+                    }
+                  }}
+                  className="hidden"
+                />
+                <button
+                  type="button"
+                  onClick={() => globalFileInputRef.current?.click()}
+                  className="min-h-[44px] px-3.5 rounded-lg bg-emerald-400 text-slate-950 font-mono-tabular text-xs font-bold flex items-center gap-1.5 touch-manipulation transition active:scale-95"
+                >
+                  <span>↑ Upload .STL / .OBJ / .JSON / Photo</span>
+                  {uploadedCount > 0 && (
+                    <span className="px-1.5 py-0.5 rounded bg-slate-950/20 text-[11px]">{uploadedCount}</span>
+                  )}
+                </button>
+              </div>
+            </div>
+
+            {/* =============================================================== */}
+            {/* 3. MAIN WORKSPACE: LEFT TREE + CENTER 3D VIEWPORT + INSPECTOR */}
+            {/* =============================================================== */}
+            <div className="flex-1 flex flex-col lg:flex-row overflow-hidden">
+              {leftTreeOpen && (
+                <aside className="w-full lg:w-64 bg-[#0B101A] border-b lg:border-b-0 lg:border-r border-[#1E293B] p-3 shrink-0 flex flex-col gap-2.5 overflow-y-auto">
+                  <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+                    <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                      Subsystem Tree
+                    </span>
+                    <span className="font-mono-tabular text-[10px] px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
+                      {telemetry.dmlsStatus}
+                    </span>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    {subsystems.map((sub) => {
+                      const isVisible = visibilityMap[sub] !== false;
+                      const isSelected = selectedSubsystem === sub;
+                      const isIsolated = isolatedSubsystem === sub;
+                      return (
+                        <div
+                          key={sub}
+                          className={`flex items-center gap-1 rounded-lg border p-1 ${
+                            isSelected
+                              ? 'bg-sky-500/15 border-sky-400/65'
+                              : 'bg-[#070A10] border-slate-800'
+                          }`}
+                        >
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSelectedSubsystem(sub);
+                              notify(`Selected: ${sub}`);
+                            }}
+                            className="flex-1 min-h-[44px] px-2 text-left text-xs font-medium text-slate-200 truncate touch-manipulation"
+                          >
+                            {sub}
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setIsolatedSubsystem((prev) => (prev === sub ? null : sub));
+                              notify(isIsolated ? 'Cleared isolation' : `Isolated: ${sub}`);
+                            }}
+                            className={`min-h-[44px] min-w-[44px] px-2 rounded font-mono-tabular text-[10px] font-bold touch-manipulation ${
+                              isIsolated ? 'bg-amber-400 text-slate-950' : 'text-slate-400 hover:text-slate-200'
+                            }`}
+                          >
+                            ISO
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setVisibilityMap((prev) => ({
+                                ...prev,
+                                [sub]: prev[sub] === false ? true : false
+                              }))
+                            }
+                            className={`min-h-[44px] min-w-[44px] px-2 rounded text-xs touch-manipulation ${
+                              isVisible ? 'text-sky-300' : 'text-slate-600'
+                            }`}
+                          >
+                            {isVisible ? '👁' : '✕'}
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {uploadedMeshAsset && (
+                    <div className="p-2.5 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-xs space-y-1.5">
+                      <div className="font-mono-tabular text-[11px] text-emerald-300 truncate">
+                        Mesh: {uploadedMeshAsset.name}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (uploadedMeshAsset.geometry) uploadedMeshAsset.geometry.dispose();
+                          setUploadedMeshAsset(null);
+                          notify('Removed uploaded mesh');
+                        }}
+                        className="w-full min-h-[44px] rounded bg-slate-900 border border-slate-700 text-xs text-slate-200 touch-manipulation"
+                      >
+                        Clear Uploaded Mesh
+                      </button>
+                    </div>
+                  )}
+                </aside>
+              )}
+
+              <section
+                className={`relative flex-1 min-h-[380px] flex flex-col border-b lg:border-b-0 ${
+                  rightInspectorOpen ? 'lg:border-r' : ''
+                } border-[#1E293B] overflow-hidden`}
+              >
+                <div className="relative flex-1">
+                  <StudioErrorBoundary>
+                    <ReliableCadViewport
+                      domain={domain}
+                      renderMode={renderMode}
+                      params={params}
+                      explodePercent={explodePercent}
+                      turntableSpin={turntableSpin}
+                      turntableSec={turntableSec}
+                      mechanicalMotion={mechanicalMotion}
+                      sliceAxis={sliceAxis}
+                      slicePercent={slicePercent}
+                      visibilityMap={visibilityMap}
+                      isolatedSubsystem={isolatedSubsystem}
+                      selectedSubsystem={selectedSubsystem}
+                      onSelectSubsystem={setSelectedSubsystem}
+                      calibratedPhoto={calibratedPhoto}
+                      uploadedMeshAsset={uploadedMeshAsset}
+                      cameraCommand={cameraCommand}
+                      onDiagnosticsUpdate={setDiagnostics}
+                      onExportStlReady={(fn) => {
+                        getStlRef.current = fn;
+                      }}
+                    />
+                  </StudioErrorBoundary>
+
+                  <div className="absolute top-3 left-3 pointer-events-none flex flex-col gap-1.5">
+                    <div className="px-3 py-1.5 rounded-lg bg-[#0E1420]/90 border border-slate-700/80 font-mono-tabular text-[11px] text-slate-200">
+                      ACTIVE PART: <span className="text-sky-400 font-bold">{selectedSubsystem}</span> · BOLT <span className="text-amber-300 font-bold">#{boltSequenceStep}/17</span>
+                    </div>
+                    {renderMode === 'fea-field' && (
+                      <div className="px-3 py-1.5 rounded-lg bg-[#0E1420]/90 border border-amber-500/40 font-mono-tabular text-[10px] text-amber-200">
+                        FEA / THERMAL GRADIENT: 40°C [CYAN] → {telemetry.maxTempC}°C [AMBER/RED]
+                      </div>
+                    )}
+                    {renderMode === 'lattice-3dp' && (
+                      <div className="px-3 py-1.5 rounded-lg bg-[#0E1420]/90 border border-emerald-500/40 font-mono-tabular text-[10px] text-emerald-300">
+                        3DP LATTICE INFILL: {latticeDensity}% · LAYER: 0.04 MM
+                      </div>
+                    )}
+                  </div>
+
+                  {renderMode === 'blueprint-2d' && (
+                    <div className="absolute inset-3 bg-[#070A10]/96 rounded-xl border border-sky-400/50 p-3 flex flex-col justify-between overflow-y-auto z-20">
+                      <div className="flex items-center justify-between gap-2 mb-2">
+                        <span className="font-mono-tabular text-xs font-bold text-sky-300">
+                          ASME Y14.5-2018 ORTHOGRAPHIC &amp; SECTION BLUEPRINT
+                        </span>
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={handleDownloadSvg}
+                            className="min-h-[44px] px-3 rounded-lg bg-sky-400 text-slate-950 text-xs font-bold touch-manipulation"
+                          >
+                            ↓ Save .SVG
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setRenderMode('shaded')}
+                            className="min-h-[44px] px-3 rounded-lg bg-slate-900 border border-slate-700 text-xs font-semibold text-slate-200 touch-manipulation"
+                          >
+                            Back to 3D
+                          </button>
+                        </div>
+                      </div>
+                      <AsmeTechnicalBlueprint
+                        domain={domain}
+                        params={params}
+                        units={units}
+                        sliceAxis={sliceAxis}
+                        slicePercent={slicePercent}
+                        telemetry={telemetry}
+                        titleMeta={titleMeta}
+                        svgRef={blueprintSvgRef}
+                      />
+                    </div>
+                  )}
+                </div>
+
+                <div className="bg-[#0E1420] border-t border-[#1E293B] px-3 py-2 flex flex-wrap items-center justify-between gap-2 text-[11px] font-mono-tabular text-slate-300 shrink-0">
+                  <div>
+                    BORE×STROKE: <span className="text-slate-100">{formatDim(params.boreIn)} × {formatDim(params.strokeIn)}</span> ·{' '}
+                    <span className="text-sky-300">{telemetry.dispStr}</span>
+                  </div>
+                  <div>
+                    MASS: <span className="text-emerald-300">{telemetry.massStr}</span> · CNC:{' '}
+                    <span className="text-amber-300">{telemetry.cncHours} HR</span>
+                  </div>
+                  <div>
+                    SLICE: <span className="text-amber-300">{sliceAxis} @ {slicePercent}%</span> ·{' '}
+                    <span className="text-emerald-400">MANIFOLD OK</span>
+                  </div>
+                </div>
+              </section>
+
+              {rightInspectorOpen && (
+                <aside className="w-full lg:w-[440px] xl:w-[470px] bg-[#0E1420] overflow-y-auto p-3.5 shrink-0 select-text">
+                  {/* ROOM 1: SKETCH & BUILD */}
+                  {activeRoom === 'build' && (
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+                        <h2 className="text-sm font-bold uppercase tracking-wider text-sky-400">
+                          Sketch &amp; Parametric Build
+                        </h2>
+                        <span className="font-mono-tabular text-xs text-emerald-400">{telemetry.dmlsStatus}</span>
+                      </div>
+
+                      {[
+                        { key: 'boreIn', label: 'Cylinder / Chamber Bore Ø', min: 3.5, max: 7.5, step: 0.03 },
+                        { key: 'strokeIn', label: 'Stroke / Chamber Length', min: 2.8, max: 6.5, step: 0.04 },
+                        { key: 'wallIn', label: 'Minimum Wall Thickness', min: 0.12, max: 0.75, step: 0.02 },
+                        { key: 'boltCount', label: 'Flange / Deck Bolt Count', min: 8, max: 36, step: 2, isCount: true },
+                        { key: 'filletIn', label: 'Corner / Root Fillet Radius', min: 0.05, max: 0.85, step: 0.05 }
+                      ].map((ctrl) => (
+                        <div key={ctrl.key} className="p-2.5 rounded-lg bg-[#070A10] border border-slate-800 space-y-2">
+                          <div className="flex items-center justify-between text-xs">
+                            <span className="font-medium text-slate-300">{ctrl.label}</span>
+                            <span className="font-mono-tabular text-sky-300 font-bold">
+                              {ctrl.isCount ? `${params[ctrl.key]} bolts` : formatDim(params[ctrl.key])}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setParams((p) => ({
+                                  ...p,
+                                  [ctrl.key]: Math.max(ctrl.min, Number((p[ctrl.key] - ctrl.step).toFixed(3)))
+                                }))
+                              }
+                              className="min-h-[44px] min-w-[44px] rounded-lg bg-slate-900 border border-slate-700 font-bold text-base touch-manipulation active:scale-95"
+                            >
+                              −
+                            </button>
+                            <input
+                              type="range"
+                              min={ctrl.min}
+                              max={ctrl.max}
+                              step={ctrl.step}
+                              value={params[ctrl.key]}
+                              onChange={(e) =>
+                                setParams((p) => ({
+                                  ...p,
+                                  [ctrl.key]: parseFloat(e.target.value)
+                                }))
+                              }
+                              className="flex-1 h-3 accent-sky-400 cursor-pointer"
+                            />
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setParams((p) => ({
+                                  ...p,
+                                  [ctrl.key]: Math.min(ctrl.max, Number((p[ctrl.key] + ctrl.step).toFixed(3)))
+                                }))
+                              }
+                              className="min-h-[44px] min-w-[44px] rounded-lg bg-slate-900 border border-slate-700 font-bold text-base touch-manipulation active:scale-95"
+                            >
+                              +
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+
+                      <div className="space-y-1.5">
+                        <label className="block text-xs font-semibold text-slate-300">
+                          Manufacturing Alloy &amp; Thermal Spec
+                        </label>
+                        <select
+                          value={params.materialId}
+                          onChange={(e) => setParams((p) => ({ ...p, materialId: e.target.value }))}
+                          className="w-full min-h-[44px] px-3 rounded-lg bg-[#070A10] border border-slate-700 text-xs text-slate-100"
+                        >
+                          {ALLOYS.map((a) => (
+                            <option key={a.id} value={a.id}>
+                              {a.name} — σy {a.yieldMPa} MPa · Tmax {a.maxTempC}°C
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* ROOM 2: SBC-350 v16 MODELER & #1-#17 BOLT TORQUE WORKBENCH */}
+                  {activeRoom === 'sbc16' && (
+                    <div className="space-y-3.5">
+                      <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+                        <h2 className="text-sm font-bold uppercase tracking-wider text-amber-300">
+                          SBC-350 v16 Modeler &amp; Torque Bench
+                        </h2>
+                        <span className="font-mono-tabular text-xs text-sky-300">v16 + v20 MERGED</span>
+                      </div>
+
+                      <div className="p-2.5 rounded-lg bg-[#070A10] border border-slate-800 space-y-2">
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="font-semibold text-slate-300">SBC-350 Deck Height Datum</span>
+                          <span className="font-mono-tabular text-amber-300 font-bold">{formatDim(deckHeightIn)}</span>
+                        </div>
+                        <input
+                          type="range"
+                          min="8.980"
+                          max="9.060"
+                          step="0.005"
+                          value={deckHeightIn}
+                          onChange={(e) => setDeckHeightIn(parseFloat(e.target.value) || 9.0)}
+                          className="w-full h-3 accent-amber-400 cursor-pointer"
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <div className="text-[11px] font-mono-tabular font-bold text-sky-300 uppercase">
+                          SBC-350 v16 Sub-Assembly Presets
+                        </div>
+                        {SBC350_V16_PRESETS.map((preset) => {
+                          const isCurrent = activeV16PresetId === preset.id;
+                          return (
+                            <div
+                              key={preset.id}
+                              className={`p-2.5 rounded-lg border space-y-1.5 ${
+                                isCurrent ? 'bg-amber-400/10 border-amber-400/60' : 'bg-[#070A10] border-slate-800'
+                              }`}
+                            >
+                              <div className="flex items-center justify-between gap-2">
+                                <span className="font-mono-tabular text-[10px] text-amber-300 font-bold">{preset.code}</span>
+                                <button
+                                  type="button"
+                                  onClick={() => applyV16Preset(preset)}
+                                  className="min-h-[38px] px-3 rounded-lg bg-amber-400 text-slate-950 font-mono-tabular text-[11px] font-bold touch-manipulation active:scale-95"
+                                >
+                                  Apply v16
+                                </button>
+                              </div>
+                              <div className="text-xs font-bold text-slate-100">{preset.name}</div>
+                              <div className="text-[11px] text-slate-400 leading-relaxed">{preset.summary}</div>
+                            </div>
+                          );
+                        })}
+                      </div>
+
+                      {/* Interactive #1 -> #17 Head Bolt Sequence & Torque Pass Inspector */}
+                      <div className="p-3 rounded-lg bg-[#070A10] border border-amber-400/35 space-y-2.5">
+                        <div className="flex items-center justify-between">
+                          <span className="font-mono-tabular text-xs font-bold text-amber-300">
+                            17-BOLT SEQUENCE (#1 → #17 — NOT A CIRCLE)
+                          </span>
+                          <span className="font-mono-tabular text-xs text-sky-300">
+                            Bolt {activeBoltInfo.label} ({activeBoltInfo.bank})
+                          </span>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setBoltSequenceStep((s) => (s <= 1 ? 17 : s - 1))}
+                            className="min-h-[44px] px-3 rounded-lg bg-slate-900 border border-slate-700 font-mono-tabular text-xs font-bold touch-manipulation"
+                          >
+                            ◂ Prev
+                          </button>
+                          <input
+                            type="range"
+                            min="1"
+                            max="17"
+                            step="1"
+                            value={boltSequenceStep}
+                            onChange={(e) => setBoltSequenceStep(parseInt(e.target.value, 10) || 1)}
+                            className="flex-1 h-3 accent-amber-400 cursor-pointer"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setBoltSequenceStep((s) => (s >= 17 ? 1 : s + 1))}
+                            className="min-h-[44px] px-3 rounded-lg bg-slate-900 border border-slate-700 font-mono-tabular text-xs font-bold touch-manipulation"
+                          >
+                            Next ▸
+                          </button>
+                        </div>
+
+                        <div className="grid grid-cols-3 gap-1.5">
+                          {[
+                            { id: 'PASS_1_25', label: 'Pass 1: 25 lb-ft' },
+                            { id: 'PASS_2_45', label: 'Pass 2: 45 lb-ft' },
+                            { id: 'PASS_3_FINAL', label: 'Pass 3: 65/70 lb-ft' }
+                          ].map((p) => (
+                            <button
+                              key={p.id}
+                              type="button"
+                              onClick={() => setBoltTorquePass(p.id)}
+                              className={`min-h-[40px] px-2 rounded-lg font-mono-tabular text-[10px] font-bold touch-manipulation ${
+                                boltTorquePass === p.id
+                                  ? 'bg-emerald-400 text-slate-950'
+                                  : 'bg-slate-900 text-slate-300 border border-slate-700'
+                              }`}
+                            >
+                              {p.label}
+                            </button>
+                          ))}
+                        </div>
+
+                        <div className="text-[11px] text-slate-300 font-mono-tabular">
+                          Step #{activeBoltInfo.seq}: {activeBoltInfo.note} · Active Pass: {boltTorquePass.replace('_', ' ')}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* ROOM 3: PARTS & VEHICLE MATRIX + ACCESSORIES */}
+                  {activeRoom === 'matrix' && (
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+                        <h2 className="text-sm font-bold uppercase tracking-wider text-amber-300">
+                          Vehicle, Aerospace &amp; Accessories Matrix
+                        </h2>
+                        <span className="font-mono-tabular text-xs text-slate-400">
+                          {filteredMatrix.length} items
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-3 gap-1.5">
+                        {[
+                          { id: 'vehicles', label: `Vehicles & Aero (${VEHICLE_MATRIX_LIBRARY.length})` },
+                          { id: 'accessories', label: `Accessories (${ACCESSORIES_CATALOG.length})` },
+                          { id: 'active', label: `Active BOM (${activeMatrixItems.length})` }
+                        ].map((st) => (
+                          <button
+                            key={st.id}
+                            type="button"
+                            onClick={() => {
+                              setMatrixSubTab(st.id);
+                              setMatrixCategory('ALL');
+                            }}
+                            className={`min-h-[44px] px-2 rounded-lg text-[11px] font-bold touch-manipulation transition active:scale-95 ${
+                              matrixSubTab === st.id
+                                ? 'bg-amber-400 text-slate-950'
+                                : 'bg-[#070A10] text-slate-300 border border-slate-800'
+                            }`}
+                          >
+                            {st.label}
+                          </button>
+                        ))}
+                      </div>
+
+                      <div className="flex gap-1.5">
+                        <input
+                          type="text"
+                          value={matrixSearch}
+                          onChange={(e) => setMatrixSearch(e.target.value)}
+                          placeholder="Search Camaro, Corvette, X-33, Gimbal, AN-16..."
+                          className="flex-1 min-h-[44px] px-3 rounded-lg bg-[#070A10] border border-slate-700 text-xs text-slate-100 focus:outline-none focus:border-sky-400"
+                        />
+                        <select
+                          value={matrixStatusFilter}
+                          onChange={(e) => setMatrixStatusFilter(e.target.value)}
+                          className="min-h-[44px] px-2.5 rounded-lg bg-[#070A10] border border-slate-700 font-mono-tabular text-xs text-slate-200"
+                        >
+                          <option value="ALL">ALL</option>
+                          <option value="VERIFIED">VERIFIED</option>
+                          <option value="PROVISIONAL">PROVISIONAL</option>
+                        </select>
+                      </div>
+
+                      <div className="flex flex-wrap gap-1.5">
+                        {categoryOptions.map((cat) => (
+                          <button
+                            key={cat}
+                            type="button"
+                            onClick={() => setMatrixCategory(cat)}
+                            className={`min-h-[44px] px-2.5 rounded-lg font-mono-tabular text-[11px] font-semibold touch-manipulation active:scale-95 ${
+                              matrixCategory === cat
+                                ? 'bg-sky-400 text-slate-950'
+                                : 'bg-[#070A10] text-slate-300 border border-slate-800'
+                            }`}
+                          >
+                            {cat}
+                          </button>
+                        ))}
+                      </div>
+
+                      <div className="space-y-2.5">
+                        {filteredMatrix.map((item) => {
+                          const codeStr = item.code || item.sku;
+                          const alreadyInBom = activeMatrixItems.some((x) => x.id === item.id);
+                          return (
+                            <div
+                              key={item.id}
+                              className="p-3 rounded-lg bg-[#070A10] border border-slate-800 space-y-2"
+                            >
+                              <div className="flex items-start justify-between gap-2">
+                                <div>
+                                  <div className="font-mono-tabular text-[11px] text-sky-400">
+                                    {codeStr} · {item.tolerance}
+                                  </div>
+                                  <div className="text-xs font-bold text-slate-100">{item.name}</div>
+                                  {item.engineSpec && (
+                                    <div className="text-[11px] text-amber-200/90 mt-0.5">{item.engineSpec}</div>
+                                  )}
+                                  <div className="font-mono-tabular text-[11px] text-slate-400 mt-0.5">
+                                    Bore {formatDim(item.boreIn)} × Stroke {formatDim(item.strokeIn)} · {item.massLb} lb
+                                    {item.powerHp ? ` · ${item.powerHp} HP` : ''}
+                                  </div>
+                                  {item.notes && (
+                                    <div className="text-[11px] text-slate-400 mt-1 leading-relaxed">{item.notes}</div>
+                                  )}
+                                </div>
+                                <span
+                                  className={`px-2 py-0.5 rounded font-mono-tabular text-[10px] shrink-0 ${
+                                    item.status === 'VERIFIED'
+                                      ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/30'
+                                      : 'bg-amber-500/15 text-amber-300 border border-amber-500/30'
+                                  }`}
+                                >
+                                  {item.status}
+                                </span>
+                              </div>
+
+                              <div className="grid grid-cols-2 gap-1.5">
+                                <button
+                                  type="button"
+                                  onClick={() => applyLibraryEntryToBench(item)}
+                                  className="min-h-[44px] px-2.5 rounded-lg bg-[#151E30] border border-slate-700 text-xs font-semibold text-sky-200 touch-manipulation active:scale-95"
+                                >
+                                  Load to 3D Bench
+                                </button>
+
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    if (!alreadyInBom) {
+                                      setActiveMatrixItems((prev) => [item, ...prev]);
+                                      notify(`Added ${codeStr} to Active BOM`);
+                                    } else {
+                                      applyLibraryEntryToBench(item, 'sbc-350-v20');
+                                    }
+                                  }}
+                                  className="min-h-[44px] px-2.5 rounded-lg bg-emerald-500/15 border border-emerald-500/40 text-xs font-semibold text-emerald-300 touch-manipulation active:scale-95"
+                                >
+                                  {alreadyInBom ? 'Cross-Test SBC-350' : '+ Add to Active BOM'}
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* ROOM 4: INSPECT & SLICE */}
+                  {activeRoom === 'inspect' && (
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+                        <h2 className="text-sm font-bold uppercase tracking-wider text-amber-300">
+                          Section Slice &amp; Lattice Inspection
+                        </h2>
+                        <span className="font-mono-tabular text-xs text-amber-300">{slicePercent}%</span>
+                      </div>
+
+                      <div>
+                        <div className="text-xs font-semibold text-slate-300 mb-1.5">Clipping Plane Axis</div>
+                        <div className="grid grid-cols-3 gap-2">
+                          {['X', 'Y', 'Z'].map((ax) => (
+                            <button
+                              key={ax}
+                              type="button"
+                              onClick={() => {
+                                setSliceAxis(ax);
+                                if (slicePercent === 0) setSlicePercent(45);
+                                setRenderMode('section');
+                              }}
+                              className={`min-h-[44px] rounded-lg font-mono-tabular text-xs font-bold touch-manipulation active:scale-95 ${
+                                sliceAxis === ax
+                                  ? 'bg-amber-400 text-slate-950'
+                                  : 'bg-[#070A10] text-slate-200 border border-slate-700'
+                              }`}
+                            >
+                              Axis {ax}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div className="p-3 rounded-lg bg-[#070A10] border border-slate-800 space-y-2">
+                        <div className="flex justify-between text-xs">
+                          <span className="text-slate-300">Section Cut Offset</span>
+                          <span className="font-mono-tabular text-amber-300 font-bold">{slicePercent}%</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setSlicePercent((v) => Math.max(0, v - 10))}
+                            className="min-h-[44px] min-w-[44px] rounded-lg bg-slate-900 border border-slate-700 font-bold touch-manipulation"
+                          >
+                            −
+                          </button>
+                          <input
+                            type="range"
+                            min="0"
+                            max="95"
+                            step="1"
+                            value={slicePercent}
+                            onChange={(e) => {
+                              const val = parseInt(e.target.value, 10) || 0;
+                              setSlicePercent(val);
+                              if (val > 0) setRenderMode('section');
+                            }}
+                            className="flex-1 h-3 accent-amber-400 cursor-pointer"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSlicePercent((v) => Math.min(95, v + 10));
+                              setRenderMode('section');
+                            }}
+                            className="min-h-[44px] min-w-[44px] rounded-lg bg-slate-900 border border-slate-700 font-bold touch-manipulation"
+                          >
+                            +
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="p-3 rounded-lg bg-[#070A10] border border-slate-800 space-y-2">
+                        <div className="flex justify-between text-xs">
+                          <span className="text-slate-300">3DP Lattice Infill Density</span>
+                          <span className="font-mono-tabular text-emerald-300 font-bold">{latticeDensity}%</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setLatticeDensity((v) => Math.min(85, v + 5));
+                              setRenderMode('lattice-3dp');
+                            }}
+                            className="min-h-[44px] min-w-[44px] rounded-lg bg-slate-900 border border-slate-700 font-bold touch-manipulation"
+                          >
+                            +
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* ROOM 5: PHOTO SCALE */}
+                  {activeRoom === 'scale' && (
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+                        <h2 className="text-sm font-bold uppercase tracking-wider text-emerald-300">
+                          Reference Photo Scale Calibration
+                        </h2>
+                        <span className="font-mono-tabular text-xs text-sky-300">{pxPerInch} px/in</span>
+                      </div>
+
+                      <input
+                        ref={photoInputRef}
+                        type="file"
+                        accept="image/*"
+                        onChange={(e) => {
+                          const f = e.target.files && e.target.files[0];
+                          if (f) {
+                            loadReferencePhoto(f);
+                            e.target.value = '';
+                          }
+                        }}
+                        className="hidden"
+                      />
+
+                      <button
+                        type="button"
+                        onClick={() => photoInputRef.current?.click()}
+                        className="w-full min-h-[44px] px-4 rounded-lg bg-emerald-400 text-slate-950 text-xs font-bold touch-manipulation active:scale-95"
+                      >
+                        ↑ Select Reference Photo (PNG / JPG / WEBP)
+                      </button>
+
+                      <div className="p-3 rounded-lg bg-[#070A10] border border-slate-800 space-y-2 text-xs">
+                        <div className="flex justify-between">
+                          <span className="text-slate-400">Known Span (in)</span>
+                          <span className="font-mono-tabular text-sky-300">{calibratedPhoto.knownSpanIn.toFixed(2)} in</span>
+                        </div>
+                        <input
+                          type="range"
+                          min="2"
+                          max="48"
+                          step="0.5"
+                          value={calibratedPhoto.knownSpanIn}
+                          onChange={(e) =>
+                            setCalibratedPhoto((p) => ({ ...p, knownSpanIn: parseFloat(e.target.value) || 14 }))
+                          }
+                          className="w-full h-3 accent-sky-400 cursor-pointer"
+                        />
+
+                        <div className="flex justify-between pt-1">
+                          <span className="text-slate-400">3D Overlay Opacity</span>
+                          <span className="font-mono-tabular text-amber-300">{Math.round(calibratedPhoto.opacity * 100)}%</span>
+                        </div>
+                        <input
+                          type="range"
+                          min="0"
+                          max="1"
+                          step="0.05"
+                          value={calibratedPhoto.opacity}
+                          onChange={(e) =>
+                            setCalibratedPhoto((p) => ({
+                              ...p,
+                              opacity: parseFloat(e.target.value) || 0,
+                              visible: true
+                            }))
+                          }
+                          className="w-full h-3 accent-amber-400 cursor-pointer"
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {/* ROOM 6: ASME Y14.5M-2018 & ISO 2768-m 4-VIEW BLUEPRINT */}
+                  {activeRoom === 'blueprint' && (
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+                        <h2 className="text-sm font-bold uppercase tracking-wider text-sky-400">
+                          ASME Y14.5M-2018 &amp; ISO 2768-m Sheet
+                        </h2>
+                        <span className="font-mono-tabular text-xs text-emerald-400">4-VIEW + 2:1 BORE</span>
+                      </div>
+
+                      <AsmeTechnicalBlueprint
+                        domain={domain}
+                        params={params}
+                        units={units}
+                        sliceAxis={sliceAxis}
+                        slicePercent={slicePercent}
+                        telemetry={telemetry}
+                        titleMeta={titleMeta}
+                        svgRef={blueprintSvgRef}
+                      />
+
+                      <div className="p-2.5 rounded-lg bg-[#070A10] border border-slate-800 space-y-1 text-[11px] font-mono-tabular">
+                        <div className="text-amber-300 font-bold">17-BOLT SEQUENCE (#1 → #17 — NOT A CIRCLE):</div>
+                        <div className="text-slate-300">
+                          Order: {SBC350_17_BOLT_SEQUENCE.map((b) => b.label).join(' → ')}
+                        </div>
+                        <div className="text-emerald-300">
+                          Passes: 25 lb-ft → 45 lb-ft → 65 lb-ft (or 70 lb-ft ARP stud spec)
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                        <div>
+                          <label className="block text-[10px] font-mono-tabular text-slate-400 mb-1">DWG NUMBER</label>
+                          <input
+                            type="text"
+                            value={titleMeta.drawingNumber}
+                            onChange={(e) => setTitleMeta((t) => ({ ...t, drawingNumber: e.target.value }))}
+                            className="w-full min-h-[44px] px-2.5 rounded-lg bg-[#070A10] border border-slate-700 font-mono-tabular text-xs text-slate-100"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-mono-tabular text-slate-400 mb-1">REVISION</label>
+                          <input
+                            type="text"
+                            value={titleMeta.revision}
+                            onChange={(e) => setTitleMeta((t) => ({ ...t, revision: e.target.value }))}
+                            className="w-full min-h-[44px] px-2.5 rounded-lg bg-[#070A10] border border-slate-700 font-mono-tabular text-xs text-slate-100"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-mono-tabular text-slate-400 mb-1">ENGINEER</label>
+                          <input
+                            type="text"
+                            value={titleMeta.engineer}
+                            onChange={(e) => setTitleMeta((t) => ({ ...t, engineer: e.target.value }))}
+                            className="w-full min-h-[44px] px-2.5 rounded-lg bg-[#070A10] border border-slate-700 font-mono-tabular text-xs text-slate-100"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="space-y-2">
+                        <button
+                          type="button"
+                          onClick={handleDownloadSvg}
+                          className="w-full min-h-[44px] px-4 rounded-lg bg-sky-400 text-slate-950 text-xs font-bold touch-manipulation active:scale-95"
+                        >
+                          ↓ Download .SVG ASME Y14.5M Blueprint
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={handleDownloadStl}
+                          className="w-full min-h-[44px] px-4 rounded-lg bg-amber-400 text-slate-950 text-xs font-bold touch-manipulation active:scale-95"
+                        >
+                          ↓ Download .STL 3D Mesh
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={handleDownloadMbdJson}
+                          className="w-full min-h-[44px] px-4 rounded-lg bg-emerald-400 text-slate-950 text-xs font-bold touch-manipulation active:scale-95"
+                        >
+                          ↓ Download .JSON MBD Specification Packet
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* ROOM 7: JESSE 24FPS CINEMA STANDARD & GEMINI AI CO-PILOT */}
+                  {activeRoom === 'cinema' && (
+                    <div className="space-y-3 flex flex-col">
+                      <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+                        <h2 className="text-sm font-bold uppercase tracking-wider text-amber-300">
+                          Jesse 24fps Cinema &amp; Gemini AI
+                        </h2>
+                        <span className="font-mono-tabular text-[11px] text-sky-300">24 FPS · 50MM · 369</span>
+                      </div>
+
+                      <div className="p-2.5 rounded-lg bg-amber-500/10 border border-amber-400/40 text-[11px] text-amber-100 leading-relaxed">
+                        <span className="font-mono-tabular font-bold text-amber-300">VEO PAYWALLED — FREE ROUTE NOTICE: </span>
+                        Veo is paywalled, so no Veo video clip is promised or generated here. Free routes use your real footage or stills with slow zooms / Ken Burns motion at 24 fps.
+                      </div>
+
+                      <div className="space-y-1.5">
+                        {JESSE_SHOT_TEMPLATES.map((shot) => (
+                          <button
+                            key={shot.id}
+                            type="button"
+                            onClick={() => setJesseShotId(shot.id)}
+                            className={`w-full min-h-[44px] px-3 py-2 rounded-lg text-left text-xs font-semibold touch-manipulation transition ${
+                              jesseShotId === shot.id
+                                ? 'bg-sky-400 text-slate-950'
+                                : 'bg-[#070A10] text-slate-200 border border-slate-800'
+                            }`}
+                          >
+                            {shot.title}
+                          </button>
+                        ))}
+                      </div>
+
+                      <div className="p-2.5 rounded-lg bg-[#070A10] border border-slate-800 space-y-2">
+                        <div className="flex items-center justify-between text-[11px] font-mono-tabular">
+                          <span className="text-sky-300 font-bold">24 FPS SLOW-ZOOM PREVIEW ({jesseScrubPct}%)</span>
+                          <button
+                            type="button"
+                            onClick={() => setJessePlaying((p) => !p)}
+                            className="min-h-[44px] px-3 rounded-lg bg-slate-900 border border-slate-700 text-xs font-bold text-emerald-300 touch-manipulation"
+                          >
+                            {jessePlaying ? '❚❚ Pause 24fps' : '▶ Play 24fps'}
+                          </button>
+                        </div>
+
+                        <div className="relative h-36 w-full overflow-hidden rounded-lg border border-slate-700 bg-[#050810] flex items-center justify-center">
+                          <div
+                            style={{
+                              transform: `scale(${(1 + (jesseScrubPct / 100) * 0.16).toFixed(3)})`,
+                              filter: `${jesseWarmGoldGrade ? 'sepia(0.28) contrast(1.06) ' : ''}${jesseFineGrain ? 'saturate(1.12)' : ''}`
+                            }}
+                            className="w-full h-full flex flex-col items-center justify-center p-3 text-center transition-transform duration-75"
+                          >
+                            {jesseSourceMediaUrl ? (
+                              <img
+                                src={jesseSourceMediaUrl}
+                                alt={jesseSourceMediaName || 'Still / Footage Frame'}
+                                className="w-full h-full object-cover rounded"
+                              />
+                            ) : (
+                              <>
+                                <div className="font-mono-tabular text-[11px] font-bold text-amber-300">
+                                  EMBLEM OPEN → 369 CLOSE · 50MM SHARP / SOFT BG
+                                </div>
+                                <div className="text-xs text-slate-200 mt-1">
+                                  {activeJesseShot.move} · {activeJesseShot.lighting}
+                                </div>
+                                <div className="font-mono-tabular text-[10px] text-sky-300 mt-1">
+                                  BAND TOGETHER IN ONE LIVE SCENE · NO MORPHING
+                                </div>
+                              </>
+                            )}
+                          </div>
+                        </div>
+
+                        <input
+                          type="range"
+                          min="0"
+                          max="100"
+                          step="0.5"
+                          value={jesseScrubPct}
+                          onChange={(e) => setJesseScrubPct(parseFloat(e.target.value) || 0)}
+                          className="w-full h-3 accent-sky-400 cursor-pointer"
+                        />
+
+                        <div className="grid grid-cols-2 gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => setJesseWarmGoldGrade((g) => !g)}
+                            className={`min-h-[44px] px-2 rounded-lg font-mono-tabular text-[11px] font-bold touch-manipulation ${
+                              jesseWarmGoldGrade
+                                ? 'bg-amber-400 text-slate-950'
+                                : 'bg-slate-900 text-slate-300 border border-slate-700'
+                            }`}
+                          >
+                            Warm Gold: {jesseWarmGoldGrade ? 'ON' : 'OFF'}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setJesseFineGrain((g) => !g)}
+                            className={`min-h-[44px] px-2 rounded-lg font-mono-tabular text-[11px] font-bold touch-manipulation ${
+                              jesseFineGrain
+                                ? 'bg-sky-400 text-slate-950'
+                                : 'bg-slate-900 text-slate-300 border border-slate-700'
+                            }`}
+                          >
+                            Fine Grain: {jesseFineGrain ? 'ON' : 'OFF'}
+                          </button>
+                        </div>
+
+                        <label className="w-full min-h-[44px] px-3 rounded-lg bg-slate-900 border border-slate-700 font-mono-tabular text-xs font-semibold text-emerald-300 flex items-center justify-center cursor-pointer touch-manipulation">
+                          ↑ Load Still / Footage for Free Slow Zoom
+                          <input
+                            type="file"
+                            accept="image/*,video/*"
+                            className="hidden"
+                            onChange={(e) => {
+                              const f = e.target.files && e.target.files[0];
+                              if (!f) return;
+                              const nextUrl = URL.createObjectURL(f);
+                              if (prevJesseMediaUrlRef.current) URL.revokeObjectURL(prevJesseMediaUrlRef.current);
+                              prevJesseMediaUrlRef.current = nextUrl;
+                              setJesseSourceMediaUrl(nextUrl);
+                              setJesseSourceMediaName(f.name);
+                              e.target.value = '';
+                              notify(`Loaded still/footage: ${f.name}`);
+                            }}
+                          />
+                        </label>
+                      </div>
+
+                      <div className="p-2.5 rounded-lg bg-[#070A10] border border-slate-800 space-y-2">
+                        <div className="text-[11px] font-mono-tabular text-sky-300 font-bold">
+                          JESSE STANDARD PROMPT (24 FPS · 50MM · 369)
+                        </div>
+                        <p className="text-[11px] text-slate-200 leading-relaxed select-text">
+                          {composedJessePrompt}
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            try {
+                              if (navigator.clipboard && navigator.clipboard.writeText) {
+                                navigator.clipboard.writeText(composedJessePrompt).catch(() => {});
+                              }
+                            } catch (_e) {}
+                            notify('Copied Jesse 24fps Standard Prompt');
+                          }}
+                          className="w-full min-h-[44px] px-3 rounded-lg bg-sky-400 text-slate-950 font-mono-tabular text-xs font-bold touch-manipulation active:scale-95"
+                        >
+                          Copy Jesse Standard Prompt
+                        </button>
+                      </div>
+
+                      <input
+                        type="password"
+                        value={geminiApiKey}
+                        onChange={(e) => setGeminiApiKey(e.target.value)}
+                        placeholder="Optional Gemini API Key (works offline too)..."
+                        className="w-full min-h-[44px] px-3 rounded-lg bg-[#070A10] border border-slate-700 font-mono-tabular text-xs text-slate-200 focus:outline-none focus:border-sky-400"
+                      />
+
+                      <div className="min-h-[140px] max-h-[210px] overflow-y-auto space-y-2 p-2.5 rounded-lg bg-[#070A10] border border-slate-800">
+                        {aiMessages.map((msg, i) => (
+                          <div
+                            key={i}
+                            className={`p-2 rounded-lg text-xs whitespace-pre-line leading-relaxed ${
+                              msg.role === 'user'
+                                ? 'bg-sky-500/15 border border-sky-400/40 text-sky-100 ml-4'
+                                : 'bg-[#0E1420] border border-slate-800 text-slate-200 mr-3'
+                            }`}
+                          >
+                            {msg.text}
+                          </div>
+                        ))}
+                        {aiLoading && (
+                          <div className="text-xs font-mono-tabular text-amber-300 animate-pulse">
+                            Synthesizing CAD &amp; 24fps shot specs...
+                          </div>
+                        )}
+                      </div>
+
+                      <form
+                        onSubmit={(e) => {
+                          e.preventDefault();
+                          handleAskCoPilot();
+                        }}
+                        className="flex gap-2"
+                      >
+                        <input
+                          type="text"
+                          value={aiPrompt}
+                          onChange={(e) => setAiPrompt(e.target.value)}
+                          placeholder="Ask Gemini Co-Pilot to tune part or shot..."
+                          className="flex-1 min-h-[44px] px-3 rounded-lg bg-[#070A10] border border-slate-700 text-xs text-slate-100 focus:outline-none focus:border-sky-400"
+                        />
+                        <button
+                          type="submit"
+                          disabled={aiLoading}
+                          className="min-h-[44px] px-4 rounded-lg bg-sky-400 text-slate-950 text-xs font-bold touch-manipulation active:scale-95 disabled:opacity-50"
+                        >
+                          Generate
+                        </button>
+                      </form>
+                    </div>
+                  )}
+                </aside>
+              )}
+            </div>
+
+            {/* =============================================================== */}
+            {/* 4. STANDARDS, ALLOYS & TORQUE SEQUENCES MODAL                   */}
+            {/* =============================================================== */}
+            {standardsOpen && (
+              <div
+                onClick={() => setStandardsOpen(false)}
+                className="fixed inset-0 bg-black/75 flex items-center justify-center p-4 z-50"
+              >
+                <div
+                  onClick={(e) => e.stopPropagation()}
+                  className="w-full max-w-3xl max-h-[86vh] overflow-y-auto rounded-xl bg-[#0E1420] border border-slate-700 p-5 space-y-4 shadow-2xl"
+                >
+                  <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                    <div>
+                      <h3 className="text-sm font-bold uppercase tracking-wider text-sky-400">
+                        ASME Y14.5-2018 Tolerances, Alloys &amp; Torque Schedules
+                      </h3>
+                      <p className="text-xs text-slate-400 mt-0.5">
+                        Quantum Aerospace &amp; SBC-350 v16/v20 Merged CAD &amp; Manufacturing Studio
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setStandardsOpen(false)}
+                      className="min-h-[44px] min-w-[44px] px-3 rounded-lg bg-slate-900 border border-slate-700 text-xs font-bold text-slate-200 touch-manipulation"
+                    >
+                      ✕
+                    </button>
+                  </div>
+
+                  <div className="space-y-2">
+                    <div className="text-xs font-bold text-amber-300 uppercase">GD&amp;T &amp; Manufacturing Standards</div>
+                    {TOLERANCE_STANDARDS.map((t) => (
+                      <div key={t.code} className="p-2.5 rounded-lg bg-[#070A10] border border-slate-800 text-xs">
+                        <span className="font-mono-tabular text-sky-300 font-bold">{t.code}:</span>{' '}
+                        <span className="text-slate-300">{t.spec}</span>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="space-y-2">
+                    <div className="text-xs font-bold text-sky-300 uppercase">Torque Pass Schedules</div>
+                    {TORQUE_SEQUENCES.map((tq) => (
+                      <div key={tq.assembly} className="p-2.5 rounded-lg bg-[#070A10] border border-slate-800 text-xs">
+                        <div className="font-bold text-slate-100">{tq.assembly} ({tq.pattern})</div>
+                        <div className="font-mono-tabular text-[11px] text-amber-200 mt-0.5">{tq.passes}</div>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="space-y-2">
+                    <div className="text-xs font-bold text-emerald-300 uppercase">Alloys &amp; Thermal Specs</div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      {ALLOYS.map((a) => (
+                        <div key={a.id} className="p-2.5 rounded-lg bg-[#070A10] border border-slate-800 text-xs font-mono-tabular">
+                          <div className="font-sans font-bold text-slate-100">{a.name}</div>
+                          <div className="text-[11px] text-slate-400 mt-1">
+                            ρ: {a.densityLbIn3} lb/in³ · σy: {a.yieldMPa} MPa · Tmax: {a.maxTempC}°C
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {toast && (
+              <div className="fixed bottom-12 left-4 z-50 px-4 py-2.5 rounded-lg bg-[#151E30] border border-sky-400/70 text-xs font-mono-tabular text-sky-200 shadow-2xl">
+                {toast}
+              </div>
+            )}
+          </div>
+        </StudioErrorBoundary>
+      );
+    }
+
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<StudioApp />);
+  </script>
+</body>
+</html>
