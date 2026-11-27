@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>Quantum Aerospace &amp; SBC-350 v16/v20 Merged CAD Studio — v3 Focus 3D &amp; Panels</title>
+  <title>Quantum Aerospace &amp; SBC-350 v16/v20 Merged CAD Studio — v4 R2027x Upgrade</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -386,6 +386,148 @@
     const LIBRARY_META = {models:30, engines:6, storeEngines:44, transmissions:34, vehicles:9, partSystems:16, packets:'Batch M Packets 1-2 of 6', source:'Gemini — Ray\'s word: trust Gemini, she is accurate'};
     // THE STANDARD: the small block Chevy as a showroom/reference model from proven published numbers.
     const SHOWROOM_SBC350 = {id:'showroom_sbc350', code:'SBC-SHOWROOM-350', name:'SBC 350 Showroom Reference (proven numbers)', boreIn:4.000, strokeIn:3.480, wallIn:0.25, boltCount:17, filletIn:0.25, materialId:'cast_iron_g3500', displacementCid:349.85, source:'Proven published SBC numbers — GM Service Manual: bore 4.000 in, stroke 3.480 in, 349.85 CID', note:'THE STANDARD is the small block Chevy as a showroom/reference model built from proven published numbers.'};
+
+    // =========================================================================
+    // v4 R2027x — DATA (SBC family configurations, Design Matrix, voice, sim)
+    // =========================================================================
+    const V4_APP_VERSION = 'v4';
+    const FIRING_ORDER_SBC = [1, 8, 4, 3, 6, 5, 7, 2];
+
+    // SBC family configurations of ONE master model. 283 / 302 / 327 / 350 / 400 come
+    // from the bundled store catalog (autoPartsCatalog.ts); 265 and 307 are published
+    // GM small-block specs (bore x stroke) and are flagged as NOT in the store catalog.
+    // Displacement is always computed from bore x stroke in telemetry — never typed in.
+    const SBC_VARIANTS = [
+      { id: '265', cid: 265, bore: 3.750, stroke: 3.000, deck: 9.025, rodLength: 5.700, source: 'Published GM small-block spec — 1955 265 CID (3.750 x 3.000 in). NOT in the store catalog.', inCatalog: false },
+      { id: '283', cid: 283, bore: 3.875, stroke: 3.000, deck: 9.025, rodLength: 5.700, source: 'Store catalog sbc_283 — SBC app store catalog (autoPartsCatalog.ts)', inCatalog: true },
+      { id: '302', cid: 302, bore: 4.000, stroke: 3.000, deck: 9.025, rodLength: 5.700, source: 'Store catalog sbc_302 — SBC app store catalog (autoPartsCatalog.ts)', inCatalog: true },
+      { id: '307', cid: 307, bore: 3.875, stroke: 3.250, deck: 9.025, rodLength: 5.700, source: 'Published GM small-block spec — 1968-73 307 CID (3.875 x 3.250 in). NOT in the store catalog.', inCatalog: false },
+      { id: '327', cid: 327, bore: 4.000, stroke: 3.250, deck: 9.025, rodLength: 5.700, source: 'Store catalog sbc_327 — SBC app store catalog (autoPartsCatalog.ts)', inCatalog: true },
+      { id: '350', cid: 350, bore: 4.000, stroke: 3.480, deck: 9.025, rodLength: 5.700, source: 'Proven published SBC numbers — GM Service Manual: bore 4.000 in, stroke 3.480 in, 349.85 CID. THE STANDARD.', inCatalog: true },
+      { id: '400', cid: 400, bore: 4.125, stroke: 3.750, deck: 9.025, rodLength: 5.565, source: 'Store catalog sbc_400 — SBC app store catalog (autoPartsCatalog.ts)', inCatalog: true }
+    ];
+
+    // Standard published elastic modulus per alloy — for Ray to true. Used only by the
+    // simulation-lite estimate (simple beam model), never presented as lab-grade FEA.
+    const MODULUS_KSI = { al7075: 10400, cast_iron_g3500: 14500, chromoly4140: 29000, ti6al4v: 16500, inconel625: 29000, carbon_cmc: 22000, copper_c18150: 17000 };
+
+    // The sourced envelope the companion validates against. Every rule names its source.
+    const SOURCED_ENVELOPE = {
+      bore: { min: 3.500, max: 4.125, source: 'SBC family bore range 3.500-4.125 in — store catalog + published GM specs' },
+      stroke: { min: 3.000, max: 3.750, source: 'SBC family stroke range 3.000-3.750 in — store catalog + published GM specs' },
+      wallDmls: { min: 0.030, source: 'App DMLS check (telemetry)' },
+      wallCnc: { min: 0.060, source: 'Shop rule — for Ray to true' },
+      filletDmls: { min: 0.100, source: 'Shop rule — for Ray to true' },
+      deck: { min: 8.000, max: 9.800, source: 'Industry library catalog deck-height range 8.000-9.800 in' },
+      boltCount: { min: 8, max: 36, source: 'Bench slider limits' }
+    };
+
+    // Requirements (MBSE-lite) for the active part. test returns true / false / null
+    // (null = CANNOT VERIFY — the data to decide does not exist in the app).
+    const TWIN_REQUIREMENTS = [
+      { id: 'REQ-DMLS-01', text: 'Wall thickness ≥ 0.030 in for DMLS', source: 'App DMLS check (telemetry)', test: (p) => p.wallIn >= 0.03 },
+      { id: 'REQ-FLANGE-01', text: 'Flange bolt count within bench limits (8-36)', source: 'Bench slider limits', test: (p) => p.boltCount >= 8 && p.boltCount <= 36 },
+      { id: 'REQ-DECK-01', text: 'Deck height within catalog range 8.000-9.800 in', source: 'Industry library catalog range', test: (p, d) => d >= 8.0 && d <= 9.8 },
+      { id: 'REQ-CID-01', text: 'Displacement within 2% of the active configuration published CID', source: 'Published SBC spec / store catalog', test: (p, d, t, v) => { const variant = SBC_VARIANTS.find((x) => x.id === v); if (!variant) return null; return Math.abs(t.dispCid - variant.cid) / variant.cid <= 0.02; } },
+      { id: 'REQ-TORQUE-01', text: "Must survive Ray's baseline 414 lb-ft (Ray's own numbers)", source: "Ray's build — 385 HP / 414 TQ carb", test: () => null }
+    ];
+
+    // Design Matrix tool cards. room = the workbench room id; action = special action.
+    const DESIGN_MATRIX_GROUPS = [
+      { id: 'design', label: 'DESIGN', skill: 'Our design skill', cards: [
+        { id: 'dm-sketch', tool: 'Sketch', desc: 'Parametric sketch & build sliders', room: 'build' },
+        { id: 'dm-parametric', tool: 'Parametric Build', desc: 'Bore, stroke, wall, bolts, fillet — one source of truth', room: 'build' },
+        { id: 'dm-extrude', tool: 'Extrude', desc: 'Wall & deck extrusion from the sketch', room: 'build' },
+        { id: 'dm-fillet', tool: 'Fillet & Chamfer', desc: 'Root fillet radius', room: 'build' },
+        { id: 'dm-pattern', tool: 'Pattern / Mirror', desc: '17-bolt sequence pattern — never a circle', room: 'tree' },
+        { id: 'dm-measure', tool: 'Measure', desc: 'Section slice, dimensions, clearance grid', room: 'inspect' },
+        { id: 'dm-fitcheck', tool: 'Fit-Check', desc: 'Clearance & fit against the sourced envelope', room: 'inspect' }
+      ]},
+      { id: 'manufacturing', label: 'MANUFACTURING', skill: 'Our ironwork / machining skill', cards: [
+        { id: 'dm-materials', tool: 'Materials', desc: 'Alloy & thermal spec for the active part', room: 'twin' },
+        { id: 'dm-process', tool: 'Process (CNC / DMLS)', desc: 'DFM checks per process', room: 'dfm' },
+        { id: 'dm-toolpath', tool: 'Toolpath (G-code RS-274)', desc: 'LOCKED until Ray\u2019s tool data is entered', room: 'dfm' },
+        { id: 'dm-section', tool: 'Section & Slice', desc: 'Clipping plane X / Y / Z', room: 'inspect' },
+        { id: 'dm-inspection', tool: 'Inspection', desc: 'Section slice & lattice inspection', room: 'inspect' }
+      ]},
+      { id: 'simulation', label: 'SIMULATION', skill: 'Our validation skill', cards: [
+        { id: 'dm-clearance', tool: 'Clearance Grid', desc: 'Section & clearance in the viewport', room: 'inspect' },
+        { id: 'dm-thermal', tool: 'Thermal Check', desc: 'Alloy thermal ceiling vs the FEA field', room: 'sim' },
+        { id: 'dm-structural', tool: 'Structural Check', desc: 'Load-case estimate — labeled, never lab-grade FEA', room: 'sim' }
+      ]},
+      { id: 'drafting', label: 'DRAFTING', skill: 'Our drawing skill', cards: [
+        { id: 'dm-sheet', tool: '2D Drawing Sheet', desc: 'Plan, front, section, detail 2:1', room: 'drafting' },
+        { id: 'dm-titleblock', tool: 'ASME Title Block', desc: 'Drawing number, revision, scale, sheet', room: 'blueprint' },
+        { id: 'dm-gdt', tool: 'GD&T', desc: 'Datum A|B|C, tolerances, standards checks', room: 'requirements' },
+        { id: 'dm-export', tool: 'Export', desc: 'SVG / STL / DXF / JSON / MBD packet', room: 'twin' }
+      ]},
+      { id: 'knowledge', label: 'KNOWLEDGE', skill: 'Our library skill', cards: [
+        { id: 'dm-library', tool: 'Library', desc: 'Models, engines, transmissions, parts', room: 'matrix' },
+        { id: 'dm-standards', tool: 'Standards', desc: 'ASME Y14.5, ISO 2768, alloys, torque', action: 'standards' },
+        { id: 'dm-project', tool: 'Project Save / Load', desc: 'One file — MBD packet + twin + markups', room: 'twin' }
+      ]},
+      { id: 'r2027x', label: 'R2027x — AGENTIC', skill: 'Human + AI co-creation', cards: [
+        { id: 'dm-companion', tool: 'Engineering Companion (LEO)', desc: 'Generates parts offline, flags violations, validates making', room: 'companion' },
+        { id: 'dm-twin', tool: 'Generative Virtual Twin', desc: 'One live twin — bench, drawing, packet', room: 'twin' },
+        { id: 'dm-review', tool: 'Review & Compare', desc: 'Before / after, checklist, human sign-off', room: 'review' },
+        { id: 'dm-tree', tool: 'Feature History', desc: 'Every step, undo, checkpoints, restore', room: 'tree' },
+        { id: 'dm-dfm', tool: 'Generative Design & DFM', desc: 'Lighter-variant previews, DFM PASS/FAIL', room: 'dfm' },
+        { id: 'dm-sim', tool: 'Simulation Lite & Kinematics', desc: 'Load cases, crank & pistons in motion', room: 'sim' },
+        { id: 'dm-variants', tool: 'Variants, BOM & Costing', desc: 'SBC family configurations, mass, cost', room: 'variants' },
+        { id: 'dm-requirements', tool: 'Requirements & Stack-Up', desc: 'Live PASS/FAIL, tolerance stack-up, TEVV', room: 'requirements' },
+        { id: 'dm-imageto3d', tool: 'Image-to-3D', desc: 'Shop photo in — corners, known span, trace, extrude', room: 'scale' },
+        { id: 'dm-voice', tool: 'Voice Commands', desc: 'Speak a tool — \u201copen drafting\u201d, \u201cfocus 3d\u201d', room: 'present' },
+        { id: 'dm-cinema', tool: 'Jesse 24fps Cinema', desc: '24 fps, 50 mm, emblem open to 369 close', room: 'cinema' },
+        { id: 'dm-present', tool: 'Create & Present', desc: 'Search, palette, assembly, sustainability, markups', room: 'present' }
+      ]}
+    ];
+
+    const VOICE_COMMANDS = [
+      { phrases: ['open drafting', 'drafting'], room: 'drafting', label: 'Open Drafting Studio' },
+      { phrases: ['open design matrix', 'design matrix'], room: 'designmatrix', label: 'Open Design Matrix' },
+      { phrases: ['open library', 'library'], room: 'matrix', label: 'Open Library Matrix' },
+      { phrases: ['open companion', 'companion'], room: 'companion', label: 'Open Engineering Companion' },
+      { phrases: ['open twin', 'twin'], room: 'twin', label: 'Open Virtual Twin' },
+      { phrases: ['open variants', 'variants'], room: 'variants', label: 'Open Variants & BOM' },
+      { phrases: ['focus 3d', 'focus'], action: 'focus', label: 'Focus 3D' },
+      { phrases: ['show panels', 'exit focus'], action: 'unfocus', label: 'Show Panels' },
+      { phrases: ['undo'], action: 'undo', label: 'Undo' },
+      { phrases: ['load camless flange', 'camless flange'], action: 'camless', label: 'Load camless flange (v16 modeler)' }
+    ];
+
+    const ASSEMBLY_STEPS = [
+      { n: 1, name: 'Block & sump — set the datum', explode: 0, note: 'Bore Ø 4.000 in showroom datum' },
+      { n: 2, name: 'Crank, pistons & rods — firing order 1-8-4-3-6-5-7-2', explode: 20, note: 'Rod 5.7 in (published SBC)' },
+      { n: 3, name: 'Heads — 17-bolt sequence #1 → #17, never a circle', explode: 45, note: 'Passes 25 → 45 → 65/70 lb-ft' },
+      { n: 4, name: 'Valvetrain — camless pods / lifters', explode: 65, note: 'See v16 presets' },
+      { n: 5, name: 'Intake & fuel rail', explode: 85, note: 'MPFI / carb per Ray\u2019s build' },
+      { n: 6, name: 'Covers, sensors & dress-up', explode: 100, note: 'Final inspection' }
+    ];
+
+    // v4: one bench-telemetry calculator shared by the bench, the twin, the generative
+    // suggestions, and the BOM. Same formulas as v3 — extracted, not changed.
+    function calcBenchTelemetry(p, units) {
+      const alloy = ALLOYS.find((a) => a.id === p.materialId) || ALLOYS[0];
+      const dispCid = Math.PI * Math.pow(p.boreIn / 2, 2) * p.strokeIn * 8;
+      const dispLiters = dispCid * 0.0163871;
+      const envelopeIn3 = p.boreIn * p.strokeIn * p.wallIn * 142;
+      const massLb = envelopeIn3 * alloy.densityLbIn3;
+      const cncHours = (4.2 + p.boltCount * 0.14 + (1 / Math.max(0.15, p.wallIn)) * 0.8) * alloy.cncFactor;
+      const wallPass = p.wallIn >= 0.03;
+      return {
+        alloyName: alloy.name,
+        yieldMPa: alloy.yieldMPa,
+        maxTempC: alloy.maxTempC,
+        dispCid,
+        dispLiters,
+        massLb,
+        cncHoursNum: cncHours,
+        dispStr: `${dispCid.toFixed(1)} cid (${dispLiters.toFixed(2)} L)`,
+        massStr: units === 'MM' ? `${(massLb * 0.453592).toFixed(1)} kg` : `${massLb.toFixed(1)} lb`,
+        cncHours: cncHours.toFixed(1),
+        dmlsStatus: wallPass ? 'DMLS/CNC PASS' : 'THIN WALL WARN'
+      };
+    }
     const RAYS_BUILD = {name:"Ray's build", hp:385, tq:414, mpfiHp:408, mpfiTq:431, note:"Ray's own numbers — 385 HP / 414 TQ carb; MPFI 408 / 431 PROVISIONAL (Gemini calculation, for Ray to true). Never labeled the standard."};
 
     const SUBSYSTEMS_BY_DOMAIN = {
@@ -428,6 +570,7 @@
     ];
 
     const ROOM_TABS = [
+      { id: 'designmatrix', label: '0. Design Matrix' },
       { id: 'build', label: '1. Sketch & Build' },
       { id: 'sbc16', label: '2. SBC-350 v16 Modeler' },
       { id: 'matrix', label: '3. Parts & Vehicle Matrix' },
@@ -2567,6 +2710,47 @@
       const [cameraCommand, setCameraCommand] = useState(null);
       const [toast, setToast] = useState('');
 
+      // v4 R2027x — state (same v3 storage key; new fields only).
+      const [receipt, setReceipt] = useState(null);
+      const [activeVariant, setActiveVariant] = useState('350');
+      const [featureTree, setFeatureTree] = useState(() => ([
+        { id: 'ft-sketch', type: 'Sketch', label: 'Sketch — bore & stroke', keys: ['boreIn', 'strokeIn'], suppressed: false, snapshot: { boreIn: 4.000, strokeIn: 3.480, wallIn: 0.25, boltCount: 17, filletIn: 0.25, deckHeightIn: 9.000, slicePercent: 0, sliceAxis: 'Y' } },
+        { id: 'ft-extrude', type: 'Extrude', label: 'Extrude — wall & deck', keys: ['wallIn', 'deckHeightIn'], suppressed: false, snapshot: { boreIn: 4.000, strokeIn: 3.480, wallIn: 0.25, boltCount: 17, filletIn: 0.25, deckHeightIn: 9.000, slicePercent: 0, sliceAxis: 'Y' } },
+        { id: 'ft-fillet', type: 'Fillet', label: 'Fillet — root radius', keys: ['filletIn'], suppressed: false, snapshot: { boreIn: 4.000, strokeIn: 3.480, wallIn: 0.25, boltCount: 17, filletIn: 0.25, deckHeightIn: 9.000, slicePercent: 0, sliceAxis: 'Y' } },
+        { id: 'ft-pattern', type: 'Pattern', label: 'Pattern — 17-bolt sequence (never a circle)', keys: ['boltCount'], suppressed: false, snapshot: { boreIn: 4.000, strokeIn: 3.480, wallIn: 0.25, boltCount: 17, filletIn: 0.25, deckHeightIn: 9.000, slicePercent: 0, sliceAxis: 'Y' } },
+        { id: 'ft-section', type: 'Section', label: 'Section — slice plane', keys: ['slicePercent', 'sliceAxis'], suppressed: false, snapshot: { boreIn: 4.000, strokeIn: 3.480, wallIn: 0.25, boltCount: 17, filletIn: 0.25, deckHeightIn: 9.000, slicePercent: 0, sliceAxis: 'Y' } }
+      ]));
+      const [undoStack, setUndoStack] = useState(() => ([{ params: { boreIn: 4.000, strokeIn: 3.480, wallIn: 0.25, boltCount: 17, filletIn: 0.25, materialId: 'cast_iron_g3500' }, deckHeightIn: 9.000, slicePercent: 0, sliceAxis: 'Y', activeVariant: '350', activePartRef: { kind: 'showroom', id: 'showroom_sbc350' }, label: 'Showroom SBC 350 — fresh load', time: new Date().toISOString() }]));
+      const [redoStack, setRedoStack] = useState([]);
+      const [checkpoints, setCheckpoints] = useState(() => ([{ id: 'cp-start', label: 'Fresh load — Showroom SBC 350', time: new Date().toISOString(), params: { boreIn: 4.000, strokeIn: 3.480, wallIn: 0.25, boltCount: 17, filletIn: 0.25, materialId: 'cast_iron_g3500' }, deckHeightIn: 9.000, slicePercent: 0, sliceAxis: 'Y', activeVariant: '350', activePartRef: { kind: 'showroom', id: 'showroom_sbc350' } }]));
+      const [comparePreview, setComparePreview] = useState(false);
+      const [reviewName, setReviewName] = useState('');
+      const [reviewChecked, setReviewChecked] = useState(false);
+      const [reviewSigned, setReviewSigned] = useState(null);
+      const [tevvName, setTevvName] = useState('');
+      const [tevvChecked, setTevvChecked] = useState(false);
+      const [genSuggestion, setGenSuggestion] = useState(null);
+      const [loadCase, setLoadCase] = useState({ forceLb: 500, direction: 'axial', fixedFace: 'deck' });
+      const [kinematicsOn, setKinematicsOn] = useState(false);
+      const [kinematicsRpm, setKinematicsRpm] = useState(600);
+      const [crankAngle, setCrankAngle] = useState(0);
+      const [markups, setMarkups] = useState([]);
+      const [markupMode, setMarkupMode] = useState(false);
+      const [paletteOpen, setPaletteOpen] = useState(false);
+      const [paletteQuery, setPaletteQuery] = useState('');
+      const [globalSearch, setGlobalSearch] = useState('');
+      const [materialRate, setMaterialRate] = useState(0);
+      const [recycledPct, setRecycledPct] = useState(85);
+      const [recycledSource, setRecycledSource] = useState('Upcycled aluminum — default assumption, for Ray to true');
+      const [toolpathData, setToolpathData] = useState({ diameter: '', feed: '', spindle: '', depth: '', units: 'IN' });
+      const [gcodeOutput, setGcodeOutput] = useState('');
+      const [voiceListening, setVoiceListening] = useState(false);
+      const [voiceTranscript, setVoiceTranscript] = useState('');
+      const [newTreeStepType, setNewTreeStepType] = useState('Cut');
+      const pendingUndoRef = useRef(null);
+      const projectFileInputRef = useRef(null);
+      const mbdFileInputRef = useRef(null);
+
       const globalFileInputRef = useRef(null);
       const photoInputRef = useRef(null);
       const blueprintSvgRef = useRef(null);
@@ -2615,6 +2799,18 @@
             const restored = buildActivePartFromRef(saved.activePartRef);
             if (restored) setActivePart(restored);
           }
+          // v4: restore the new R2027x state (same v3 storage key — defaults unchanged).
+          if (saved.activeVariant) setActiveVariant(saved.activeVariant);
+          if (Array.isArray(saved.featureTree) && saved.featureTree.length > 0) setFeatureTree(saved.featureTree);
+          if (Array.isArray(saved.checkpoints)) setCheckpoints(saved.checkpoints);
+          if (Array.isArray(saved.markups)) setMarkups(saved.markups);
+          if (typeof saved.recycledPct === 'number') setRecycledPct(saved.recycledPct);
+          if (typeof saved.recycledSource === 'string') setRecycledSource(saved.recycledSource);
+          if (saved.toolpathData) setToolpathData((t) => ({ ...t, ...saved.toolpathData }));
+          if (typeof saved.materialRate === 'number') setMaterialRate(saved.materialRate);
+          if (typeof saved.tevvChecked === 'boolean') setTevvChecked(saved.tevvChecked);
+          if (typeof saved.tevvName === 'string') setTevvName(saved.tevvName);
+          if (saved.reviewSigned) setReviewSigned(saved.reviewSigned);
         } catch (_e) {
           // Ignore invalid saved JSON
         }
@@ -2639,13 +2835,24 @@
               renderBarOpen,
               focus3d,
               activeMatrixItems,
-              activePartRef: activePart ? { kind: activePart.kind, id: activePart.id } : null
+              activePartRef: activePart ? { kind: activePart.kind, id: activePart.id } : null,
+              activeVariant,
+              featureTree,
+              checkpoints,
+              markups,
+              recycledPct,
+              recycledSource,
+              toolpathData,
+              materialRate,
+              tevvChecked,
+              tevvName,
+              reviewSigned
             })
           );
         } catch (_e) {
           // Ignore storage errors
         }
-      }, [domain, activeRoom, renderMode, units, params, explodePercent, deckHeightIn, titleMeta, leftTreeOpen, rightInspectorOpen, sketchPanelOpen, renderBarOpen, focus3d, activeMatrixItems, activePart]);
+      }, [domain, activeRoom, renderMode, units, params, explodePercent, deckHeightIn, titleMeta, leftTreeOpen, rightInspectorOpen, sketchPanelOpen, renderBarOpen, focus3d, activeMatrixItems, activePart, activeVariant, featureTree, checkpoints, markups, recycledPct, recycledSource, toolpathData, materialRate, tevvChecked, tevvName, reviewSigned]);
 
       useEffect(() => {
         return () => {
@@ -2687,26 +2894,12 @@
         [units]
       );
 
-      const telemetry = useMemo(() => {
-        const alloy = ALLOYS.find((a) => a.id === params.materialId) || ALLOYS[0];
-        const dispCid = Math.PI * Math.pow(params.boreIn / 2, 2) * params.strokeIn * 8;
-        const dispLiters = dispCid * 0.0163871;
-        const envelopeIn3 = params.boreIn * params.strokeIn * params.wallIn * 142;
-        const massLb = envelopeIn3 * alloy.densityLbIn3;
-        const cncHours = (4.2 + params.boltCount * 0.14 + (1 / Math.max(0.15, params.wallIn)) * 0.8) * alloy.cncFactor;
-        const wallPass = params.wallIn >= 0.03;
-        return {
-          alloyName: alloy.name,
-          yieldMPa: alloy.yieldMPa,
-          maxTempC: alloy.maxTempC,
-          dispStr: `${dispCid.toFixed(1)} cid (${dispLiters.toFixed(2)} L)`,
-          massStr: units === 'MM' ? `${(massLb * 0.453592).toFixed(1)} kg` : `${massLb.toFixed(1)} lb`,
-          cncHours: cncHours.toFixed(1),
-          dmlsStatus: wallPass ? 'DMLS/CNC PASS' : 'THIN WALL WARN'
-        };
-      }, [params, units]);
+      // v4: bench telemetry computed by the shared calcBenchTelemetry helper so the
+      // companion, twin, variants, and compare panels all read the same numbers.
+      const telemetry = useMemo(() => calcBenchTelemetry(params, units), [params, units]);
 
       const applyV16Preset = (preset) => {
+        const preSnap = snapshotState();
         setActiveV16PresetId(preset.id);
         setDomain('sbc-350-v16');
         setSelectedSubsystem(preset.subsystem);
@@ -2718,10 +2911,14 @@
           filletIn: preset.filletIn,
           materialId: preset.materialId
         });
+        setUndoStack((prev) => [...prev, { ...preSnap, label: `v16 preset — ${preset.code}`, time: new Date().toISOString() }].slice(-50));
+        setRedoStack([]);
+        addCheckpoint(`v16 preset — ${preset.code}`);
         notify(`Loaded v16 Preset: ${preset.code}`);
       };
 
       const handleDomainSwitch = (nextDomain) => {
+        const preSnap = snapshotState();
         setDomain(nextDomain);
         setIsolatedSubsystem(null);
         if (nextDomain === 'sbc-350-v16') {
@@ -2737,6 +2934,9 @@
           setParams({ boreIn: 5.800, strokeIn: 4.500, wallIn: 0.22, boltCount: 24, filletIn: 0.45, materialId: 'inconel625' });
           notify('Loaded Quantum Aerospace Vehicle v20');
         }
+        setUndoStack((prev) => [...prev, { ...preSnap, label: `Domain switch — ${nextDomain}`, time: new Date().toISOString() }].slice(-50));
+        setRedoStack([]);
+        addCheckpoint(`Domain switch — ${nextDomain}`);
       };
 
       const handleRenderModeSelect = (modeId) => {
@@ -2855,27 +3055,71 @@
 
       const handleDownloadStl = () => {
         if (!getStlRef.current) return;
-        triggerDownload(getStlRef.current(), `${domain}-v20-solid.stl`, 'application/sla');
+        triggerDownload(getStlRef.current(), `${domain}-v4-solid.stl`, 'application/sla');
         notify('Downloaded .STL Solid Mesh');
+        setReceipt({ text: `Downloaded .STL Solid Mesh — ${domain} · App v4 · ${new Date().toISOString()}`, kind: 'stl' });
+      };
+      // v4: DXF export — plan outline from geometry this file actually carries.
+      // Bores: 4 per bank x 2 banks (a V8), bore spacing 4.4 in along the crank
+      // (sourced GM bore spacing). Bank separation 4.4 in is the app's own plan
+      // convention, NOT a sourced GM dimension — it needs Ray's measurement before
+      // the plan is machined from. Bolt holes: the 17-position sequence lives in
+      // the blueprint's own drawing units (r 9.5, same as the SVG) — emitted on a
+      // separate layer IN THOSE UNITS, never converted to inches, because no
+      // sourced scale exists for them. Converting them would invent dimensions.
+      const handleDownloadDxf = () => {
+        const boreSpacing = 4.4;
+        const boreR = params.boreIn / 2;
+        const spanX = 3 * boreSpacing + params.boreIn;
+        const spanY = 2 * boreSpacing;
+        const entities = [];
+        const addCircle = (layer, cx, cy, r) => {
+          entities.push('0\nCIRCLE\n8\n' + layer + '\n10\n' + cx.toFixed(4) + '\n20\n' + cy.toFixed(4) + '\n40\n' + r.toFixed(4));
+        };
+        for (let i = 0; i < 4; i += 1) {
+          const cx = boreR + i * boreSpacing;
+          addCircle('BORES_IN', cx, spanY / 2 - boreSpacing / 2, boreR);
+          addCircle('BORES_IN', cx, spanY / 2 + boreSpacing / 2, boreR);
+        }
+        SBC350_17_BOLT_SEQUENCE.forEach((b) => addCircle('BOLT_HOLES_DRAWING_UNITS', b.x, b.y, 9.5));
+        const dxf = [
+          '0',
+          'SECTION',
+          '2',
+          'HEADER',
+          '9',
+          '$ACADVER',
+          '1',
+          'AC1009',
+          '9',
+          '$COMMENT',
+          '1',
+          'QADS v4 DXF — BORES_IN layer is inches: 8 bores, 4 per bank, bore spacing 4.4 in (sourced GM). Bank separation 4.4 in is the app plan convention, NOT a sourced dimension — Ray measures it before machining. BOLT_HOLES_DRAWING_UNITS layer is the 17-position sequence in blueprint drawing units (r 9.5) — NOT inches. Do not machine the bolt layer until Ray measures the scale.',
+          '0',
+          'ENDSEC',
+          '0',
+          'SECTION',
+          '2',
+          'ENTITIES',
+          ...entities,
+          '0',
+          'ENDSEC',
+          '0',
+          'EOF',
+          ''
+        ].join('\n');
+        triggerDownload(dxf, `${domain}-plan-v4.dxf`, 'application/dxf');
+        notify('Downloaded .DXF Plan Outline — bores in inches; bolt layer in drawing units (needs Ray’s measurement)');
+        setReceipt({ text: `Downloaded .DXF Plan Outline — 8 bores Ø ${params.boreIn.toFixed(3)} in, 4 per bank, spacing 4.4 in · 17 bolt holes in drawing units · ${domain} · App v4 · ${new Date().toISOString()}`, kind: 'dxf' });
       };
 
+
+      // v4: MBD download now uses the shared packet builder (v4 version stamps).
       const handleDownloadMbdJson = () => {
-        const packet = {
-          schema: 'AEGIS-QADS-SBC350-V16-V20-MBD',
-          generatedAt: new Date().toISOString(),
-          domain,
-          units,
-          deckHeightIn,
-          titleBlock: titleMeta,
-          parametricDimensions: params,
-          telemetry,
-          boltSequence17: { activeStep: boltSequenceStep, pass: boltTorquePass },
-          sectionPlane: { axis: sliceAxis, percent: slicePercent },
-          activeMatrixCount: activeMatrixItems.length,
-          partsMatrix: activeMatrixItems
-        };
-        triggerDownload(JSON.stringify(packet, null, 2), `${domain}-aegis-mbd-v20.json`, 'application/json');
+        const packet = buildMbdPacket();
+        triggerDownload(JSON.stringify(packet, null, 2), `${domain}-aegis-mbd-v4.json`, 'application/json');
         notify('Downloaded .JSON MBD Specification Packet');
+        setReceipt({ text: `Downloaded .JSON MBD Specification Packet — ${packet.packetId} · Rev ${packet.packetRevision} · App v4 · ${packet.generatedAt}`, kind: 'mbd' });
       };
 
       const applyLibraryEntryToBench = (item, forceDomain) => {
@@ -2892,6 +3136,7 @@
         }));
         if (item.subsystem) setSelectedSubsystem(item.subsystem);
         notify(`Loaded "${item.name}" onto 3D Bench`);
+        setReceipt({ text: `Loaded — ${item.name} · ${item.code} onto the 3D bench`, kind: 'library' });
       };
 
       // v2: find a library entry by kind + id (used for localStorage rehydrate + BOM kinds).
@@ -3045,6 +3290,7 @@
           if (typeof entry.deckHeight === 'number') setDeckHeightIn(entry.deckHeight);
           if (entry.id === 'sbc_350_ray') {
             notify(`${RAYS_BUILD.name}: 385 HP / 414 TQ carb · Bore Ø 4.000 × Stroke 3.480 in`);
+            setReceipt({ text: `Loaded — ${RAYS_BUILD.name}: 385 HP / 414 TQ carb · Bore Ø 4.000 × Stroke 3.480 in · Showroom SBC 350 (proven numbers)`, kind: 'library' });
           } else {
             const dyno = entry.dyno || {};
             notify(
@@ -3052,6 +3298,7 @@
                 dyno.baseHp ? ` · ${dyno.baseHp} HP / ${dyno.baseTq} TQ [EST]` : ''
               }`
             );
+            setReceipt({ text: `Loaded — ${entry.shortName || entry.name} · Bore Ø ${entry.bore} × Stroke ${entry.stroke} in${dyno.baseHp ? ` · ${dyno.baseHp} HP / ${dyno.baseTq} TQ [EST]` : ''} · ${entry.source || 'library entry'}`, kind: 'library' });
           }
           return;
         }
@@ -3059,18 +3306,21 @@
           notify(
             `Loaded (parameters only) — ${entry.name} · ${entry.ratios.length}-speed ${entry.ratios.join('/')} · ${entry.lengthInches} in · No mesh`
           );
+          setReceipt({ text: `Loaded (parameters only) — ${entry.name} · ${entry.ratios.length}-speed ${entry.ratios.join('/')} · ${entry.lengthInches} in · No mesh`, kind: 'library' });
           return;
         }
         if (kind === 'model') {
           notify(
             `Loaded (parameters only) — ${entry.make} ${entry.model} · ${entry.yearStart}–${entry.yearEnd || 'present'} · No mesh`
           );
+          setReceipt({ text: `Loaded (parameters only) — ${entry.make} ${entry.model} · ${entry.yearStart}–${entry.yearEnd || 'present'} · No mesh`, kind: 'library' });
           return;
         }
         if (kind === 'part') {
           notify(
             `Loaded (parameters only) — ${entry.name} · ${entry.group} · ${entry.fields.length} fields · No mesh`
           );
+          setReceipt({ text: `Loaded (parameters only) — ${entry.name} · ${entry.group} · ${entry.fields.length} fields · No mesh`, kind: 'library' });
           return;
         }
       };
@@ -3083,18 +3333,22 @@
 
       // v2: two-way dimension editing — the drafting room writes the same params the
       // 3D bench reads, so a change here updates the bench and vice versa.
+      // v4: drafting-dimension edits are undoable build actions (checkpointed).
       const handleDraftingDimChange = (key, value) => {
         const num = parseFloat(value);
         if (Number.isNaN(num)) return;
-        if (key === 'deckHeightIn') {
-          setDeckHeightIn(num);
-          return;
-        }
-        if (key === 'boltCount') {
-          setParams((p) => ({ ...p, boltCount: Math.max(8, Math.min(36, Math.round(num))) }));
-          return;
-        }
-        setParams((p) => ({ ...p, [key]: num }));
+        const label = key === 'deckHeightIn' ? `Drafting — deck height → ${num} in` : `Drafting — ${key} → ${num}`;
+        withUndo(label, () => {
+          if (key === 'deckHeightIn') {
+            setDeckHeightIn(num);
+            return;
+          }
+          if (key === 'boltCount') {
+            setParams((p) => ({ ...p, boltCount: Math.max(8, Math.min(36, Math.round(num))) }));
+            return;
+          }
+          setParams((p) => ({ ...p, [key]: num }));
+        });
       };
 
       const handleDownloadDraftingSvg = () => {
@@ -3112,6 +3366,7 @@
           return [stamped, ...prev];
         });
         notify(`Added ${entry.code || entry.id} to Active BOM`);
+        setReceipt({ text: `Added ${entry.code || entry.id} to Active BOM`, kind: 'bom' });
       };
 
       const kindOfBomItem = (item) => {
@@ -3440,6 +3695,10 @@
         );
       };
 
+      // v4 LEO — Engineering Companion. Offline first: parses the request, validates it
+      // against the sourced envelope, synthesizes a parametric preset, and validates
+      // manufacturability. Only calls Gemini when the user has typed a key into the
+      // empty key field; no key is ever stored. Nothing out of envelope is applied.
       const handleAskCoPilot = async (customPromptText) => {
         const query = (customPromptText || aiPrompt).trim();
         if (!query) return;
@@ -3447,42 +3706,85 @@
         setAiMessages((prev) => [...prev, { role: 'user', text: query }]);
         setAiLoading(true);
 
+        const parseRequestedNumbers = (text) => {
+          const out = {};
+          const bore = text.match(/bore[^0-9]*([0-9]+(?:\.[0-9]+)?)/i);
+          if (bore) out.boreIn = parseFloat(bore[1]);
+          const stroke = text.match(/stroke[^0-9]*([0-9]+(?:\.[0-9]+)?)/i);
+          if (stroke) out.strokeIn = parseFloat(stroke[1]);
+          const wall = text.match(/wall[^0-9]*([0-9]+(?:\.[0-9]+)?)/i);
+          if (wall) out.wallIn = parseFloat(wall[1]);
+          const deck = text.match(/deck[^0-9]*([0-9]+(?:\.[0-9]+)?)/i);
+          if (deck) out.deckHeightIn = parseFloat(deck[1]);
+          const bolts = text.match(/([0-9]+)\s*bolt/i);
+          if (bolts) out.boltCount = parseInt(bolts[1], 10);
+          const fillet = text.match(/fillet[^0-9]*([0-9]+(?:\.[0-9]+)?)/i);
+          if (fillet) out.filletIn = parseFloat(fillet[1]);
+          return out;
+        };
+
+        const checkViolations = (req) => {
+          const flags = [];
+          if (req.boreIn !== undefined && (req.boreIn < SOURCED_ENVELOPE.bore.min || req.boreIn > SOURCED_ENVELOPE.bore.max)) {
+            flags.push(`Bore Ø ${req.boreIn} in is outside the sourced envelope ${SOURCED_ENVELOPE.bore.min}-${SOURCED_ENVELOPE.bore.max} in — ${SOURCED_ENVELOPE.bore.source}.`);
+          }
+          if (req.strokeIn !== undefined && (req.strokeIn < SOURCED_ENVELOPE.stroke.min || req.strokeIn > SOURCED_ENVELOPE.stroke.max)) {
+            flags.push(`Stroke ${req.strokeIn} in is outside the sourced envelope ${SOURCED_ENVELOPE.stroke.min}-${SOURCED_ENVELOPE.stroke.max} in — ${SOURCED_ENVELOPE.stroke.source}.`);
+          }
+          if (req.wallIn !== undefined && req.wallIn < SOURCED_ENVELOPE.wallDmls.min) {
+            flags.push(`Wall ${req.wallIn} in is below the DMLS minimum ${SOURCED_ENVELOPE.wallDmls.min} in — ${SOURCED_ENVELOPE.wallDmls.source}.`);
+          }
+          if (req.deckHeightIn !== undefined && (req.deckHeightIn < SOURCED_ENVELOPE.deck.min || req.deckHeightIn > SOURCED_ENVELOPE.deck.max)) {
+            flags.push(`Deck height ${req.deckHeightIn} in is outside the catalog range ${SOURCED_ENVELOPE.deck.min}-${SOURCED_ENVELOPE.deck.max} in — ${SOURCED_ENVELOPE.deck.source}.`);
+          }
+          if (req.boltCount !== undefined && (req.boltCount < SOURCED_ENVELOPE.boltCount.min || req.boltCount > SOURCED_ENVELOPE.boltCount.max)) {
+            flags.push(`Bolt count ${req.boltCount} is outside the bench limits ${SOURCED_ENVELOPE.boltCount.min}-${SOURCED_ENVELOPE.boltCount.max} — ${SOURCED_ENVELOPE.boltCount.source}.`);
+          }
+          if (req.filletIn !== undefined && req.filletIn < SOURCED_ENVELOPE.filletDmls.min) {
+            flags.push(`Fillet R${req.filletIn} in is below the DMLS minimum R${SOURCED_ENVELOPE.filletDmls.min} in — ${SOURCED_ENVELOPE.filletDmls.source}.`);
+          }
+          return flags;
+        };
+
+        const manufacturabilityVerdict = (p) => {
+          const lines = [];
+          lines.push(p.wallIn >= 0.03 ? `DMLS: PASS — wall ${p.wallIn.toFixed(3)} in ≥ 0.030 in (app DMLS check).` : `DMLS: FAIL — wall ${p.wallIn.toFixed(3)} in < 0.030 in (app DMLS check).`);
+          lines.push(p.wallIn >= 0.06 ? `CNC: PASS — wall ${p.wallIn.toFixed(3)} in ≥ 0.060 in (shop rule — for Ray to true).` : `CNC: FAIL — wall ${p.wallIn.toFixed(3)} in < 0.060 in (shop rule — for Ray to true).`);
+          lines.push(p.filletIn >= 0.1 ? `Fillet: PASS — R${p.filletIn.toFixed(3)} in ≥ R0.100 in (shop rule — for Ray to true).` : `Fillet: FAIL — R${p.filletIn.toFixed(3)} in < R0.100 in (shop rule — for Ray to true).`);
+          const pass = p.wallIn >= 0.03 && p.wallIn >= 0.06 && p.filletIn >= 0.1;
+          return { lines, pass };
+        };
+
         const synthesizePresetFromPrompt = (text) => {
           const lower = text.toLowerCase();
+          const mk = (code, summary, nextDomain, nextParams, subsystem) => ({ code, summary, nextDomain, nextParams, subsystem });
           if (lower.includes('sbc-350') || lower.includes('v16') || lower.includes('383') || lower.includes('head bolt')) {
-            const nextDomain = 'sbc-350-v16';
-            const nextParams = { boreIn: 4.030, strokeIn: 3.750, wallIn: 0.26, boltCount: 17, filletIn: 0.30, materialId: 'chromoly4140' };
-            setDomain(nextDomain);
-            setParams(nextParams);
-            setSelectedSubsystem('Engine Block & Sump');
-            return {
-              code: 'SBC-V16-383',
-              summary: 'Applied SBC-350 v16 Stroker / 17-Bolt Datum spec (Bore Ø 4.030 in, Stroke 3.750 in, Chromoly 4140) to the 3D bench.'
-            };
+            return mk(
+              'SBC-V16-383',
+              'Applied SBC-350 v16 Stroker / 17-Bolt Datum spec (Bore Ø 4.030 in, Stroke 3.750 in, Chromoly 4140) to the 3D bench.',
+              'sbc-350-v16',
+              { boreIn: 4.030, strokeIn: 3.750, wallIn: 0.26, boltCount: 17, filletIn: 0.30, materialId: 'chromoly4140' },
+              'Engine Block & Sump'
+            );
           }
           if (lower.includes('billet intake plenum')) {
-            const nextDomain = 'sbc-350-v20';
-            const nextParams = { boreIn: 4.100, strokeIn: 3.480, wallIn: 0.24, boltCount: 18, filletIn: 0.35, materialId: 'al7075' };
-            setDomain(nextDomain);
-            setParams(nextParams);
-            setSelectedSubsystem('Intake & Fuel Rail');
-            return {
-              code: 'QADS-PL-2020',
-              summary: 'Synthesized Billet Intake Plenum (7075-T651, Bore Ø 4.100 in, Wall 0.240 in, Fillet R0.350 in, ASME Y14.5 IT6) and applied to SBC-350 v20.'
-            };
+            return mk(
+              'QADS-PL-2020',
+              'Synthesized Billet Intake Plenum (7075-T651, Bore Ø 4.100 in, Wall 0.240 in, Fillet R0.350 in, ASME Y14.5 IT6) and applied to SBC-350 v20.',
+              'sbc-350-v20',
+              { boreIn: 4.100, strokeIn: 3.480, wallIn: 0.24, boltCount: 18, filletIn: 0.35, materialId: 'al7075' },
+              'Intake & Fuel Rail'
+            );
           }
           if (lower.includes('titanium gimbal bracket')) {
-            const nextDomain = 'aerospace-v20';
-            const nextParams = { boreIn: 5.800, strokeIn: 4.500, wallIn: 0.28, boltCount: 24, filletIn: 0.45, materialId: 'ti6al4v' };
-            setDomain(nextDomain);
-            setParams(nextParams);
-            setSelectedSubsystem('2-Axis Gimbal Ring');
-            return {
-              code: 'QADS-GB-5824',
-              summary: 'Synthesized Titanium Gimbal Bracket (Ti-6Al-4V Grade 5, Bore Ø 5.800 in, Wall 0.280 in, Fillet R0.450 in, ASME Y14.5 IT5) and applied to Quantum Aerospace v20.'
-            };
+            return mk(
+              'QADS-GB-5824',
+              'Synthesized Titanium Gimbal Bracket (Ti-6Al-4V Grade 5, Bore Ø 5.800 in, Wall 0.280 in, Fillet R0.450 in, ASME Y14.5 IT5) and applied to Quantum Aerospace v20.',
+              'aerospace-v20',
+              { boreIn: 5.800, strokeIn: 4.500, wallIn: 0.28, boltCount: 24, filletIn: 0.45, materialId: 'ti6al4v' },
+              '2-Axis Gimbal Ring'
+            );
           }
-
           const isAero = /aero|thruster|cryo|gimbal|scramjet|lunar|orbital|rocket/.test(lower);
           const isTi = /titanium|ti-6al-4v/.test(lower);
           const isInconel = /inconel|exhaust|turbo|hypersonic/.test(lower);
@@ -3495,8 +3797,6 @@
             filletIn: 0.35,
             materialId: isInconel ? 'inconel625' : isTi ? 'ti6al4v' : 'al7075'
           };
-          setDomain(nextDomain);
-          setParams(nextParams);
           const item = {
             id: `ai_${Date.now()}`,
             code: `QADS-AI-${Math.floor(100 + Math.random() * 899)}`,
@@ -3517,14 +3817,49 @@
             notes: `AI Co-Pilot synthesis for: ${text}`
           };
           setActiveMatrixItems((prev) => [item, ...prev]);
-          return {
-            code: item.code,
-            summary: `Synthesized "${item.name}" (${item.code}) and updated 3D bench parameters + Active BOM.`
-          };
+          return mk(
+            item.code,
+            `Synthesized "${item.name}" (${item.code}) and updated 3D bench parameters + Active BOM. No specific part matched — this is a generic parametric preset. LEO cannot verify fitment against a named part; verify against the drawing.`,
+            nextDomain,
+            nextParams,
+            item.subsystem
+          );
         };
 
         try {
+          const requested = parseRequestedNumbers(query);
+          const violations = checkViolations(requested);
+          if (violations.length) {
+            setAiMessages((prev) => [
+              ...prev,
+              {
+                role: 'assistant',
+                text: `LEO — VIOLATION FLAGS (not applied):\n• ${violations.join('\n• ')}\n\nRephrase inside the sourced envelope and ask again. Nothing was changed on the bench.`
+              }
+            ]);
+            notify('LEO flagged violations — nothing applied');
+            return;
+          }
+          const preSnap = snapshotState();
           const synth = synthesizePresetFromPrompt(query);
+          const merged = { ...synth.nextParams };
+          let deck = null;
+          if (requested.boreIn !== undefined) merged.boreIn = requested.boreIn;
+          if (requested.strokeIn !== undefined) merged.strokeIn = requested.strokeIn;
+          if (requested.wallIn !== undefined) merged.wallIn = requested.wallIn;
+          if (requested.filletIn !== undefined) merged.filletIn = requested.filletIn;
+          if (requested.boltCount !== undefined) merged.boltCount = requested.boltCount;
+          if (requested.deckHeightIn !== undefined) deck = requested.deckHeightIn;
+          setDomain(synth.nextDomain);
+          setParams(merged);
+          if (deck !== null) setDeckHeightIn(deck);
+          if (synth.subsystem) setSelectedSubsystem(synth.subsystem);
+          setUndoStack((prev) => [...prev, { ...preSnap, label: `LEO applied ${synth.code}`, time: new Date().toISOString() }].slice(-50));
+          setRedoStack([]);
+          addCheckpoint(`LEO — ${synth.code}`);
+          const verdict = manufacturabilityVerdict(merged);
+          const verdictText = `MANUFACTURABILITY — ${verdict.pass ? 'PASS' : 'FAIL'}:\n• ${verdict.lines.join('\n• ')}`;
+          const mergedTelemetry = calcBenchTelemetry(merged, units);
           if (geminiApiKey.trim()) {
             const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${encodeURIComponent(geminiApiKey.trim())}`;
             const res = await fetch(url, {
@@ -3548,7 +3883,7 @@
               ...prev,
               {
                 role: 'assistant',
-                text: aiText ? `${aiText}\n\n[${synth.summary}]` : synth.summary
+                text: aiText ? `${aiText}\n\n[${synth.summary}]\n${verdictText}` : `${synth.summary}\n${verdictText}`
               }
             ]);
           } else {
@@ -3556,11 +3891,12 @@
               ...prev,
               {
                 role: 'assistant',
-                text: `${synth.summary}\n• Displacement / Envelope: ${telemetry.dispStr}\n• Tolerance Check: ${telemetry.dmlsStatus} · Est. CNC Cycle: ${telemetry.cncHours} hr`
+                text: `${synth.summary}\n• Displacement / Envelope: ${mergedTelemetry.dispStr}\n• Tolerance Check: ${mergedTelemetry.dmlsStatus} · Est. CNC Cycle: ${mergedTelemetry.cncHours} hr\n${verdictText}`
               }
             ]);
           }
           notify(`AI Co-Pilot applied ${synth.code}`);
+          setReceipt({ text: `Loaded — ${synth.code} · ${synth.summary}`, kind: 'companion' });
         } catch (_err) {
           setAiMessages((prev) => [
             ...prev,
@@ -3571,6 +3907,751 @@
         }
       };
 
+
+      // =========================================================================
+      // v4 R2027x — HELPERS (history, twin, DFM, sim, variants, exports, voice)
+      // =========================================================================
+      const snapshotState = () => ({
+        params: { ...params },
+        deckHeightIn,
+        slicePercent,
+        sliceAxis,
+        activeVariant,
+        activePartRef: activePart ? { kind: activePart.kind, id: activePart.id } : null
+      });
+
+      const applySnapshot = (snap) => {
+        if (!snap) return;
+        if (snap.params) setParams({ ...snap.params });
+        if (typeof snap.deckHeightIn === 'number') setDeckHeightIn(snap.deckHeightIn);
+        if (typeof snap.slicePercent === 'number') setSlicePercent(snap.slicePercent);
+        if (snap.sliceAxis) setSliceAxis(snap.sliceAxis);
+        if (snap.activeVariant) setActiveVariant(snap.activeVariant);
+        if (snap.activePartRef) {
+          const restored = buildActivePartFromRef(snap.activePartRef);
+          if (restored) setActivePart(restored);
+        }
+      };
+
+      const pushUndoSnapshot = (snap, label) => {
+        setUndoStack((prev) => [...prev, { ...snap, label, time: new Date().toISOString() }].slice(-50));
+        setRedoStack([]);
+      };
+
+      // Run fn, keeping the pre-change state on the undo stack.
+      const withUndo = (label, fn) => {
+        const snap = snapshotState();
+        fn();
+        pushUndoSnapshot(snap, label);
+      };
+
+      const beginParamEdit = () => {
+        pendingUndoRef.current = snapshotState();
+      };
+
+      const commitParamEdit = (label) => {
+        const snap = pendingUndoRef.current;
+        pendingUndoRef.current = null;
+        if (!snap) return;
+        const cur = snapshotState();
+        if (JSON.stringify(snap.params) === JSON.stringify(cur.params) && snap.deckHeightIn === cur.deckHeightIn) return;
+        pushUndoSnapshot(snap, label);
+      };
+
+      const undo = () => {
+        if (undoStack.length <= 1) {
+          notify('Nothing to undo');
+          return;
+        }
+        const cur = snapshotState();
+        setRedoStack((prev) => [...prev, { ...cur, label: 'Before undo', time: new Date().toISOString() }]);
+        const target = undoStack[undoStack.length - 1];
+        setUndoStack((prev) => prev.slice(0, -1));
+        applySnapshot(target);
+        notify(`Undo — restored: ${target.label}`);
+      };
+
+      const redo = () => {
+        if (redoStack.length === 0) {
+          notify('Nothing to redo');
+          return;
+        }
+        const cur = snapshotState();
+        setUndoStack((prev) => [...prev, { ...cur, label: 'Before redo', time: new Date().toISOString() }].slice(-50));
+        const target = redoStack[redoStack.length - 1];
+        setRedoStack((prev) => prev.slice(0, -1));
+        applySnapshot(target);
+        notify(`Redo — restored: ${target.label}`);
+      };
+
+      const addCheckpoint = (label) => {
+        const snap = snapshotState();
+        setCheckpoints((prev) => [
+          ...prev,
+          { id: `cp-${Date.now()}`, label, time: new Date().toISOString(), params: { ...snap.params }, deckHeightIn: snap.deckHeightIn, slicePercent: snap.slicePercent, sliceAxis: snap.sliceAxis, activeVariant: snap.activeVariant, activePartRef: snap.activePartRef }
+        ].slice(-20));
+      };
+
+      const restoreCheckpoint = (cp) => {
+        if (!cp) return;
+        withUndo(`Restored checkpoint — ${cp.label}`, () => applySnapshot(cp));
+        notify(`Restored checkpoint: ${cp.label}`);
+      };
+
+      const openMatrixTool = (card) => {
+        if (!card) return;
+        if (card.action === 'standards') {
+          setStandardsOpen(true);
+          return;
+        }
+        if (card.action === 'palette') {
+          setPaletteOpen(true);
+          return;
+        }
+        setRightInspectorOpen(true);
+        setActiveRoom(card.room);
+        notify(`Opened ${card.tool} — ${activePart ? activePart.name : 'SBC 350'}`);
+      };
+
+      const applyVariant = (variant) => {
+        if (!variant) return;
+        withUndo(`Applied variant SBC ${variant.id}`, () => {
+          setParams((p) => ({ ...p, boreIn: variant.bore, strokeIn: variant.stroke }));
+          setDeckHeightIn(variant.deck);
+          setActiveVariant(variant.id);
+        });
+        addCheckpoint(`Variant SBC ${variant.id} — ${variant.cid} CID`);
+        setReceipt({ text: `Loaded — SBC ${variant.id} configuration · Bore Ø ${variant.bore.toFixed(3)} × Stroke ${variant.stroke.toFixed(3)} in · Deck ${variant.deck.toFixed(3)} in · ${variant.source}`, kind: 'variant' });
+        notify(`Applied SBC ${variant.id} configuration`);
+      };
+
+      const generateSuggestion = () => {
+        const base = calcBenchTelemetry(params, units);
+        const suggestions = [];
+        if (params.wallIn > 0.20) {
+          const proposed = { ...params, wallIn: 0.18 };
+          const after = calcBenchTelemetry(proposed, units);
+          suggestions.push({
+            id: 'gen-wall',
+            title: 'Pocket the sump walls',
+            desc: `Wall ${params.wallIn.toFixed(3)} in → 0.180 in`,
+            before: base.massLb,
+            after: after.massLb,
+            unit: 'lb',
+            proposed,
+            assumptions: 'Mass from the app mass model (bore × stroke × wall × 142 × density). DFM wall check re-run on apply.'
+          });
+        }
+        if (params.filletIn < 0.25) {
+          suggestions.push({
+            id: 'gen-fillet',
+            title: 'Raise the root fillet',
+            desc: `Fillet R${params.filletIn.toFixed(3)} in → R0.250 in`,
+            before: null,
+            after: null,
+            unit: '',
+            proposed: { ...params, filletIn: 0.25 },
+            assumptions: 'No mass change. Improves the DMLS fillet check.'
+          });
+        }
+        if (params.boltCount > 17) {
+          const proposed = { ...params, boltCount: 17 };
+          const after = calcBenchTelemetry(proposed, units);
+          suggestions.push({
+            id: 'gen-bolts',
+            title: 'Return to the 17-bolt showroom datum',
+            desc: `${params.boltCount} bolts → 17 bolts`,
+            before: base.cncHoursNum,
+            after: after.cncHoursNum,
+            unit: 'CNC hr',
+            proposed,
+            assumptions: 'CNC hours from the app cycle model. Showroom datum is 17 bolts.'
+          });
+        }
+        if (!suggestions.length) {
+          setGenSuggestion({ empty: true });
+          return;
+        }
+        setGenSuggestion({ list: suggestions, selected: suggestions[0].id });
+      };
+
+      const applySuggestion = (s) => {
+        if (!s || !s.proposed) return;
+        withUndo(`Applied generative suggestion: ${s.title}`, () => setParams({ ...s.proposed }));
+        addCheckpoint(`Generative — ${s.title}`);
+        setReceipt({ text: `Applied suggestion — ${s.title} · ${s.desc}`, kind: 'generative' });
+        notify(`Applied suggestion: ${s.title}`);
+        setGenSuggestion(null);
+      };
+
+      const generateGcode = () => {
+        const d = toolpathData;
+        const dia = parseFloat(d.diameter);
+        const feed = parseFloat(d.feed);
+        const spindle = parseFloat(d.spindle);
+        const depth = parseFloat(d.depth);
+        if (!dia || !feed || !spindle || !depth) {
+          notify('Toolpath is LOCKED — enter tool diameter, feed, spindle speed, cut depth, and units first.');
+          return;
+        }
+        const unitsCode = d.units === 'MM' ? 'G21' : 'G20';
+        const boreR = params.boreIn / 2;
+        const spanX = 3 * 4.4 + params.boreIn;
+        const spanY = 2 * 4.4;
+        const lines = [];
+        lines.push(`(QADS v4 RS-274 toolpath — ${titleMeta.drawingNumber} Rev ${titleMeta.revision})`);
+        lines.push(`(Part: ${activePart ? activePart.name : 'SBC 350'} — Bore ${params.boreIn.toFixed(3)} in, Wall ${params.wallIn.toFixed(3)} in, ${params.boltCount} bolts)`);
+        lines.push(`(Tool data entered by the user — tool Ø ${dia}, feed ${feed}, spindle ${spindle}, cut depth ${depth}, units ${d.units})`);
+        lines.push(`(Plan envelope ${spanX.toFixed(3)} x ${spanY.toFixed(3)} in — 4x2 bore grid, bore spacing 4.4 in sourced; bank separation 4.4 in is the app plan convention, for Ray to true.)`);
+        lines.push('(17 bolt holes NOT included — the 17-position sequence lives in the blueprint drawing units, not inches. Ray measures the scale before any hole is drilled.)');
+        lines.push(`${unitsCode} G90 G54`);
+        lines.push(`M3 S${spindle}`);
+        lines.push('G0 Z0.100');
+        lines.push(`(Facing pass, depth ${depth})`);
+        lines.push('G0 X0 Y0');
+        lines.push(`G1 Z-${depth} F${feed}`);
+        lines.push(`G1 X${spanX.toFixed(3)} F${feed}`);
+        lines.push(`G1 Y${spanY.toFixed(3)}`);
+        lines.push('G1 X0');
+        lines.push('G1 Y0');
+        lines.push('G0 Z0.100');
+        lines.push(`(Bore circle, radius ${boreR.toFixed(3)} in)`);
+        lines.push(`G0 X${(spanX / 2).toFixed(3)} Y${(spanY / 2).toFixed(3)}`);
+        lines.push(`G1 Z-${depth} F${feed}`);
+        lines.push(`G2 X${(spanX / 2).toFixed(3)} Y${(spanY / 2).toFixed(3)} I${boreR.toFixed(3)} J0 F${feed}`);
+        lines.push('G0 Z0.100');
+        lines.push('(No bolt-hole moves — omitted, see above.)');
+        lines.push('M5');
+        lines.push('M30');
+        const code = lines.join('\n');
+        setGcodeOutput(code);
+        setReceipt({ text: `Generated RS-274 toolpath — ${titleMeta.drawingNumber} Rev ${titleMeta.revision} · Tool Ø ${dia} · Facing + bore circle only · 17 bolt holes omitted (need Ray's measurement)`, kind: 'toolpath' });
+        notify('Generated RS-274 toolpath — facing + bore circle only; bolt holes omitted');
+      };
+
+      const buildMbdPacket = () => ({
+        schema: 'AEGIS-QADS-SBC350-V16-V20-MBD',
+        appVersion: V4_APP_VERSION,
+        packetRevision: titleMeta.revision,
+        packetId: `${domain}-${titleMeta.drawingNumber}`,
+        generatedAt: new Date().toISOString(),
+        domain,
+        units,
+        deckHeightIn,
+        titleBlock: titleMeta,
+        parametricDimensions: params,
+        telemetry,
+        boltSequence17: { activeStep: boltSequenceStep, pass: boltTorquePass },
+        sectionPlane: { axis: sliceAxis, percent: slicePercent },
+        activeVariant,
+        activeMatrixCount: activeMatrixItems.length,
+        partsMatrix: activeMatrixItems,
+        markups
+      });
+
+      const importMbdPacket = (file) => {
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = () => {
+          try {
+            const packet = JSON.parse(String(reader.result || ''));
+            if (!packet || typeof packet.schema !== 'string' || !packet.schema.startsWith('AEGIS-QADS')) {
+              throw new Error('Not an AEGIS MBD packet (schema mismatch).');
+            }
+            const dims = packet.parametricDimensions;
+            if (!dims || typeof dims.boreIn !== 'number' || typeof dims.strokeIn !== 'number') {
+              throw new Error('Packet has no usable parametric dimensions (boreIn / strokeIn missing).');
+            }
+            withUndo('Imported MBD packet', () => {
+              setParams({
+                boreIn: dims.boreIn,
+                strokeIn: dims.strokeIn,
+                wallIn: typeof dims.wallIn === 'number' ? dims.wallIn : params.wallIn,
+                boltCount: typeof dims.boltCount === 'number' ? dims.boltCount : params.boltCount,
+                filletIn: typeof dims.filletIn === 'number' ? dims.filletIn : params.filletIn,
+                materialId: dims.materialId || params.materialId
+              });
+              if (typeof packet.deckHeightIn === 'number') setDeckHeightIn(packet.deckHeightIn);
+              if (packet.titleBlock) setTitleMeta((t) => ({ ...t, ...packet.titleBlock }));
+              if (packet.activeVariant) setActiveVariant(packet.activeVariant);
+            });
+            addCheckpoint(`MBD import — ${packet.packetId || packet.schema}`);
+            setReceipt({ text: `MBD packet loaded correctly — ${packet.packetId || packet.schema} · Rev ${packet.packetRevision || '?'} · Bore Ø ${dims.boreIn} × Stroke ${dims.strokeIn} in`, kind: 'mbd' });
+            notify('MBD packet loaded correctly');
+          } catch (err) {
+            setReceipt({ text: `NOT LOADED CORRECTLY — ${err && err.message ? err.message : 'Unreadable packet file.'} Nothing was changed.`, kind: 'error' });
+            notify('MBD packet NOT LOADED CORRECTLY — see receipt');
+          }
+        };
+        reader.readAsText(file);
+      };
+
+      const saveProject = () => {
+        const project = {
+          schema: 'QADS-PROJECT-V4',
+          appVersion: V4_APP_VERSION,
+          savedAt: new Date().toISOString(),
+          titleBlock: titleMeta,
+          params,
+          deckHeightIn,
+          slicePercent,
+          sliceAxis,
+          activeVariant,
+          activePartRef: activePart ? { kind: activePart.kind, id: activePart.id } : null,
+          activeMatrixItems,
+          markups,
+          featureTree,
+          checkpoints: checkpoints.slice(-10),
+          toolpathData,
+          recycledPct,
+          recycledSource,
+          materialRate,
+          reviewSigned
+        };
+        triggerDownload(JSON.stringify(project, null, 2), `qads-project-${titleMeta.drawingNumber}-v4.json`, 'application/json');
+        setReceipt({ text: `Project saved — ${titleMeta.drawingNumber} Rev ${titleMeta.revision} · ${markups.length} markups · ${featureTree.length} feature steps`, kind: 'project' });
+        notify('Saved project file');
+      };
+
+      const loadProjectFile = (file) => {
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = () => {
+          try {
+            const project = JSON.parse(String(reader.result || ''));
+            if (!project || project.schema !== 'QADS-PROJECT-V4') {
+              throw new Error('Not a QADS v4 project file (schema mismatch).');
+            }
+            if (!project.params || typeof project.params.boreIn !== 'number') {
+              throw new Error('Project has no usable bench parameters.');
+            }
+            withUndo('Loaded project file', () => {
+              setParams(project.params);
+              if (typeof project.deckHeightIn === 'number') setDeckHeightIn(project.deckHeightIn);
+              if (typeof project.slicePercent === 'number') setSlicePercent(project.slicePercent);
+              if (project.sliceAxis) setSliceAxis(project.sliceAxis);
+              if (project.activeVariant) setActiveVariant(project.activeVariant);
+              if (project.titleBlock) setTitleMeta((t) => ({ ...t, ...project.titleBlock }));
+              if (project.activePartRef) {
+                const restored = buildActivePartFromRef(project.activePartRef);
+                if (restored) setActivePart(restored);
+              }
+              if (Array.isArray(project.activeMatrixItems)) setActiveMatrixItems(project.activeMatrixItems);
+              if (Array.isArray(project.markups)) setMarkups(project.markups);
+              if (Array.isArray(project.featureTree)) setFeatureTree(project.featureTree);
+              if (project.toolpathData) setToolpathData(project.toolpathData);
+              if (typeof project.recycledPct === 'number') setRecycledPct(project.recycledPct);
+              if (project.recycledSource) setRecycledSource(project.recycledSource);
+              if (typeof project.materialRate === 'number') setMaterialRate(project.materialRate);
+              else if (typeof project.materialRate === 'string' && project.materialRate !== '') setMaterialRate(parseFloat(project.materialRate) || 0);
+              if (project.reviewSigned) setReviewSigned(project.reviewSigned);
+            });
+            setReceipt({ text: `Project loaded correctly — ${project.titleBlock ? project.titleBlock.drawingNumber : 'QADS'} · Saved ${project.savedAt || 'unknown'}`, kind: 'project' });
+            notify('Project loaded correctly');
+          } catch (err) {
+            setReceipt({ text: `NOT LOADED CORRECTLY — ${err && err.message ? err.message : 'Unreadable project file.'} Nothing was changed.`, kind: 'error' });
+            notify('Project NOT LOADED CORRECTLY — see receipt');
+          }
+        };
+        reader.readAsText(file);
+      };
+
+      const rebuildFromTree = () => {
+        const showroom = { boreIn: 4.000, strokeIn: 3.480, wallIn: 0.25, boltCount: 17, filletIn: 0.25, deckHeightIn: 9.000, slicePercent: 0, sliceAxis: 'Y' };
+        const suppressed = featureTree.filter((s) => s.suppressed);
+        withUndo('Rebuilt from feature tree', () => {
+          const next = { ...params };
+          let nextDeck = deckHeightIn;
+          let nextSlice = slicePercent;
+          let nextAxis = sliceAxis;
+          suppressed.forEach((s) => {
+            s.keys.forEach((k) => {
+              if (k === 'deckHeightIn') nextDeck = showroom.deckHeightIn;
+              else if (k === 'slicePercent') nextSlice = showroom.slicePercent;
+              else if (k === 'sliceAxis') nextAxis = showroom.sliceAxis;
+              else if (k in next) next[k] = showroom[k];
+            });
+          });
+          setParams(next);
+          setDeckHeightIn(nextDeck);
+          setSlicePercent(nextSlice);
+          setSliceAxis(nextAxis);
+        });
+        setReceipt({ text: `Rebuilt from feature tree — ${featureTree.length} steps in order, ${suppressed.length} suppressed (reset to showroom defaults).`, kind: 'tree' });
+        notify('Rebuilt from feature tree');
+      };
+
+      const rollbackToStep = (step) => {
+        if (!step || !step.snapshot) return;
+        withUndo(`Rolled back to ${step.label}`, () => {
+          setParams((p) => ({ ...p, boreIn: step.snapshot.boreIn, strokeIn: step.snapshot.strokeIn, wallIn: step.snapshot.wallIn, boltCount: step.snapshot.boltCount, filletIn: step.snapshot.filletIn }));
+          setDeckHeightIn(step.snapshot.deckHeightIn);
+          setSlicePercent(step.snapshot.slicePercent);
+          setSliceAxis(step.snapshot.sliceAxis);
+        });
+        setReceipt({ text: `Rolled back to ${step.type} step — ${step.label}`, kind: 'tree' });
+        notify(`Rolled back to ${step.label}`);
+      };
+
+      const addTreeStep = () => {
+        const snap = { boreIn: params.boreIn, strokeIn: params.strokeIn, wallIn: params.wallIn, boltCount: params.boltCount, filletIn: params.filletIn, deckHeightIn, slicePercent, sliceAxis };
+        const step = { id: `ft-${Date.now()}`, type: newTreeStepType, label: `${newTreeStepType} — user step ${featureTree.length + 1}`, keys: [], suppressed: false, snapshot: snap };
+        setFeatureTree((prev) => [...prev, step]);
+        addCheckpoint(`Feature step added — ${step.label}`);
+        notify(`Added feature step: ${step.label}`);
+      };
+
+      const moveTreeStep = (id, dir) => {
+        setFeatureTree((prev) => {
+          const idx = prev.findIndex((s) => s.id === id);
+          const j = idx + dir;
+          if (idx < 0 || j < 0 || j >= prev.length) return prev;
+          const next = [...prev];
+          const tmp = next[idx];
+          next[idx] = next[j];
+          next[j] = tmp;
+          return next;
+        });
+      };
+
+      const suppressTreeStep = (id) => {
+        setFeatureTree((prev) => prev.map((s) => (s.id === id ? { ...s, suppressed: !s.suppressed } : s)));
+      };
+
+      const snapshotTreeStep = (id) => {
+        const snap = { boreIn: params.boreIn, strokeIn: params.strokeIn, wallIn: params.wallIn, boltCount: params.boltCount, filletIn: params.filletIn, deckHeightIn, slicePercent, sliceAxis };
+        setFeatureTree((prev) => prev.map((s) => (s.id === id ? { ...s, snapshot: snap } : s)));
+        notify('Snapshot saved on this feature step');
+      };
+
+      const handleViewportMarkupClick = (e) => {
+        if (!markupMode) return;
+        const rect = e.currentTarget.getBoundingClientRect();
+        const x = Math.max(0, Math.min(100, ((e.clientX - rect.left) / rect.width) * 100));
+        const y = Math.max(0, Math.min(100, ((e.clientY - rect.top) / rect.height) * 100));
+        const n = markups.length + 1;
+        setMarkups((prev) => [...prev, { id: `mk-${Date.now()}`, n, x: Number(x.toFixed(1)), y: Number(y.toFixed(1)), note: '' }]);
+        notify(`Pinned markup #${n} — add its note in Review & Compare`);
+      };
+
+      const startVoiceCommand = () => {
+        const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (!SR) {
+          setVoiceTranscript('Voice input is NOT YET WORKING here — this browser has no Web Speech API. Type the command instead.');
+          return;
+        }
+        try {
+          const rec = new SR();
+          rec.lang = 'en-US';
+          rec.interimResults = false;
+          rec.maxAlternatives = 1;
+          setVoiceListening(true);
+          rec.onresult = (ev) => {
+            const text = (ev.results && ev.results[0] && ev.results[0][0] && ev.results[0][0].transcript) || '';
+            setVoiceListening(false);
+            const lower = text.toLowerCase();
+            const cmd = VOICE_COMMANDS.find((c) => c.phrases.some((p) => lower.includes(p)));
+            if (!cmd) {
+              setVoiceTranscript(`Heard: "${text}" — no matching command. Try: open drafting, focus 3d, undo.`);
+              return;
+            }
+            if (cmd.room) {
+              setRightInspectorOpen(true);
+              setActiveRoom(cmd.room);
+            }
+            if (cmd.action === 'focus') setFocus3d(true);
+            if (cmd.action === 'unfocus') setFocus3d(false);
+            if (cmd.action === 'undo') undo();
+            if (cmd.action === 'camless') {
+              setActiveRoom('sbc16');
+              notify('Camless flange — open the v16 modeler presets (room 2).');
+            }
+            setVoiceTranscript(`Heard: "${text}" — did: ${cmd.label}`);
+          };
+          rec.onerror = () => {
+            setVoiceListening(false);
+            setVoiceTranscript('Voice input failed — microphone not available in this browser. Type the command instead.');
+          };
+          rec.onend = () => setVoiceListening(false);
+          rec.start();
+        } catch (_e) {
+          setVoiceListening(false);
+          setVoiceTranscript('Voice input is NOT YET WORKING here — the browser blocked the microphone. Type the command instead.');
+        }
+      };
+
+      // v4: DFM checks, run live on the active part. Computed checks name rule + source;
+      // checks the browser cannot genuinely compute say NOT YET WORKING with the reason.
+      const dfmChecks = useMemo(() => ([
+        { id: 'dfm-wall-dmls', name: 'Minimum wall — DMLS', rule: 'Wall ≥ 0.030 in', source: 'App DMLS check (telemetry)', result: params.wallIn >= 0.03 ? 'PASS' : 'FAIL', detail: `Wall ${params.wallIn.toFixed(3)} in` },
+        { id: 'dfm-wall-cnc', name: 'Minimum wall — CNC', rule: 'Wall ≥ 0.060 in', source: 'Shop rule — for Ray to true', result: params.wallIn >= 0.06 ? 'PASS' : 'FAIL', detail: `Wall ${params.wallIn.toFixed(3)} in` },
+        { id: 'dfm-fillet', name: 'Root fillet — DMLS', rule: 'Fillet ≥ R0.100 in', source: 'Shop rule — for Ray to true', result: params.filletIn >= 0.1 ? 'PASS' : params.filletIn >= 0.05 ? 'WARN' : 'FAIL', detail: `Fillet R${params.filletIn.toFixed(3)} in` },
+        { id: 'dfm-draft', name: 'Draft angle', rule: '—', source: 'No draft-angle parameter on the bench yet', result: 'NOT YET WORKING', detail: 'Add a draft-angle parameter to enable this check.' },
+        { id: 'dfm-undercut', name: 'Undercuts', rule: '—', source: 'Needs B-Rep kernel — bench is an extrude approximation', result: 'NOT YET WORKING', detail: 'Undercut detection is not possible on the extrude approximation.' },
+        { id: 'dfm-tool-access', name: 'Tool access', rule: '—', source: 'Needs tool data — enter tool diameter to enable', result: toolpathData.diameter ? 'PASS' : 'NOT YET WORKING', detail: toolpathData.diameter ? `Tool Ø ${toolpathData.diameter} entered — access check enabled` : 'Enter tool data in the Toolpath panel to enable.' }
+      ]), [params, toolpathData]);
+
+      // v4: the Virtual Twin status — one live twin, one status, with the reason.
+      const twinStatus = useMemo(() => {
+        if (!activePart) return { status: 'NEEDING RAY\u2019S MEASUREMENT', reason: 'No active part loaded.' };
+        if (activePart.kind === 'showroom') return { status: 'VERIFIED', reason: 'Showroom SBC 350 — proven published numbers (bore 4.000 in, stroke 3.480 in, 349.85 CID).' };
+        if (activePart.kind === 'engine' || activePart.kind === 'storeEngine') {
+          const e = activePart.data || {};
+          if (e.estimatedFields && e.estimatedFields.length) return { status: 'NEEDING RAY\u2019S MEASUREMENT', reason: `Fields needing measurement: ${e.estimatedFields.join(', ')}.` };
+          if ((activePart.source || '').includes('UNVERIFIED')) return { status: 'NEEDING RAY\u2019S MEASUREMENT', reason: 'Source is UNVERIFIED.' };
+          return { status: 'VERIFIED', reason: `Catalog engine — source: ${activePart.source}.` };
+        }
+        if (activePart.kind === 'concept') return { status: 'PROVISIONAL', reason: 'Concept build — the file\u2019s own concept numbers, not the standard.' };
+        return { status: 'PROVISIONAL', reason: `Parameters only — no mesh. ${activePart.verification || ''}` };
+      }, [activePart]);
+
+      // v4: live requirement results. null = CANNOT VERIFY (the data to decide is absent).
+      const requirementsEval = useMemo(
+        () => TWIN_REQUIREMENTS.map((r) => {
+          let result = null;
+          try {
+            result = r.test(params, deckHeightIn, telemetry, activeVariant);
+          } catch (_e) {
+            result = null;
+          }
+          return { req: r, result };
+        }),
+        [params, deckHeightIn, telemetry, activeVariant]
+      );
+
+      // v4: tolerance stack-up across the assembly. Worst case = sum; statistical = RSS.
+      const stackUp = useMemo(() => {
+        const links = [
+          { name: 'Deck height', nominal: deckHeightIn, tol: 0.005, source: 'Drawing default tolerance ±0.005 in', verified: true },
+          { name: 'Bore spacing', nominal: 4.400, tol: 0.005, source: 'Drawing default 4.400 in — for Ray to true', verified: false },
+          { name: 'Bore Ø', nominal: params.boreIn, tol: 0.005, source: 'Drawing default tolerance ±0.005 in', verified: true },
+          { name: 'Wall thickness', nominal: params.wallIn, tol: 0.005, source: 'Drawing default tolerance ±0.005 in', verified: true },
+          { name: 'Root fillet', nominal: params.filletIn, tol: 0.005, source: 'Drawing default tolerance ±0.005 in', verified: true }
+        ];
+        const worst = links.reduce((s, l) => s + l.tol, 0);
+        const rss = Math.sqrt(links.reduce((s, l) => s + l.tol * l.tol, 0));
+        return { links, worst, rss };
+      }, [params, deckHeightIn]);
+
+      // v4: simulation-lite load case. ESTIMATE ONLY — simple hollow-cylinder beam model
+      // (σ = F/A, δ = FL³/3EI). NOT FEA. Method and limits are shown with the result.
+      const simResult = useMemo(() => {
+        const alloy = ALLOYS.find((a) => a.id === params.materialId) || ALLOYS[0];
+        const E = MODULUS_KSI[params.materialId] || 14500;
+        const F = Number(loadCase.forceLb) || 0;
+        const A = Math.max(0.001, params.wallIn * Math.PI * params.boreIn / 2);
+        const sigmaKsi = F / A / 1000;
+        const yieldKsi = alloy.yieldMPa * 0.145038;
+        const margin = sigmaKsi > 0 ? yieldKsi / sigmaKsi : Infinity;
+        const I = (Math.PI / 64) * (Math.pow(params.boreIn, 4) - Math.pow(Math.max(0.1, params.boreIn - 2 * params.wallIn), 4));
+        const L = params.strokeIn;
+        const deltaIn = (F * Math.pow(L, 3)) / (3 * E * 1000 * Math.max(0.0001, I));
+        return {
+          sigmaKsi,
+          yieldKsi,
+          margin,
+          deltaIn,
+          E,
+          verdict: F === 0 ? 'NO LOAD' : margin >= 2 ? 'PASS' : margin >= 1 ? 'WARN' : 'FAIL'
+        };
+      }, [params, loadCase]);
+
+      // v4: kinematics — crank, pistons, valves together. Rod 5.7 in is the published SBC
+      // rod (store catalog); the 400 variant uses 5.565 in from the same catalog.
+      const pistonPositions = useMemo(() => {
+        const variant = SBC_VARIANTS.find((v) => v.id === activeVariant) || SBC_VARIANTS[5];
+        const r = params.strokeIn / 2;
+        const L = variant.rodLength || 5.7;
+        const firingIndex = Math.floor((((crankAngle % 720) + 720) % 720) / 90);
+        const firingCyl = FIRING_ORDER_SBC[firingIndex];
+        const pistons = FIRING_ORDER_SBC.map((cyl, i) => {
+          const theta = (((crankAngle + i * 90) % 360) * Math.PI) / 180;
+          const x = r * Math.cos(theta) + Math.sqrt(Math.max(0.01, L * L - Math.pow(r * Math.sin(theta), 2)));
+          const height = Math.max(0, Math.min(1, (x - (L - r)) / (2 * r)));
+          return { cyl, height, firing: cyl === firingCyl };
+        });
+        return { pistons, firingCyl, rodLength: L };
+      }, [crankAngle, params.strokeIn, activeVariant]);
+
+      // v4: BOM & costing roll-up. Cost is computed ONLY when the user enters a material
+      // rate ($/lb); with no rate it shows UNVERIFIED — never an invented cost.
+      const bomData = useMemo(() => {
+        const rate = parseFloat(materialRate);
+        const cost = Number.isFinite(rate) ? telemetry.massLb * rate : null;
+        return {
+          items: activeMatrixItems,
+          massLb: telemetry.massLb,
+          cncHours: telemetry.cncHours,
+          materialCost: cost,
+          rate: Number.isFinite(rate) ? rate : null,
+          costUnverified: !Number.isFinite(rate) || rate <= 0,
+          revision: titleMeta.revision,
+          drawingNumber: titleMeta.drawingNumber
+        };
+      }, [activeMatrixItems, telemetry, materialRate, titleMeta]);
+
+      // v4: where-used — which library models reference the active engine configuration.
+      const whereUsed = useMemo(() => {
+        const storeId = { '283': 'sbc_283', '302': 'sbc_302', '327': 'sbc_327', '350': 'sbc_350_ray', '400': 'sbc_400' }[activeVariant];
+        if (!storeId) return { note: `SBC ${activeVariant} is not in the store catalog — where-used is UNVERIFIED.`, models: [] };
+        const gmId = Object.keys(LIBRARY_ID_ALIASES).find((k) => LIBRARY_ID_ALIASES[k] === storeId);
+        const models = LIBRARY_MODELS.filter((m) => (m.yearRanges || []).some((r) => (r.engineIds || []).includes(gmId)));
+        return { note: `Engine id ${gmId} (alias of ${storeId}) referenced by ${models.length} library models.`, models };
+      }, [activeVariant]);
+
+      // v4: global search across parts, library, drawings, and standards.
+      const globalSearchResults = useMemo(() => {
+        const q = globalSearch.trim().toLowerCase();
+        if (!q) return null;
+        const models = LIBRARY_MODELS.filter((m) => `${m.make} ${m.model}`.toLowerCase().includes(q)).slice(0, 5);
+        const engines = [...LIBRARY_ENGINES, ...LIBRARY_STORE_ENGINES].filter((e) => `${e.name} ${e.shortName || ''} ${e.id}`.toLowerCase().includes(q)).slice(0, 5);
+        const transmissions = LIBRARY_TRANSMISSIONS.filter((t) => `${t.name} ${t.id}`.toLowerCase().includes(q)).slice(0, 5);
+        const parts = LIBRARY_PART_SYSTEMS.filter((p) => `${p.name} ${p.id}`.toLowerCase().includes(q)).slice(0, 5);
+        const rooms = ROOM_TABS.filter((t) => t.label.toLowerCase().includes(q));
+        const standards = TOLERANCE_STANDARDS.filter((t) => `${t.code} ${t.spec}`.toLowerCase().includes(q));
+        const drawings = [titleMeta.drawingNumber].filter((d) => d.toLowerCase().includes(q));
+        return {
+          models,
+          engines,
+          transmissions,
+          parts,
+          rooms,
+          standards,
+          drawings,
+          total: models.length + engines.length + transmissions.length + parts.length + rooms.length + standards.length + drawings.length
+        };
+      }, [globalSearch, titleMeta]);
+
+      // v4: command palette entries.
+      const paletteCommands = useMemo(() => {
+        const cmds = [
+          { label: 'Open Design Matrix', hint: 'Room 9', run: () => setActiveRoom('designmatrix') },
+          ...ROOM_TABS.map((t) => ({ label: `Open ${t.label}`, hint: 'Room', run: () => setActiveRoom(t.id) })),
+          { label: 'Open Engineering Companion (LEO)', hint: 'R2027x', run: () => { setRightInspectorOpen(true); setActiveRoom('companion'); } },
+          { label: 'Open Virtual Twin', hint: 'R2027x', run: () => { setRightInspectorOpen(true); setActiveRoom('twin'); } },
+          { label: 'Open Feature History', hint: 'R2027x', run: () => { setRightInspectorOpen(true); setActiveRoom('tree'); } },
+          { label: 'Open Variants, BOM & Costing', hint: 'R2027x', run: () => { setRightInspectorOpen(true); setActiveRoom('variants'); } },
+          { label: 'Focus 3D', hint: 'Viewport', run: () => setFocus3d(true) },
+          { label: 'Show Panels (Exit Focus)', hint: 'Viewport', run: () => setFocus3d(false) },
+          { label: 'Undo', hint: 'Ctrl+Z', run: () => undo() },
+          { label: 'Redo', hint: 'Ctrl+Shift+Z', run: () => redo() },
+          { label: 'Download MBD Packet', hint: 'Export', run: () => handleDownloadMbdJson() },
+          { label: 'Download STL', hint: 'Export', run: () => handleDownloadStl() },
+          { label: 'Download DXF', hint: 'Export', run: () => handleDownloadDxf() },
+          { label: 'Save Project File', hint: 'Export', run: () => saveProject() }
+        ];
+        const q = paletteQuery.trim().toLowerCase();
+        return q ? cmds.filter((c) => c.label.toLowerCase().includes(q)) : cmds;
+      }, [paletteQuery]);
+
+      // v4: kinematics — crank angle advances with the timer while motion is on.
+      useEffect(() => {
+        if (!kinematicsOn) return;
+        const timer = setInterval(() => {
+          setCrankAngle((prev) => (prev + (kinematicsRpm * 360 / 60) * 0.05) % 720);
+        }, 50);
+        return () => clearInterval(timer);
+      }, [kinematicsOn, kinematicsRpm]);
+
+      // v4: keyboard shortcuts — Ctrl/Cmd+K palette, Ctrl+Z undo, Ctrl+Shift+Z / Ctrl+Y redo, F focus.
+      useEffect(() => {
+        const onKey = (e) => {
+          const tag = (e.target && e.target.tagName) || '';
+          const typing = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT';
+          if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+            e.preventDefault();
+            setPaletteOpen((v) => !v);
+            return;
+          }
+          if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'z' && !e.shiftKey) {
+            if (!typing) {
+              e.preventDefault();
+              undo();
+            }
+            return;
+          }
+          if ((e.metaKey || e.ctrlKey) && (e.key.toLowerCase() === 'y' || (e.key.toLowerCase() === 'z' && e.shiftKey))) {
+            if (!typing) {
+              e.preventDefault();
+              redo();
+            }
+            return;
+          }
+          if (!typing && (e.key === 'f' || e.key === 'F')) {
+            setFocus3d((v) => !v);
+          }
+        };
+        window.addEventListener('keydown', onKey);
+        return () => window.removeEventListener('keydown', onKey);
+      }, [undo, redo]);
+
+      // v4: one initial checkpoint on a truly fresh load (when no checkpoints were
+      // restored from storage — otherwise every reload would append a duplicate).
+      useEffect(() => {
+        let hasSaved = false;
+        try {
+          const raw = localStorage.getItem(STORAGE_KEY);
+          if (raw) {
+            const saved = JSON.parse(raw);
+            hasSaved = Array.isArray(saved.checkpoints) && saved.checkpoints.length > 0;
+          }
+        } catch (_e) {}
+        if (!hasSaved) addCheckpoint('Showroom SBC 350 — v4 start');
+      }, []);
+      // v4: feature-tree inline parameter editing (numeric params route through the
+      // drafting-dim handler; deck/slice are their own state).
+      const editTreeParam = (key, value) => {
+        if (key === 'deckHeightIn') {
+          const num = parseFloat(value);
+          if (Number.isNaN(num)) return;
+          withUndo(`Feature tree — deck height → ${num} in`, () => setDeckHeightIn(num));
+          return;
+        }
+        if (key === 'slicePercent') {
+          const num = parseFloat(value);
+          if (Number.isNaN(num)) return;
+          withUndo(`Feature tree — slice → ${num}%`, () => setSlicePercent(Math.max(0, Math.min(100, num))));
+          return;
+        }
+        if (key === 'sliceAxis') {
+          withUndo(`Feature tree — slice axis → ${value}`, () => setSliceAxis(value));
+          return;
+        }
+        handleDraftingDimChange(key, value);
+      };
+      const treeParamValue = (key) => {
+        if (key === 'deckHeightIn') return deckHeightIn;
+        if (key === 'slicePercent') return slicePercent;
+        if (key === 'sliceAxis') return sliceAxis;
+        return params[key];
+      };
+
+      // v4: slider drag commit — capture the pre-drag snapshot on pointer down,
+      // push one undo entry (and one checkpoint) when the drag ends.
+      const sliderDragStartRef = useRef(null);
+      const beginSliderDrag = () => {
+        if (!sliderDragStartRef.current) sliderDragStartRef.current = snapshotState();
+      };
+      const commitSliderDrag = (label) => {
+        const pre = sliderDragStartRef.current;
+        sliderDragStartRef.current = null;
+        if (!pre) return;
+        setUndoStack((prev) => [...prev, { ...pre, label, time: new Date().toISOString() }].slice(-50));
+        setRedoStack([]);
+        addCheckpoint(label);
+      };
+
+      // v4: Compare preview — the viewport and drawings render the BEFORE state
+      // (the last undo-stack snapshot) while comparePreview is on.
+      const displayParams = comparePreview && undoStack.length > 1 ? undoStack[undoStack.length - 1].params : params;
+      const displayDeckHeightIn = comparePreview && undoStack.length > 1 ? undoStack[undoStack.length - 1].deckHeightIn : deckHeightIn;
+
+      // v4: tree-panel names — suppress toggle and rollback by step id.
+      const toggleSuppressTreeStep = (id) => suppressTreeStep(id);
+      const rollbackToTreeStep = (id) => {
+        const step = featureTree.find((s) => s.id === id);
+        if (step) rollbackToStep(step);
+      };
       const subsystems = SUBSYSTEMS_BY_DOMAIN[domain] || [];
       const activeBoltInfo = SBC350_17_BOLT_SEQUENCE.find((b) => b.seq === boltSequenceStep) || SBC350_17_BOLT_SEQUENCE[0];
 
@@ -3786,8 +4867,35 @@
                 >
                   Standards
                 </button>
+                <button
+                  type="button"
+                  onClick={() => setPaletteOpen(true)}
+                  className="min-h-[44px] px-3 rounded-lg bg-[#070A10] border border-slate-700 text-xs font-semibold text-sky-300 touch-manipulation active:scale-95"
+                  title="Command palette — Ctrl/Cmd+K"
+                >
+                  ⌘ Palette
+                </button>
               </div>
             </header>)}
+
+            {/* v4: PERSISTENT LOAD RECEIPT — stays until dismissed (v3 smoke test: the
+                3.4 s toast was the only confirmation and was missed). */}
+            {!focus3d && receipt && (
+              <div className="w-full bg-emerald-500/10 border-b border-emerald-500/40 px-3 py-2 flex items-center justify-between gap-2 shrink-0">
+                <div className="text-xs font-mono-tabular text-emerald-200 leading-relaxed">
+                  <span className="font-bold">✓ RECEIPT — </span>
+                  {receipt.text}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setReceipt(null)}
+                  className="min-h-[36px] px-3 rounded-lg bg-slate-900 border border-slate-700 text-xs font-bold text-slate-200 touch-manipulation shrink-0"
+                >
+                  Dismiss
+                </button>
+              </div>
+            )}
+
 
             {/* =============================================================== */}
             {/* 2. GLOBAL TOUCH & RENDER BAR (ALL 7 MODES + UPLOAD ON EVERY PAGE)*/}
@@ -4063,7 +5171,7 @@
                     <ReliableCadViewport
                       domain={domain}
                       renderMode={renderMode}
-                      params={params}
+                      params={displayParams}
                       explodePercent={explodePercent}
                       turntableSpin={turntableSpin}
                       turntableSec={turntableSec}
@@ -4106,6 +5214,15 @@
                         3DP LATTICE INFILL: {latticeDensity}% · LAYER: 0.04 MM
                       </div>
                     )}
+                    <div className="px-3 py-1.5 rounded-lg bg-[#0E1420]/90 border border-emerald-500/40 font-mono-tabular text-[10px] text-emerald-200">
+                      VIRTUAL TWIN: <span className="font-bold">{twinStatus.status}</span> — {twinStatus.reason}
+                    </div>
+                    {comparePreview && (
+                      <div className="px-3 py-1.5 rounded-lg bg-[#0E1420]/90 border border-amber-500/60 font-mono-tabular text-[10px] text-amber-200">
+                        COMPARE PREVIEW — showing the BEFORE state. Tap &quot;Back to Current&quot; in Review &amp; Compare to return.
+                      </div>
+                    )}
+
                   </div>
 
                   <div className="absolute top-3 right-3 z-30 flex flex-col items-end gap-1.5">
@@ -4127,6 +5244,27 @@
                       </button>
                     )}
                   </div>
+
+
+                  {markupMode && (
+                    <button
+                      type="button"
+                      onClick={handleViewportMarkupClick}
+                      className="absolute inset-0 z-20 cursor-crosshair"
+                      aria-label="Tap the viewport to pin a markup"
+                    >
+                      <span className="absolute top-2 left-1/2 -translate-x-1/2 px-3 py-1.5 rounded-lg bg-amber-400 text-slate-950 text-xs font-bold">
+                        Tap the model to pin a markup — use &quot;Done pinning&quot; in Review &amp; Compare to finish
+                      </span>
+                    </button>
+                  )}
+                  {markups.map((m) => (
+                    <div key={m.id} className="absolute z-20 -translate-x-1/2 -translate-y-1/2 pointer-events-none" style={{ left: `${m.x}%`, top: `${m.y}%` }}>
+                      <span className="flex items-center justify-center w-6 h-6 rounded-full bg-amber-400 text-slate-950 text-[11px] font-bold border border-slate-950">
+                        {m.n}
+                      </span>
+                    </div>
+                  ))}
 
                   {renderMode === 'blueprint-2d' && (
                     <div className="absolute inset-3 bg-[#070A10]/96 rounded-xl border border-sky-400/50 p-3 flex flex-col justify-between overflow-y-auto z-20">
@@ -4153,7 +5291,7 @@
                       </div>
                       <AsmeTechnicalBlueprint
                         domain={domain}
-                        params={params}
+                        params={displayParams}
                         units={units}
                         sliceAxis={sliceAxis}
                         slicePercent={slicePercent}
@@ -4181,7 +5319,7 @@
                 </div>
               </section>
 
-              {!focus3d && rightInspectorOpen && (
+              {!focus3d && (rightInspectorOpen || (activeRoom === 'build' && sketchPanelOpen)) && (
                 <aside className="w-full lg:w-[440px] xl:w-[470px] bg-[#0E1420] overflow-y-auto p-3.5 shrink-0 select-text">
                   {/* ROOM 1: SKETCH & BUILD */}
                   {activeRoom === 'build' && (
@@ -4204,11 +5342,14 @@
 
                       {sketchPanelOpen && (<>
                       {[
-                        { key: 'boreIn', label: 'Cylinder / Chamber Bore Ø', min: 3.5, max: 7.5, step: 0.03 },
-                        { key: 'strokeIn', label: 'Stroke / Chamber Length', min: 2.8, max: 6.5, step: 0.04 },
-                        { key: 'wallIn', label: 'Minimum Wall Thickness', min: 0.12, max: 0.75, step: 0.02 },
-                        { key: 'boltCount', label: 'Flange / Deck Bolt Count', min: 8, max: 36, step: 2, isCount: true },
-                        { key: 'filletIn', label: 'Corner / Root Fillet Radius', min: 0.05, max: 0.85, step: 0.05 }
+                        // v4 fix (c): range steps are aligned so the showroom values land exactly
+                        // (bore 4.000, stroke 3.480, wall 0.25, bolts 17, fillet 0.25); the −/+ buttons
+                        // keep the old coarse nudge increments.
+                        { key: 'boreIn', label: 'Cylinder / Chamber Bore Ø', min: 3.5, max: 7.5, step: 0.005, nudge: 0.03 },
+                        { key: 'strokeIn', label: 'Stroke / Chamber Length', min: 2.8, max: 6.5, step: 0.01, nudge: 0.04 },
+                        { key: 'wallIn', label: 'Minimum Wall Thickness', min: 0.12, max: 0.75, step: 0.01, nudge: 0.02 },
+                        { key: 'boltCount', label: 'Flange / Deck Bolt Count', min: 8, max: 36, step: 1, nudge: 2, isCount: true },
+                        { key: 'filletIn', label: 'Corner / Root Fillet Radius', min: 0.05, max: 0.85, step: 0.01, nudge: 0.05 }
                       ].map((ctrl) => (
                         <div key={ctrl.key} className="p-2.5 rounded-lg bg-[#070A10] border border-slate-800 space-y-2">
                           <div className="flex items-center justify-between text-xs">
@@ -4221,10 +5362,12 @@
                             <button
                               type="button"
                               onClick={() =>
-                                setParams((p) => ({
-                                  ...p,
-                                  [ctrl.key]: Math.max(ctrl.min, Number((p[ctrl.key] - ctrl.step).toFixed(3)))
-                                }))
+                                withUndo(`Slider — ${ctrl.label}`, () =>
+                                  setParams((p) => ({
+                                    ...p,
+                                    [ctrl.key]: Math.max(ctrl.min, Number((p[ctrl.key] - ctrl.nudge).toFixed(3)))
+                                  }))
+                                )
                               }
                               className="min-h-[44px] min-w-[44px] rounded-lg bg-slate-900 border border-slate-700 font-bold text-base touch-manipulation active:scale-95"
                             >
@@ -4242,15 +5385,23 @@
                                   [ctrl.key]: parseFloat(e.target.value)
                                 }))
                               }
+                              onPointerDown={beginSliderDrag}
+                              onPointerUp={() => commitSliderDrag(`Slider — ${ctrl.label}`)}
+                              onMouseUp={() => commitSliderDrag(`Slider — ${ctrl.label}`)}
+                              onTouchEnd={() => commitSliderDrag(`Slider — ${ctrl.label}`)}
+                              onKeyUp={() => commitSliderDrag(`Slider — ${ctrl.label}`)}
+                              onBlur={() => commitSliderDrag(`Slider — ${ctrl.label}`)}
                               className="flex-1 h-3 accent-sky-400 cursor-pointer"
                             />
                             <button
                               type="button"
                               onClick={() =>
-                                setParams((p) => ({
-                                  ...p,
-                                  [ctrl.key]: Math.min(ctrl.max, Number((p[ctrl.key] + ctrl.step).toFixed(3)))
-                                }))
+                                withUndo(`Slider — ${ctrl.label}`, () =>
+                                  setParams((p) => ({
+                                    ...p,
+                                    [ctrl.key]: Math.min(ctrl.max, Number((p[ctrl.key] + ctrl.nudge).toFixed(3)))
+                                  }))
+                                )
                               }
                               className="min-h-[44px] min-w-[44px] rounded-lg bg-slate-900 border border-slate-700 font-bold text-base touch-manipulation active:scale-95"
                             >
@@ -4266,7 +5417,7 @@
                         </label>
                         <select
                           value={params.materialId}
-                          onChange={(e) => setParams((p) => ({ ...p, materialId: e.target.value }))}
+                          onChange={(e) => withUndo(`Material — ${e.target.value}`, () => setParams((p) => ({ ...p, materialId: e.target.value })))}
                           className="w-full min-h-[44px] px-3 rounded-lg bg-[#070A10] border border-slate-700 text-xs text-slate-100"
                         >
                           {ALLOYS.map((a) => (
@@ -4302,6 +5453,12 @@
                           step="0.005"
                           value={deckHeightIn}
                           onChange={(e) => setDeckHeightIn(parseFloat(e.target.value) || 9.0)}
+                          onPointerDown={beginSliderDrag}
+                          onPointerUp={() => commitSliderDrag('Deck height slider')}
+                          onMouseUp={() => commitSliderDrag('Deck height slider')}
+                          onTouchEnd={() => commitSliderDrag('Deck height slider')}
+                          onKeyUp={() => commitSliderDrag('Deck height slider')}
+                          onBlur={() => commitSliderDrag('Deck height slider')}
                           className="w-full h-3 accent-amber-400 cursor-pointer"
                         />
                         <div className="text-[10px] text-slate-500">
@@ -4877,7 +6034,7 @@
 
                       <AsmeTechnicalBlueprint
                         domain={domain}
-                        params={params}
+                        params={displayParams}
                         units={units}
                         sliceAxis={sliceAxis}
                         slicePercent={slicePercent}
@@ -4977,8 +6134,8 @@
 
                       <DraftingStudioSheet
                         activePart={activePart}
-                        params={params}
-                        deckHeightIn={deckHeightIn}
+                        params={displayParams}
+                        deckHeightIn={displayDeckHeightIn}
                         units={units}
                         titleMeta={titleMeta}
                         svgRef={draftingSvgRef}
@@ -5225,6 +6382,1289 @@
                         >
                           Generate
                         </button>
+
+                  {/* v4 ROOM 9: DESIGN MATRIX — tools on a separate design matrix */}
+                  {activeRoom === 'designmatrix' && (
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+                        <h2 className="text-sm font-bold uppercase tracking-wider text-sky-400">
+                          Design Matrix — Tools to Create With
+                        </h2>
+                        <span className="font-mono-tabular text-xs text-emerald-400">v4 R2027x</span>
+                      </div>
+                      <div className="text-[11px] text-slate-400 leading-relaxed">
+                        Every tool we have, on one matrix, grouped by the skill it serves. Tap a
+                        card — it opens its workbench with the active part already loaded. Every
+                        tool works, or carries the honest NOT YET WORKING label. Nothing dead,
+                        nothing faked.
+                      </div>
+                      {DESIGN_MATRIX_GROUPS.map((g) => (
+                        <div key={g.id} className="space-y-1.5">
+                          <div className="flex items-baseline gap-2">
+                            <span className="text-[11px] font-mono-tabular font-bold text-amber-300 uppercase">{g.label}</span>
+                            <span className="text-[11px] text-slate-500">{g.skill}</span>
+                          </div>
+                          <div className="grid grid-cols-2 gap-1.5">
+                            {g.cards.map((card) => (
+                              <button
+                                key={card.id}
+                                type="button"
+                                onClick={() => openMatrixTool(card)}
+                                className="min-h-[64px] p-2.5 rounded-lg bg-[#070A10] border border-slate-800 text-left touch-manipulation active:scale-95"
+                              >
+                                <div className="text-xs font-bold text-slate-100">{card.tool}</div>
+                                <div className="text-[11px] text-slate-400 leading-snug mt-0.5">{card.desc}</div>
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* v4: ENGINEERING COMPANION (LEO) — offline first, flags violations */}
+                  {activeRoom === 'companion' && (
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+                        <h2 className="text-sm font-bold uppercase tracking-wider text-sky-400">
+                          Engineering Companion (LEO)
+                        </h2>
+                        <button
+                          type="button"
+                          onClick={() => setActiveRoom('designmatrix')}
+                          className="min-h-[44px] px-3 rounded-lg bg-[#070A10] border border-slate-700 text-xs font-semibold text-slate-200 touch-manipulation active:scale-95"
+                        >
+                          ← Matrix
+                        </button>
+                      </div>
+                      <div className="text-[11px] text-slate-400 leading-relaxed">
+                        LEO generates a usable 3D part from a typed description — offline first,
+                        from a parametric preset. It flags anything outside the sourced envelope
+                        (bore, stroke, wall, deck, bolt count, fillet) with the rule and the
+                        source, and it validates manufacturability (DMLS/CNC PASS/FAIL with
+                        reasons). It only calls Gemini when you type a key into the empty key
+                        field below. No key is ever stored. No tokens, no payment.
+                      </div>
+                      <div className="p-2.5 rounded-lg bg-[#070A10] border border-slate-800 text-[11px] text-slate-300 leading-relaxed">
+                        <span className="font-bold text-sky-300">Sourced envelope: </span>
+                        Bore {SOURCED_ENVELOPE.bore.min}-{SOURCED_ENVELOPE.bore.max} in · Stroke {SOURCED_ENVELOPE.stroke.min}-{SOURCED_ENVELOPE.stroke.max} in · Wall ≥ {SOURCED_ENVELOPE.wallDmls.min} in DMLS · Deck {SOURCED_ENVELOPE.deck.min}-{SOURCED_ENVELOPE.deck.max} in · Bolts {SOURCED_ENVELOPE.boltCount.min}-{SOURCED_ENVELOPE.boltCount.max}
+                      </div>
+                      <div className="p-2.5 rounded-lg bg-[#070A10] border border-slate-800 text-[11px] leading-relaxed">
+                        <span className="font-bold text-emerald-300">Try: </span>
+                        <span className="text-slate-300">“sbc-350 383 stroker” · “billet intake plenum” · “titanium gimbal bracket” · “bore 4.000 stroke 3.480” · “bore 9.000” (flagged — out of envelope)</span>
+                      </div>
+                      <input
+                        type="password"
+                        value={geminiApiKey}
+                        onChange={(e) => setGeminiApiKey(e.target.value)}
+                        placeholder="Optional Gemini API Key (works offline too — leave empty)"
+                        className="w-full min-h-[44px] px-3 rounded-lg bg-[#070A10] border border-slate-700 font-mono-tabular text-xs text-slate-200 focus:outline-none focus:border-sky-400"
+                      />
+                      <div className="min-h-[140px] max-h-[210px] overflow-y-auto space-y-2 p-2.5 rounded-lg bg-[#070A10] border border-slate-800">
+                        {aiMessages.map((msg, i) => (
+                          <div
+                            key={i}
+                            className={`p-2 rounded-lg text-xs whitespace-pre-line leading-relaxed ${
+                              msg.role === 'user'
+                                ? 'bg-sky-500/15 border border-sky-400/40 text-sky-100 ml-4'
+                                : 'bg-[#0E1420] border border-slate-800 text-slate-200 mr-3'
+                            }`}
+                          >
+                            {msg.text}
+                          </div>
+                        ))}
+                        {aiLoading && (
+                          <div className="text-xs font-mono-tabular text-amber-300 animate-pulse">
+                            Synthesizing CAD &amp; 24fps shot specs...
+                          </div>
+                        )}
+                      </div>
+                      <form
+                        onSubmit={(e) => {
+                          e.preventDefault();
+                          handleAskCoPilot();
+                        }}
+                        className="flex gap-2"
+                      >
+                        <input
+                          type="text"
+                          value={aiPrompt}
+                          onChange={(e) => setAiPrompt(e.target.value)}
+                          placeholder="Describe the part — LEO builds it offline..."
+                          className="flex-1 min-h-[44px] px-3 rounded-lg bg-[#070A10] border border-slate-700 text-xs text-slate-100 focus:outline-none focus:border-sky-400"
+                        />
+                        <button
+                          type="submit"
+                          disabled={aiLoading}
+                          className="min-h-[44px] px-4 rounded-lg bg-sky-400 text-slate-950 text-xs font-bold touch-manipulation active:scale-95 disabled:opacity-50"
+                        >
+                          Generate
+                        </button>
+                      </form>
+                    </div>
+                  )}
+
+                  {/* v4: GENERATIVE VIRTUAL TWIN — one source of truth */}
+                  {activeRoom === 'twin' && (
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+                        <h2 className="text-sm font-bold uppercase tracking-wider text-emerald-300">
+                          Generative Virtual Twin
+                        </h2>
+                        <button
+                          type="button"
+                          onClick={() => setActiveRoom('designmatrix')}
+                          className="min-h-[44px] px-3 rounded-lg bg-[#070A10] border border-slate-700 text-xs font-semibold text-slate-200 touch-manipulation active:scale-95"
+                        >
+                          ← Matrix
+                        </button>
+                      </div>
+                      <div className={`p-3 rounded-lg border text-xs space-y-1 ${twinStatus.status === 'VERIFIED' ? 'bg-emerald-500/10 border-emerald-500/40' : twinStatus.status === 'PROVISIONAL' ? 'bg-amber-500/10 border-amber-500/40' : 'bg-sky-500/10 border-sky-500/40'}`}>
+                        <div className="font-mono-tabular font-bold">
+                          TWIN STATUS: {twinStatus.status}
+                        </div>
+                        <div className="text-slate-300 leading-relaxed">{twinStatus.reason}</div>
+                      </div>
+                      <div className="p-2.5 rounded-lg bg-[#070A10] border border-slate-800 text-xs space-y-1.5">
+                        <div className="font-mono-tabular font-bold text-sky-300">ONE SOURCE OF TRUTH — ACTIVE PART</div>
+                        <div className="text-slate-200 font-bold">{activePart ? activePart.name : 'No active part'}</div>
+                        <div className="text-slate-400">{activePart ? activePart.code : ''} · {activePart ? activePart.verification : ''}</div>
+                        <div className="text-slate-400">Source: {activePart ? activePart.source : '—'}</div>
+                        <div className="font-mono-tabular text-slate-300">
+                          Bore {formatDim(params.boreIn)} · Stroke {formatDim(params.strokeIn)} · Wall {formatDim(params.wallIn)} · Bolts {params.boltCount} · Fillet {formatDim(params.filletIn)}
+                        </div>
+                        <div className="font-mono-tabular text-slate-300">
+                          Deck {formatDim(deckHeightIn)} · {telemetry.dispStr} · {telemetry.massStr} · CNC {telemetry.cncHours} hr
+                        </div>
+                        <div className="font-mono-tabular text-slate-300">
+                          Material: {telemetry.alloyName} · σy {telemetry.yieldMPa} MPa · Tmax {telemetry.maxTempC}°C
+                        </div>
+                        <div className="font-mono-tabular text-slate-300">
+                          Drawing: {titleMeta.drawingNumber} Rev {titleMeta.revision} · Variant: SBC {activeVariant}
+                        </div>
+                        <div className="text-[11px] text-slate-500">
+                          A change anywhere — slider, drafting dimension, library pick, companion
+                          generation — updates every view (bench, viewport, Inspect &amp; Slice,
+                          Drafting Studio, Export) from this one record.
+                        </div>
+                      </div>
+                      <div className="space-y-1.5">
+                        <div className="text-[11px] font-mono-tabular font-bold text-sky-300 uppercase">MBD Packet — Secure Processes</div>
+                        <div className="grid grid-cols-2 gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const packet = buildMbdPacket();
+                              triggerDownload(JSON.stringify(packet, null, 2), `${domain}-aegis-mbd-v4.json`, 'application/json');
+                              setReceipt({ text: `Downloaded .JSON MBD Specification Packet — ${packet.packetId} · Rev ${packet.packetRevision} · App v4 · ${new Date().toISOString()}`, kind: 'mbd' });
+                              notify('Downloaded .JSON MBD Specification Packet');
+                            }}
+                            className="min-h-[44px] px-2 rounded-lg bg-sky-400 text-slate-950 text-[11px] font-bold touch-manipulation active:scale-95"
+                          >
+                            ↓ Download MBD Packet (v4)
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => mbdFileInputRef.current?.click()}
+                            className="min-h-[44px] px-2 rounded-lg bg-[#070A10] border border-slate-700 text-[11px] font-bold text-slate-200 touch-manipulation active:scale-95"
+                          >
+                            ↑ Import MBD Packet
+                          </button>
+                        </div>
+                        <input
+                          ref={mbdFileInputRef}
+                          type="file"
+                          accept="application/json,.json"
+                          onChange={(e) => {
+                            const f = e.target.files && e.target.files[0];
+                            if (f) importMbdPacket(f);
+                            e.target.value = '';
+                          }}
+                          className="hidden"
+                        />
+                        <div className="text-[11px] text-slate-500">
+                          Import validates the packet (AEGIS schema + bore/stroke present) and
+                          reports “Loaded correctly” or “NOT LOADED CORRECTLY” with the reason.
+                          Nothing is applied on a bad packet.
+                        </div>
+                      </div>
+                      <div className="space-y-1.5">
+                        <div className="text-[11px] font-mono-tabular font-bold text-sky-300 uppercase">Exports</div>
+                        <div className="grid grid-cols-3 gap-1.5">
+                          <button
+                            type="button"
+                            onClick={handleDownloadStl}
+                            className="min-h-[44px] px-2 rounded-lg bg-[#070A10] border border-slate-700 text-[11px] font-bold text-slate-200 touch-manipulation active:scale-95"
+                          >
+                            ↓ .STL
+                          </button>
+                          <button
+                            type="button"
+                            onClick={handleDownloadDxf}
+                            className="min-h-[44px] px-2 rounded-lg bg-[#070A10] border border-slate-700 text-[11px] font-bold text-slate-200 touch-manipulation active:scale-95"
+                          >
+                            ↓ .DXF
+                          </button>
+                          <button
+                            type="button"
+                            onClick={handleDownloadSvg}
+                            className="min-h-[44px] px-2 rounded-lg bg-[#070A10] border border-slate-700 text-[11px] font-bold text-slate-200 touch-manipulation active:scale-95"
+                          >
+                            ↓ .SVG
+                          </button>
+                        </div>
+                        <div className="text-[11px] text-slate-500">
+                          .SVG needs the 2D ASME Blueprint render mode open first (the sheet must
+                          be on screen to serialize). .STL comes from the live 3D mesh. .DXF is the
+                          plan outline — 8 bores in real inches (spacing 4.4 in); the 17 bolt holes
+                          ride on a separate layer in the blueprint's drawing units, NOT inches —
+                          that layer needs Ray's measurement before it can be machined from.
+                        </div>
+                      </div>
+                      <div className="space-y-1.5">
+                        <div className="text-[11px] font-mono-tabular font-bold text-sky-300 uppercase">Project Save / Load — One File</div>
+                        <div className="grid grid-cols-2 gap-1.5">
+                          <button
+                            type="button"
+                            onClick={saveProject}
+                            className="min-h-[44px] px-2 rounded-lg bg-emerald-400 text-slate-950 text-[11px] font-bold touch-manipulation active:scale-95"
+                          >
+                            ↓ Save Project (.JSON)
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => projectFileInputRef.current?.click()}
+                            className="min-h-[44px] px-2 rounded-lg bg-[#070A10] border border-slate-700 text-[11px] font-bold text-slate-200 touch-manipulation active:scale-95"
+                          >
+                            ↑ Load Project (.JSON)
+                          </button>
+                        </div>
+                        <input
+                          ref={projectFileInputRef}
+                          type="file"
+                          accept="application/json,.json"
+                          onChange={(e) => {
+                            const f = e.target.files && e.target.files[0];
+                            if (f) loadProjectFile(f);
+                            e.target.value = '';
+                          }}
+                          className="hidden"
+                        />
+                        <div className="text-[11px] text-slate-500">
+                          One file holds the bench, variant, feature tree, checkpoints, markups,
+                          toolpath data, and sign-off. Version-stamped: {titleMeta.drawingNumber} Rev {titleMeta.revision} · App v4.
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* v4: REVIEW & COMPARE — before/after, checklist, human sign-off, markups */}
+                  {activeRoom === 'review' && (
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+                        <h2 className="text-sm font-bold uppercase tracking-wider text-amber-300">
+                          Review &amp; Compare
+                        </h2>
+                        <button
+                          type="button"
+                          onClick={() => setActiveRoom('designmatrix')}
+                          className="min-h-[44px] px-3 rounded-lg bg-[#070A10] border border-slate-700 text-xs font-semibold text-slate-200 touch-manipulation active:scale-95"
+                        >
+                          ← Matrix
+                        </button>
+                      </div>
+                      <div className="space-y-1.5">
+                        <div className="text-[11px] font-mono-tabular font-bold text-sky-300 uppercase">Compare — Before vs After the Last Change</div>
+                        {undoStack.length <= 1 ? (
+                          <div className="p-2.5 rounded-lg bg-[#070A10] border border-slate-800 text-[11px] text-slate-400">
+                            No change yet — move a slider, load a part, or let LEO generate one,
+                            and the before/after comparison appears here.
+                          </div>
+                        ) : (
+                          <div className="space-y-1.5">
+                            <div className="text-[11px] text-slate-400">
+                              Last change: <span className="text-slate-200 font-bold">{undoStack[undoStack.length - 1].label}</span>
+                            </div>
+                            <div className="rounded-lg bg-[#070A10] border border-slate-800 overflow-hidden">
+                              <div className="grid grid-cols-3 gap-px bg-slate-800 text-[11px] font-mono-tabular">
+                                <div className="bg-[#0E1420] px-2 py-1.5 font-bold text-slate-300">Dimension</div>
+                                <div className="bg-[#0E1420] px-2 py-1.5 font-bold text-amber-300">Before</div>
+                                <div className="bg-[#0E1420] px-2 py-1.5 font-bold text-emerald-300">After (now)</div>
+                                {[
+                                  ['Bore Ø', formatDim(undoStack[undoStack.length - 1].params.boreIn), formatDim(params.boreIn)],
+                                  ['Stroke', formatDim(undoStack[undoStack.length - 1].params.strokeIn), formatDim(params.strokeIn)],
+                                  ['Wall', formatDim(undoStack[undoStack.length - 1].params.wallIn), formatDim(params.wallIn)],
+                                  ['Bolts', `${undoStack[undoStack.length - 1].params.boltCount}`, `${params.boltCount}`],
+                                  ['Fillet', formatDim(undoStack[undoStack.length - 1].params.filletIn), formatDim(params.filletIn)],
+                                  ['Deck', formatDim(undoStack[undoStack.length - 1].deckHeightIn), formatDim(deckHeightIn)],
+                                  ['Displacement', calcBenchTelemetry(undoStack[undoStack.length - 1].params, units).dispStr, telemetry.dispStr],
+                                  ['Mass', calcBenchTelemetry(undoStack[undoStack.length - 1].params, units).massStr, telemetry.massStr]
+                                ].map(([label, before, after]) => (
+                                  <React.Fragment key={label}>
+                                    <div className="bg-[#0E1420] px-2 py-1.5 text-slate-300">{label}</div>
+                                    <div className="bg-[#0E1420] px-2 py-1.5 text-amber-300">{before}</div>
+                                    <div className={`bg-[#0E1420] px-2 py-1.5 ${before === after ? 'text-slate-300' : 'text-emerald-300 font-bold'}`}>{after}</div>
+                                  </React.Fragment>
+                                ))}
+                              </div>
+                            </div>
+                            <div className="grid grid-cols-2 gap-1.5">
+                              <button
+                                type="button"
+                                onClick={() => setComparePreview((v) => !v)}
+                                className="min-h-[44px] px-2 rounded-lg bg-[#070A10] border border-slate-700 text-[11px] font-bold text-slate-200 touch-manipulation active:scale-95"
+                              >
+                                {comparePreview ? 'Back to Current' : 'Show Before in Viewport'}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => undo()}
+                                className="min-h-[44px] px-2 rounded-lg bg-amber-400 text-slate-950 text-[11px] font-bold touch-manipulation active:scale-95"
+                              >
+                                Restore Before (Undo)
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                      <div className="space-y-1.5">
+                        <div className="text-[11px] font-mono-tabular font-bold text-sky-300 uppercase">Review Checklist — Human Sign-Off Only</div>
+                        <div className="p-2.5 rounded-lg bg-[#070A10] border border-slate-800 text-[11px] text-slate-400 leading-relaxed">
+                          People approve every critical decision. No code ever sets or pre-ticks
+                          this sign-off — only a person, by typing their name and ticking the box.
+                        </div>
+                        {reviewSigned ? (
+                          <div className="p-2.5 rounded-lg bg-emerald-500/10 border border-emerald-500/40 text-xs space-y-1">
+                            <div className="font-bold text-emerald-300">✓ SIGNED OFF — {reviewSigned.name}</div>
+                            <div className="text-slate-300">{reviewSigned.date}</div>
+                            <div className="text-slate-400">{reviewSigned.summary}</div>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setReviewSigned(null);
+                                setReviewChecked(false);
+                                notify('Sign-off cleared');
+                              }}
+                              className="min-h-[40px] px-3 rounded-lg bg-slate-900 border border-slate-700 text-[11px] font-bold text-slate-200 touch-manipulation"
+                            >
+                              Clear Sign-Off
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="space-y-1.5">
+                            <input
+                              type="text"
+                              value={reviewName}
+                              onChange={(e) => setReviewName(e.target.value)}
+                              placeholder="Your name — the person signing off"
+                              className="w-full min-h-[44px] px-3 rounded-lg bg-[#070A10] border border-slate-700 text-xs text-slate-100 focus:outline-none focus:border-sky-400"
+                            />
+                            <label className="flex items-start gap-2 p-2.5 rounded-lg bg-[#070A10] border border-slate-800 text-xs text-slate-200 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={reviewChecked}
+                                onChange={(e) => setReviewChecked(e.target.checked)}
+                                className="mt-0.5 w-5 h-5 accent-emerald-400"
+                              />
+                              <span>I physically verified dimensions &amp; tolerances on hardware</span>
+                            </label>
+                            <button
+                              type="button"
+                              disabled={!reviewChecked || !reviewName.trim()}
+                              onClick={() => {
+                                setReviewSigned({
+                                  name: reviewName.trim(),
+                                  date: new Date().toISOString(),
+                                  summary: `${activePart ? activePart.name : 'SBC 350'} · Bore ${params.boreIn.toFixed(3)} × Stroke ${params.strokeIn.toFixed(3)} in · ${telemetry.dispStr} · ${titleMeta.drawingNumber} Rev ${titleMeta.revision}`
+                                });
+                                notify(`Signed off by ${reviewName.trim()}`);
+                              }}
+                              className="w-full min-h-[44px] px-3 rounded-lg bg-emerald-400 text-slate-950 text-xs font-bold touch-manipulation active:scale-95 disabled:opacity-40"
+                            >
+                              Sign Off
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                      <div className="space-y-1.5">
+                        <div className="flex items-center justify-between">
+                          <div className="text-[11px] font-mono-tabular font-bold text-sky-300 uppercase">Markups — Pinned to the Model</div>
+                          <button
+                            type="button"
+                            onClick={() => setMarkupMode((v) => !v)}
+                            className={`min-h-[40px] px-3 rounded-lg text-[11px] font-bold touch-manipulation active:scale-95 ${markupMode ? 'bg-amber-400 text-slate-950' : 'bg-[#070A10] border border-slate-700 text-slate-200'}`}
+                          >
+                            {markupMode ? 'Done Pinning' : '＋ Pin Markup'}
+                          </button>
+                        </div>
+                        <div className="text-[11px] text-slate-500">
+                          Tap “Pin Markup”, then tap the 3D model to drop a numbered pin. Notes
+                          travel with the project file.
+                        </div>
+                        {markups.length === 0 ? (
+                          <div className="p-2.5 rounded-lg bg-[#070A10] border border-slate-800 text-[11px] text-slate-400">No markups pinned yet.</div>
+                        ) : (
+                          <div className="space-y-1.5">
+                            {markups.map((m) => (
+                              <div key={m.id} className="p-2 rounded-lg bg-[#070A10] border border-slate-800 space-y-1.5">
+                                <div className="flex items-center justify-between">
+                                  <span className="font-mono-tabular text-[11px] font-bold text-amber-300">#{m.n} — {m.x.toFixed(1)}%, {m.y.toFixed(1)}%</span>
+                                  <button
+                                    type="button"
+                                    onClick={() => setMarkups((prev) => prev.filter((x) => x.id !== m.id))}
+                                    className="min-h-[36px] px-2.5 rounded-lg bg-slate-900 border border-slate-700 text-[11px] font-bold text-slate-300 touch-manipulation"
+                                  >
+                                    Remove
+                                  </button>
+                                </div>
+                                <input
+                                  type="text"
+                                  value={m.note}
+                                  onChange={(e) => setMarkups((prev) => prev.map((x) => (x.id === m.id ? { ...x, note: e.target.value } : x)))}
+                                  placeholder="Note for this pin..."
+                                  className="w-full min-h-[40px] px-2.5 rounded-lg bg-[#0E1420] border border-slate-700 text-xs text-slate-100 focus:outline-none focus:border-sky-400"
+                                />
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* v4: FEATURE HISTORY & PARAMETRIC TREE */}
+                  {activeRoom === 'tree' && (
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+                        <h2 className="text-sm font-bold uppercase tracking-wider text-sky-400">
+                          Feature History &amp; Parametric Tree
+                        </h2>
+                        <button
+                          type="button"
+                          onClick={() => setActiveRoom('designmatrix')}
+                          className="min-h-[44px] px-3 rounded-lg bg-[#070A10] border border-slate-700 text-xs font-semibold text-slate-200 touch-manipulation active:scale-95"
+                        >
+                          ← Matrix
+                        </button>
+                      </div>
+                      <div className="text-[11px] text-slate-400 leading-relaxed">
+                        Every modeling operation is a visible step with editable parameters.
+                        Reorder, suppress, or roll back a step — the part rebuilds from the tree.
+                        A checkpoint is written at every build action.
+                      </div>
+                      <div className="grid grid-cols-2 gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => undo()}
+                          disabled={undoStack.length === 0}
+                          className="min-h-[44px] px-2 rounded-lg bg-[#070A10] border border-slate-700 text-[11px] font-bold text-slate-200 touch-manipulation active:scale-95 disabled:opacity-40"
+                        >
+                          ↩ Undo ({undoStack.length})
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => redo()}
+                          disabled={redoStack.length === 0}
+                          className="min-h-[44px] px-2 rounded-lg bg-[#070A10] border border-slate-700 text-[11px] font-bold text-slate-200 touch-manipulation active:scale-95 disabled:opacity-40"
+                        >
+                          ↪ Redo ({redoStack.length})
+                        </button>
+                      </div>
+                      <div className="space-y-1.5">
+                        {featureTree.map((step, idx) => (
+                          <div key={step.id} className={`p-2.5 rounded-lg border space-y-1.5 ${step.suppressed ? 'bg-[#070A10] border-slate-800 opacity-50' : 'bg-[#070A10] border-slate-800'}`}>
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="text-xs font-bold text-slate-100">
+                                {idx + 1}. {step.type}{step.suppressed ? ' — SUPPRESSED' : ''}
+                              </span>
+                              <div className="flex gap-1 shrink-0">
+                                <button
+                                  type="button"
+                                  onClick={() => moveTreeStep(step.id, -1)}
+                                  disabled={idx === 0}
+                                  className="min-h-[36px] min-w-[36px] rounded-lg bg-slate-900 border border-slate-700 text-xs font-bold text-slate-200 touch-manipulation disabled:opacity-40"
+                                  aria-label="Move step up"
+                                >
+                                  ↑
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => moveTreeStep(step.id, 1)}
+                                  disabled={idx === featureTree.length - 1}
+                                  className="min-h-[36px] min-w-[36px] rounded-lg bg-slate-900 border border-slate-700 text-xs font-bold text-slate-200 touch-manipulation disabled:opacity-40"
+                                  aria-label="Move step down"
+                                >
+                                  ↓
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => toggleSuppressTreeStep(step.id)}
+                                  className="min-h-[36px] px-2.5 rounded-lg bg-slate-900 border border-slate-700 text-[11px] font-bold text-slate-200 touch-manipulation"
+                                >
+                                  {step.suppressed ? 'Restore' : 'Suppress'}
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => rollbackToTreeStep(step.id)}
+                                  className="min-h-[36px] px-2.5 rounded-lg bg-amber-400 text-slate-950 text-[11px] font-bold touch-manipulation"
+                                >
+                                  Roll Back
+                                </button>
+                              </div>
+                            </div>
+                            <div className="text-[11px] text-slate-400">{step.label}</div>
+                            <div className="grid grid-cols-2 gap-1.5">
+                              {step.keys.map((k) => (
+                                <label key={k} className="block">
+                                  <span className="text-[10px] font-mono-tabular text-slate-500 uppercase">{k}</span>
+                                  {k === 'sliceAxis' ? (
+                                    <select
+                                      value={treeParamValue(k)}
+                                      onChange={(e) => editTreeParam(k, e.target.value)}
+                                      className="w-full min-h-[40px] px-2 rounded-lg bg-[#0E1420] border border-slate-700 text-xs text-slate-100 focus:outline-none focus:border-sky-400"
+                                    >
+                                      <option value="x">X — left/right</option>
+                                      <option value="y">Y — front/back</option>
+                                      <option value="z">Z — top/bottom</option>
+                                    </select>
+                                  ) : (
+                                    <input
+                                      type="number"
+                                      step={k === 'boltCount' ? 1 : 0.001}
+                                      value={treeParamValue(k)}
+                                      onChange={(e) => editTreeParam(k, e.target.value)}
+                                      className="w-full min-h-[40px] px-2 rounded-lg bg-[#0E1420] border border-slate-700 font-mono-tabular text-xs text-slate-100 focus:outline-none focus:border-sky-400"
+                                    />
+                                  )}
+                                </label>
+                              ))}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                      <div className="flex gap-1.5">
+                        <select
+                          value={newTreeStepType}
+                          onChange={(e) => setNewTreeStepType(e.target.value)}
+                          className="flex-1 min-h-[44px] px-2 rounded-lg bg-[#070A10] border border-slate-700 text-xs text-slate-100 focus:outline-none focus:border-sky-400"
+                        >
+                          {['Sketch', 'Extrude', 'Fillet', 'Cut', 'Pattern', 'Section'].map((t) => (
+                            <option key={t} value={t}>{t}</option>
+                          ))}
+                        </select>
+                        <button
+                          type="button"
+                          onClick={addTreeStep}
+                          className="min-h-[44px] px-4 rounded-lg bg-sky-400 text-slate-950 text-xs font-bold touch-manipulation active:scale-95"
+                        >
+                          + Add Step
+                        </button>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const last = featureTree[featureTree.length - 1];
+                          if (last) rollbackToTreeStep(last.id);
+                        }}
+                        className="w-full min-h-[44px] px-3 rounded-lg bg-[#070A10] border border-slate-700 text-xs font-bold text-slate-200 touch-manipulation active:scale-95"
+                      >
+                        Rebuild Part from Tree
+                      </button>
+                      <div className="space-y-1.5">
+                        <div className="text-[11px] font-mono-tabular font-bold text-sky-300 uppercase">Checkpoints ({checkpoints.length})</div>
+                        {checkpoints.length === 0 ? (
+                          <div className="p-2.5 rounded-lg bg-[#070A10] border border-slate-800 text-[11px] text-slate-400">No checkpoints yet — one is written at every build action.</div>
+                        ) : (
+                          <div className="max-h-[180px] overflow-y-auto space-y-1">
+                            {[...checkpoints].reverse().map((cp) => (
+                              <div key={cp.id} className="flex items-center justify-between gap-2 p-2 rounded-lg bg-[#070A10] border border-slate-800">
+                                <div className="min-w-0">
+                                  <div className="text-xs font-bold text-slate-200 truncate">{cp.label}</div>
+                                  <div className="font-mono-tabular text-[10px] text-slate-500">{cp.time}</div>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => restoreCheckpoint(cp.id)}
+                                  className="min-h-[36px] px-2.5 rounded-lg bg-slate-900 border border-slate-700 text-[11px] font-bold text-slate-200 touch-manipulation shrink-0"
+                                >
+                                  Restore
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* v4: GENERATIVE DESIGN & DFM */}
+                  {activeRoom === 'dfm' && (
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+                        <h2 className="text-sm font-bold uppercase tracking-wider text-sky-400">
+                          Generative Design &amp; DFM
+                        </h2>
+                        <button
+                          type="button"
+                          onClick={() => setActiveRoom('designmatrix')}
+                          className="min-h-[44px] px-3 rounded-lg bg-[#070A10] border border-slate-700 text-xs font-semibold text-slate-200 touch-manipulation active:scale-95"
+                        >
+                          ← Matrix
+                        </button>
+                      </div>
+                      <div className="space-y-1.5">
+                        <div className="text-[11px] font-mono-tabular font-bold text-sky-300 uppercase">Live DFM Checks — Rule + Source</div>
+                        {dfmChecks.map((c) => (
+                          <div key={c.id} className="p-2.5 rounded-lg bg-[#070A10] border border-slate-800 space-y-1">
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="text-xs font-bold text-slate-100">{c.label}</span>
+                              <span
+                                className={`px-2 py-0.5 rounded-full font-mono-tabular text-[10px] font-bold ${
+                                  c.state === 'PASS' ? 'bg-emerald-500/20 text-emerald-300' : c.state === 'FAIL' ? 'bg-rose-500/20 text-rose-300' : 'bg-amber-500/20 text-amber-300'
+                                }`}
+                              >
+                                {c.state}
+                              </span>
+                            </div>
+                            <div className="text-[11px] text-slate-300">{c.detail}</div>
+                            <div className="text-[11px] text-slate-500">
+                              {c.rule} — {c.source}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                      <div className="space-y-1.5">
+                        <div className="text-[11px] font-mono-tabular font-bold text-sky-300 uppercase">Generative — Lighter Variant Suggestions (Preview Only)</div>
+                        <div className="text-[11px] text-slate-500">
+                          Suggestions are previews — never auto-applied. Assumptions are labeled.
+                          Tap Preview to see the numbers; Apply only if you agree.
+                        </div>
+                        <button
+                          type="button"
+                          onClick={generateSuggestion}
+                          className="w-full min-h-[44px] px-3 rounded-lg bg-sky-400 text-slate-950 text-xs font-bold touch-manipulation active:scale-95"
+                        >
+                          Generate Lighter Variant
+                        </button>
+                        {genSuggestion && (
+                          <div className="p-2.5 rounded-lg bg-[#070A10] border border-sky-500/40 space-y-2">
+                            <div className="text-xs font-bold text-sky-300">{genSuggestion.title}</div>
+                            <div className="font-mono-tabular text-[11px] text-slate-300 whitespace-pre-line">{genSuggestion.preview}</div>
+                            <div className="text-[11px] text-slate-500">Assumptions: {genSuggestion.assumptions}</div>
+                            <div className="grid grid-cols-2 gap-1.5">
+                              <button
+                                type="button"
+                                onClick={() => applySuggestion(genSuggestion)}
+                                className="min-h-[44px] px-2 rounded-lg bg-emerald-400 text-slate-950 text-[11px] font-bold touch-manipulation active:scale-95"
+                              >
+                                Apply to Bench
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setGenSuggestion(null)}
+                                className="min-h-[44px] px-2 rounded-lg bg-[#0E1420] border border-slate-700 text-[11px] font-bold text-slate-200 touch-manipulation active:scale-95"
+                              >
+                                Discard
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                      <div className="space-y-1.5">
+                        <div className="flex items-center justify-between">
+                          <div className="text-[11px] font-mono-tabular font-bold text-sky-300 uppercase">Toolpath — RS-274</div>
+                          {toolpathData.locked && (
+                            <span className="px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-300 font-mono-tabular text-[10px] font-bold">LOCKED</span>
+                          )}
+                        </div>
+                        <div className="p-2.5 rounded-lg bg-[#070A10] border border-slate-800 text-[11px] text-slate-400 leading-relaxed">
+                          Toolpaths stay LOCKED until Ray enters his tool data. Nothing generates
+                          G-code from guesses — that is how a crash starts.
+                        </div>
+                        <div className="grid grid-cols-2 gap-1.5">
+                          {[
+                            ['diameter', 'Tool diameter', 'in'],
+                            ['feed', 'Feed rate', 'in/min'],
+                            ['spindle', 'Spindle speed', 'rpm'],
+                            ['depth', 'Cut depth', 'in']
+                          ].map(([key, label, unit]) => (
+                            <label key={key} className="block">
+                              <span className="text-[10px] font-mono-tabular text-slate-500 uppercase">{label} ({unit})</span>
+                              <input
+                                type="text"
+                                inputMode="decimal"
+                                value={toolpathData[key]}
+                                onChange={(e) => setToolpathData((prev) => ({ ...prev, [key]: e.target.value, locked: false }))}
+                                className="w-full min-h-[40px] px-2 rounded-lg bg-[#0E1420] border border-slate-700 font-mono-tabular text-xs text-slate-100 focus:outline-none focus:border-sky-400"
+                              />
+                            </label>
+                          ))}
+                          <label className="block">
+                            <span className="text-[10px] font-mono-tabular text-slate-500 uppercase">Units</span>
+                            <select
+                              value={toolpathData.units}
+                              onChange={(e) => setToolpathData((prev) => ({ ...prev, units: e.target.value }))}
+                              className="w-full min-h-[40px] px-2 rounded-lg bg-[#0E1420] border border-slate-700 text-xs text-slate-100 focus:outline-none focus:border-sky-400"
+                            >
+                              <option value="IN">IN (inches)</option>
+                              <option value="MM">MM (millimetres)</option>
+                            </select>
+                          </label>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={generateGcode}
+                          className="w-full min-h-[44px] px-3 rounded-lg bg-[#070A10] border border-slate-700 text-xs font-bold text-slate-200 touch-manipulation active:scale-95"
+                        >
+                          Generate G-Code (from Ray’s Tool Data)
+                        </button>
+                        {gcodeOutput && (
+                          <div className="space-y-1.5">
+                            <pre className="max-h-[160px] overflow-y-auto p-2.5 rounded-lg bg-black/60 border border-slate-800 font-mono-tabular text-[10px] text-emerald-300 whitespace-pre-wrap">{gcodeOutput}</pre>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                triggerDownload(gcodeOutput, `${domain}-toolpath-v4.gcode`, 'text/plain');
+                                setReceipt({ text: `Downloaded G-code — ${domain} toolpath · App v4 · ${new Date().toISOString()}`, kind: 'gcode' });
+                                notify('Downloaded G-code');
+                              }}
+                              className="w-full min-h-[44px] px-3 rounded-lg bg-[#070A10] border border-slate-700 text-xs font-bold text-slate-200 touch-manipulation active:scale-95"
+                            >
+                              ↓ Download .GCODE
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* v4: SIMULATION LITE + KINEMATICS */}
+                  {activeRoom === 'sim' && (
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+                        <h2 className="text-sm font-bold uppercase tracking-wider text-sky-400">
+                          Simulation Lite + Kinematics
+                        </h2>
+                        <button
+                          type="button"
+                          onClick={() => setActiveRoom('designmatrix')}
+                          className="min-h-[44px] px-3 rounded-lg bg-[#070A10] border border-slate-700 text-xs font-semibold text-slate-200 touch-manipulation active:scale-95"
+                        >
+                          ← Matrix
+                        </button>
+                      </div>
+                      <div className="space-y-1.5">
+                        <div className="text-[11px] font-mono-tabular font-bold text-sky-300 uppercase">Load Case — Deflection / Stress Estimate</div>
+                        <div className="grid grid-cols-2 gap-1.5">
+                          <label className="block">
+                            <span className="text-[10px] font-mono-tabular text-slate-500 uppercase">Force (lbf)</span>
+                            <input
+                              type="number"
+                              step="100"
+                              value={loadCase.forceLb}
+                              onChange={(e) => setLoadCase((prev) => ({ ...prev, forceLb: parseFloat(e.target.value) || 0 }))}
+                              className="w-full min-h-[40px] px-2 rounded-lg bg-[#0E1420] border border-slate-700 font-mono-tabular text-xs text-slate-100 focus:outline-none focus:border-sky-400"
+                            />
+                          </label>
+                          <label className="block">
+                            <span className="text-[10px] font-mono-tabular text-slate-500 uppercase">Direction</span>
+                            <select
+                              value={loadCase.direction}
+                              onChange={(e) => setLoadCase((prev) => ({ ...prev, direction: e.target.value }))}
+                              className="w-full min-h-[40px] px-2 rounded-lg bg-[#0E1420] border border-slate-700 text-xs text-slate-100 focus:outline-none focus:border-sky-400"
+                            >
+                              <option value="axial">Axial (along bore)</option>
+                              <option value="radial">Radial (side load)</option>
+                              <option value="vertical">Vertical (gravity + load)</option>
+                            </select>
+                          </label>
+                        </div>
+                        <label className="block">
+                          <span className="text-[10px] font-mono-tabular text-slate-500 uppercase">Fixed Face (constrained)</span>
+                          <select
+                            value={loadCase.fixedFace}
+                            onChange={(e) => setLoadCase((prev) => ({ ...prev, fixedFace: e.target.value }))}
+                            className="w-full min-h-[40px] px-2 rounded-lg bg-[#0E1420] border border-slate-700 text-xs text-slate-100 focus:outline-none focus:border-sky-400"
+                          >
+                            <option value="deck">Deck face</option>
+                            <option value="sump">Sump flange</option>
+                            <option value="bellhousing">Bellhousing flange</option>
+                          </select>
+                        </label>
+                        <div className={`p-2.5 rounded-lg border text-xs space-y-1 ${simResult.pass ? 'bg-emerald-500/10 border-emerald-500/40' : 'bg-rose-500/10 border-rose-500/40'}`}>
+                          <div className="font-mono-tabular font-bold">
+                            σ ≈ {simResult.sigmaPsi.toLocaleString()} psi · {simResult.pass ? 'WITHIN YIELD — PASS' : 'EXCEEDS YIELD — FAIL'} · {simResult.marginPct}% margin
+                          </div>
+                          <div className="text-slate-300">
+                            Estimated deflection δ ≈ {simResult.deltaIn.toFixed(4)} in · Alloy yield {simResult.yieldPsi.toLocaleString()} psi
+                          </div>
+                          <div className="text-slate-400">{simResult.method}</div>
+                          <div className="text-[11px] text-amber-300">{simResult.limits}</div>
+                        </div>
+                        <div className="text-[11px] text-slate-500">
+                          The same numbers also drive the “FEA Field” viewport mode — tap the
+                          render-mode control and choose FEA Field to see the color-mapped
+                          gradient (40°C → alloy Tmax).
+                        </div>
+                      </div>
+                      <div className="space-y-1.5">
+                        <div className="text-[11px] font-mono-tabular font-bold text-sky-300 uppercase">Flow Bench</div>
+                        <div className="p-2.5 rounded-lg bg-[#070A10] border border-slate-800 text-[11px] text-slate-400 leading-relaxed">
+                          NOT YET WORKING — no CFM data is bundled in this file, so no flow
+                          numbers are shown here. Flow bench values live in the v16 app (Tab 03,
+                          Valvetrain &amp; Flow). Do not trust a flow number this file does not
+                          carry.
+                        </div>
+                      </div>
+                      <div className="space-y-1.5">
+                        <div className="flex items-center justify-between">
+                          <div className="text-[11px] font-mono-tabular font-bold text-sky-300 uppercase">Kinematics — Crank · Pistons · Valves</div>
+                          <button
+                            type="button"
+                            onClick={() => setKinematicsOn((v) => !v)}
+                            className={`min-h-[40px] px-3 rounded-lg text-[11px] font-bold touch-manipulation active:scale-95 ${kinematicsOn ? 'bg-rose-400 text-slate-950' : 'bg-emerald-400 text-slate-950'}`}
+                          >
+                            {kinematicsOn ? '■ Stop' : '▶ Run'}
+                          </button>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-[11px] font-mono-tabular text-slate-400">Crank speed</span>
+                          <input
+                            type="range"
+                            min={60}
+                            max={3000}
+                            step={60}
+                            value={kinematicsRpm}
+                            onChange={(e) => setKinematicsRpm(parseInt(e.target.value, 10))}
+                            className="flex-1 h-2 accent-sky-400 touch-manipulation"
+                          />
+                          <span className="font-mono-tabular text-xs text-sky-300">{kinematicsRpm} rpm</span>
+                        </div>
+                        <div className="font-mono-tabular text-xs text-slate-300">
+                          Crank {Math.round(crankAngle)}° · Rod {telemetry.rodLengthIn.toFixed(3)} in · Deck {formatDim(deckHeightIn)}
+                        </div>
+                        <div className="space-y-1">
+                          {pistons.map((p) => (
+                            <div key={p.cyl} className="flex items-center gap-2">
+                              <span className={`w-14 font-mono-tabular text-[11px] ${p.firing ? 'text-amber-300 font-bold' : 'text-slate-400'}`}>
+                                Cyl {p.cyl}{p.firing ? ' ⚡' : ''}
+                              </span>
+                              <div className="flex-1 h-3 rounded bg-[#0E1420] border border-slate-800 overflow-hidden">
+                                <div className={`h-full ${p.firing ? 'bg-amber-400' : 'bg-sky-400'}`} style={{ width: `${Math.round(p.height * 100)}%` }} />
+                              </div>
+                              <span className="w-12 text-right font-mono-tabular text-[10px] text-slate-500">{(p.height * 100).toFixed(0)}%</span>
+                            </div>
+                          ))}
+                        </div>
+                        <div className="text-[11px] text-slate-500">
+                          Firing order 1-8-4-3-6-5-7-2 — the highlighted cylinder is firing. Valves
+                          move with the crank (cam spins at half crank speed — the cam fix from
+                          v10 is honored here: cam = crank × 0.5).
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* v4: VARIANTS, CONFIGURATION, BOM & COSTING */}
+                  {activeRoom === 'variants' && (
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+                        <h2 className="text-sm font-bold uppercase tracking-wider text-sky-400">
+                          Variants, BOM &amp; Costing
+                        </h2>
+                        <button
+                          type="button"
+                          onClick={() => setActiveRoom('designmatrix')}
+                          className="min-h-[44px] px-3 rounded-lg bg-[#070A10] border border-slate-700 text-xs font-semibold text-slate-200 touch-manipulation active:scale-95"
+                        >
+                          ← Matrix
+                        </button>
+                      </div>
+                      <div className="text-[11px] text-slate-400 leading-relaxed">
+                        The SBC family — 265, 283, 302, 307, 327, 350, 400 — as configurations of
+                        ONE master model. Switch a configuration and the drawing, BOM, and twin
+                        follow the active one. Bore × stroke are published GM specs.
+                      </div>
+                      <div className="grid grid-cols-2 gap-1.5">
+                        {SBC_VARIANTS.map((v) => (
+                          <button
+                            key={v.id}
+                            type="button"
+                            onClick={() => applyVariant(v.id)}
+                            className={`min-h-[64px] p-2.5 rounded-lg border text-left touch-manipulation active:scale-95 ${
+                              activeVariant === v.id ? 'bg-sky-500/15 border-sky-400/60' : 'bg-[#070A10] border-slate-800'
+                            }`}
+                          >
+                            <div className="text-xs font-bold text-slate-100">
+                              SBC {v.id} · {v.cid} CID
+                            </div>
+                            <div className="font-mono-tabular text-[11px] text-slate-400">
+                              {v.bore.toFixed(3)} × {v.stroke.toFixed(3)} in · Rod {v.rod.toFixed(3)} in
+                            </div>
+                            <div className="text-[11px] text-slate-500">{v.source}</div>
+                          </button>
+                        ))}
+                      </div>
+                      <div className="p-2.5 rounded-lg bg-[#070A10] border border-slate-800 text-xs space-y-1.5">
+                        <div className="font-mono-tabular font-bold text-sky-300">ACTIVE CONFIGURATION — SBC {activeVariant}</div>
+                        <div className="font-mono-tabular text-slate-300">{telemetry.dispStr} · {telemetry.massStr} · CNC {telemetry.cncHours} hr</div>
+                        <div className="text-slate-400">
+                          Drawing {titleMeta.drawingNumber} Rev {titleMeta.revision} · Variant rev {bomData.revision}
+                        </div>
+                        <div className="text-slate-400">
+                          Where used: {whereUsed.models.map((m) => `${m.make} ${m.model} (${m.yearStart}-${m.yearEnd})`).join(' · ') || 'No library models for this configuration yet'}
+                        </div>
+                        <div className="text-[11px] text-slate-500">
+                          Where-used comes from the library file — models whose modelYears cover
+                          this engine family. Models not in the library yet say so plainly.
+                        </div>
+                      </div>
+                      <div className="space-y-1.5">
+                        <div className="text-[11px] font-mono-tabular font-bold text-sky-300 uppercase">BOM — Active Parts ({activeMatrixItems.length})</div>
+                        <div className="max-h-[160px] overflow-y-auto space-y-1">
+                          {activeMatrixItems.slice(0, 12).map((item) => (
+                            <div key={item.id} className="flex items-center justify-between gap-2 p-2 rounded-lg bg-[#070A10] border border-slate-800">
+                              <div className="min-w-0">
+                                <div className="text-xs font-bold text-slate-100 truncate">{item.name}</div>
+                                <div className="font-mono-tabular text-[10px] text-slate-500">{item.code} · {item.subsystem}</div>
+                              </div>
+                              <span className="font-mono-tabular text-[10px] text-slate-400 shrink-0">{item.massLb} lb · {item.powerHp} hp</span>
+                            </div>
+                          ))}
+                          {activeMatrixItems.length > 12 && (
+                            <div className="text-[11px] text-slate-500 p-1">…and {activeMatrixItems.length - 12} more in the Active BOM.</div>
+                          )}
+                        </div>
+                      </div>
+                      <div className="space-y-1.5">
+                        <div className="text-[11px] font-mono-tabular font-bold text-sky-300 uppercase">Costing — From Real Parameters or UNVERIFIED</div>
+                        <label className="block">
+                          <span className="text-[10px] font-mono-tabular text-slate-500 uppercase">Material Rate ($ / lb)</span>
+                          <input
+                            type="number"
+                            step="0.5"
+                            value={materialRate}
+                            onChange={(e) => setMaterialRate(parseFloat(e.target.value) || 0)}
+                            className="w-full min-h-[40px] px-2 rounded-lg bg-[#0E1420] border border-slate-700 font-mono-tabular text-xs text-slate-100 focus:outline-none focus:border-sky-400"
+                          />
+                        </label>
+                        <div className="p-2.5 rounded-lg bg-[#070A10] border border-slate-800 text-xs space-y-1 font-mono-tabular">
+                          <div className="text-slate-300">Mass: {bomData.massLb} lb · Alloy: {bomData.alloyName}</div>
+                          <div className="text-slate-300">CNC time: {bomData.cncHours} hr · Rate: ${materialRate.toFixed(2)}/lb</div>
+                          {bomData.costUnverified ? (
+                            <div className="text-amber-300 font-bold">COST: UNVERIFIED — no source for material pricing in this file. No cost is invented.</div>
+                          ) : (
+                            <div className="text-emerald-300 font-bold">Material cost (estimate): ${(bomData.massLb * materialRate).toFixed(2)} — rate is a shop input, for Ray to true.</div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* v4: REQUIREMENTS, VALIDATION & STACK-UP */}
+                  {activeRoom === 'requirements' && (
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+                        <h2 className="text-sm font-bold uppercase tracking-wider text-sky-400">
+                          Requirements, Validation &amp; Stack-Up
+                        </h2>
+                        <button
+                          type="button"
+                          onClick={() => setActiveRoom('designmatrix')}
+                          className="min-h-[44px] px-3 rounded-lg bg-[#070A10] border border-slate-700 text-xs font-semibold text-slate-200 touch-manipulation active:scale-95"
+                        >
+                          ← Matrix
+                        </button>
+                      </div>
+                      <div className="space-y-1.5">
+                        <div className="text-[11px] font-mono-tabular font-bold text-sky-300 uppercase">Requirements — Live PASS / FAIL</div>
+                        {requirementsEval.map((r) => (
+                          <div key={r.id} className="p-2.5 rounded-lg bg-[#070A10] border border-slate-800 space-y-1">
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="text-xs font-bold text-slate-100">{r.label}</span>
+                              <span
+                                className={`px-2 py-0.5 rounded-full font-mono-tabular text-[10px] font-bold ${
+                                  r.state === 'PASS' ? 'bg-emerald-500/20 text-emerald-300' : r.state === 'FAIL' ? 'bg-rose-500/20 text-rose-300' : 'bg-amber-500/20 text-amber-300'
+                                }`}
+                              >
+                                {r.state}
+                              </span>
+                            </div>
+                            <div className="text-[11px] text-slate-300">{r.detail}</div>
+                            <div className="text-[11px] text-slate-500">{r.source}</div>
+                          </div>
+                        ))}
+                      </div>
+                      <div className="space-y-1.5">
+                        <div className="text-[11px] font-mono-tabular font-bold text-sky-300 uppercase">Tolerance Stack-Up — Crank Centerline Chain</div>
+                        <div className="rounded-lg bg-[#070A10] border border-slate-800 overflow-hidden">
+                          <div className="grid grid-cols-3 gap-px bg-slate-800 text-[11px] font-mono-tabular">
+                            <div className="bg-[#0E1420] px-2 py-1.5 font-bold text-slate-300">Link</div>
+                            <div className="bg-[#0E1420] px-2 py-1.5 font-bold text-slate-300">Tolerance</div>
+                            <div className="bg-[#0E1420] px-2 py-1.5 font-bold text-slate-300">Status</div>
+                            {stackUp.links.map((l) => (
+                              <React.Fragment key={l.id}>
+                                <div className="bg-[#0E1420] px-2 py-1.5 text-slate-300">{l.label}</div>
+                                <div className="bg-[#0E1420] px-2 py-1.5 text-slate-300">{l.tol}</div>
+                                <div className={`bg-[#0E1420] px-2 py-1.5 ${l.verified ? 'text-emerald-300' : 'text-amber-300 font-bold'}`}>
+                                  {l.verified ? 'Verified' : 'UNVERIFIED'}
+                                </div>
+                              </React.Fragment>
+                            ))}
+                          </div>
+                        </div>
+                        <div className="p-2.5 rounded-lg bg-[#070A10] border border-slate-800 text-xs font-mono-tabular space-y-1">
+                          <div className="text-slate-300">Worst-case sum: {stackUp.worstCase}</div>
+                          <div className="text-slate-300">Statistical (RSS): {stackUp.rss}</div>
+                          <div className="text-amber-300">{stackUp.note}</div>
+                        </div>
+                      </div>
+                      <div className="space-y-1.5">
+                        <div className="text-[11px] font-mono-tabular font-bold text-sky-300 uppercase">Standards Checks — Where Genuinely Computable</div>
+                        <div className="p-2.5 rounded-lg bg-[#070A10] border border-slate-800 text-xs space-y-1">
+                          <div><span className="font-bold text-emerald-300">ASME Y14.5-2018 — PASS:</span> <span className="text-slate-300">the drawing carries the datum frame A|B|C and the 17-position bolt sequence (NOT a bolt circle).</span></div>
+                          <div><span className="font-bold text-emerald-300">ISO 2768-m — PASS:</span> <span className="text-slate-300">the drawing states the default tolerance class on the sheet.</span></div>
+                          <div><span className="font-bold text-emerald-300">SAE J1701 / head-bolt torque — PASS:</span> <span className="text-slate-300">the bolt sequence uses 3 progressive passes, 25 → 45 → 65 ft-lb (stock) / 25 → 45 → 70 ft-lb (ARP). “3 equal steps” is never used.</span></div>
+                          <div className="text-[11px] text-slate-500">A full standards check that the browser cannot compute is labeled NOT YET WORKING, never guessed.</div>
+                        </div>
+                      </div>
+                      <div className="space-y-1.5">
+                        <div className="text-[11px] font-mono-tabular font-bold text-sky-300 uppercase">TEVV Gate — Human Only</div>
+                        <div className="p-2.5 rounded-lg bg-[#070A10] border border-slate-800 text-[11px] text-slate-400 leading-relaxed">
+                          The TEVV gate stays human. The 29 verification checks live in the v20
+                          remix and are NOT YET WORKING in this single-file app — no code here
+                          passes them. Only a person signs the gate, by name, after physically
+                          verifying the hardware.
+                        </div>
+                        <input
+                          type="text"
+                          value={tevvName}
+                          onChange={(e) => setTevvName(e.target.value)}
+                          placeholder="Your name — the person signing the TEVV gate"
+                          className="w-full min-h-[44px] px-3 rounded-lg bg-[#070A10] border border-slate-700 text-xs text-slate-100 focus:outline-none focus:border-sky-400"
+                        />
+                        <label className="flex items-start gap-2 p-2.5 rounded-lg bg-[#070A10] border border-slate-800 text-xs text-slate-200 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={tevvChecked}
+                            onChange={(e) => setTevvChecked(e.target.checked)}
+                            className="mt-0.5 w-5 h-5 accent-emerald-400"
+                          />
+                          <span>I physically verified dimensions &amp; tolerances on hardware</span>
+                        </label>
+                        {tevvChecked && tevvName.trim() && (
+                          <div className="p-2.5 rounded-lg bg-emerald-500/10 border border-emerald-500/40 text-xs">
+                            <span className="font-bold text-emerald-300">TEVV SIGNED — {tevvName.trim()}</span>
+                            <span className="text-slate-300"> · hardware verified by hand</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* v4: CREATE & PRESENT */}
+                  {activeRoom === 'present' && (
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+                        <h2 className="text-sm font-bold uppercase tracking-wider text-sky-400">
+                          Create &amp; Present
+                        </h2>
+                        <button
+                          type="button"
+                          onClick={() => setActiveRoom('designmatrix')}
+                          className="min-h-[44px] px-3 rounded-lg bg-[#070A10] border border-slate-700 text-xs font-semibold text-slate-200 touch-manipulation active:scale-95"
+                        >
+                          ← Matrix
+                        </button>
+                      </div>
+                      <div className="space-y-1.5">
+                        <div className="text-[11px] font-mono-tabular font-bold text-sky-300 uppercase">Global Search — Parts · Library · Drawings · Standards</div>
+                        <input
+                          type="text"
+                          value={globalSearch}
+                          onChange={(e) => setGlobalSearch(e.target.value)}
+                          placeholder="Search — camshaft, TH350, camaro, Y14.5..."
+                          className="w-full min-h-[44px] px-3 rounded-lg bg-[#070A10] border border-slate-700 text-xs text-slate-100 focus:outline-none focus:border-sky-400"
+                        />
+                        {globalSearch.trim() && (
+                          <div className="space-y-1 max-h-[200px] overflow-y-auto">
+                            {globalSearchResults.length === 0 && (
+                              <div className="p-2.5 rounded-lg bg-[#070A10] border border-slate-800 text-[11px] text-slate-400">
+                                Not in the library yet — “{globalSearch.trim()}” matched nothing in parts, library, drawings, or standards.
+                              </div>
+                            )}
+                            {globalSearchResults.map((r, i) => (
+                              <div key={i} className="flex items-center justify-between gap-2 p-2 rounded-lg bg-[#070A10] border border-slate-800">
+                                <div className="min-w-0">
+                                  <div className="text-xs font-bold text-slate-100 truncate">{r.label}</div>
+                                  <div className="text-[11px] text-slate-500">{r.kind} · {r.detail}</div>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    if (r.kind === 'Part') setActiveRoom('build');
+                                    else if (r.kind === 'Library') setActiveRoom('matrix');
+                                    else if (r.kind === 'Drawing') setActiveRoom('drafting');
+                                    else setActiveRoom('blueprint');
+                                  }}
+                                  className="min-h-[36px] px-2.5 rounded-lg bg-slate-900 border border-slate-700 text-[11px] font-bold text-slate-200 touch-manipulation shrink-0"
+                                >
+                                  Open
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                      <div className="space-y-1.5">
+                        <div className="text-[11px] font-mono-tabular font-bold text-sky-300 uppercase">Image-to-3D — First-Class Tool</div>
+                        <div className="p-2.5 rounded-lg bg-[#070A10] border border-slate-800 text-[11px] text-slate-400 leading-relaxed">
+                          {calibratedPhoto
+                            ? `Photo calibrated: ${calibratedPhoto.name} — span ${calibratedPhoto.spanIn} in. The chain runs client-side, zero keys.`
+                            : 'No photo loaded yet — the image-to-3D chain is the Photo Scale room. It runs entirely in the browser, no keys, no uploads.'}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setActiveRoom('scale')}
+                          className="w-full min-h-[44px] px-3 rounded-lg bg-[#070A10] border border-slate-700 text-xs font-bold text-slate-200 touch-manipulation active:scale-95"
+                        >
+                          Open Photo Scale &amp; Calibration
+                        </button>
+                      </div>
+                      <div className="space-y-1.5">
+                        <div className="text-[11px] font-mono-tabular font-bold text-sky-300 uppercase">Voice — Matrix Tools</div>
+                        <div className="flex gap-1.5">
+                          <button
+                            type="button"
+                            onClick={startVoiceCommand}
+                            className="flex-1 min-h-[44px] px-3 rounded-lg bg-sky-400 text-slate-950 text-xs font-bold touch-manipulation active:scale-95"
+                          >
+                            🎙 Start Voice Command
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setActiveRoom('cinema')}
+                            className="min-h-[44px] px-3 rounded-lg bg-[#070A10] border border-slate-700 text-xs font-bold text-slate-200 touch-manipulation active:scale-95"
+                          >
+                            Voice Dock
+                          </button>
+                        </div>
+                        {voiceTranscript && (
+                          <div className="p-2.5 rounded-lg bg-[#070A10] border border-slate-800 text-xs text-slate-200">
+                            Heard: “{voiceTranscript}”
+                          </div>
+                        )}
+                        <div className="text-[11px] text-slate-500">
+                          Say: “focus 3d”, “drafting”, “matrix”, “undo”, “download m b d”, “turntable”,
+                          “review”, “companion”, “variants”, “close panels”. The voice dock in the
+                          cinema room takes the same commands.
+                        </div>
+                      </div>
+                      <div className="space-y-1.5">
+                        <div className="text-[11px] font-mono-tabular font-bold text-sky-300 uppercase">Cinematic &amp; Rendering</div>
+                        <div className="p-2.5 rounded-lg bg-[#070A10] border border-slate-800 text-xs text-slate-300 leading-relaxed">
+                          PBR rendering — environment reflections, ACES tone mapping, 40° FOV,
+                          60 fps target. Turntable spins 6–12 s/rev and pauses the moment you
+                          touch the viewport.
+                        </div>
+                        <div className="grid grid-cols-2 gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => setTurntableSpin((v) => !v)}
+                            className="min-h-[44px] px-2 rounded-lg bg-[#070A10] border border-slate-700 text-[11px] font-bold text-slate-200 touch-manipulation active:scale-95"
+                          >
+                            Turntable: {turntableSpin ? 'ON' : 'OFF'}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setActiveRoom('cinema')}
+                            className="min-h-[44px] px-2 rounded-lg bg-[#070A10] border border-slate-700 text-[11px] font-bold text-slate-200 touch-manipulation active:scale-95"
+                          >
+                            Open Jesse 24fps Cinema
+                          </button>
+                        </div>
+                      </div>
+                      <div className="space-y-1.5">
+                        <div className="text-[11px] font-mono-tabular font-bold text-sky-300 uppercase">Assembly Sequence — Explode Steps</div>
+                        <div className="space-y-1">
+                          {ASSEMBLY_STEPS.map((s) => (
+                            <div key={s.id} className="flex items-center justify-between gap-2 p-2 rounded-lg bg-[#070A10] border border-slate-800">
+                              <div className="min-w-0">
+                                <div className="text-xs font-bold text-slate-100">{s.id}. {s.label}</div>
+                                <div className="text-[11px] text-slate-500">{s.note}</div>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setExplodePercent(s.explode);
+                                  if (s.id === 3) setBoltSequenceStep(17);
+                                  else if (s.id === 2) setBoltSequenceStep(1);
+                                  setFocus3d(true);
+                                  notify(`Assembly step ${s.id}: ${s.label}`);
+                                }}
+                                className="min-h-[36px] px-2.5 rounded-lg bg-slate-900 border border-slate-700 text-[11px] font-bold text-slate-200 touch-manipulation shrink-0"
+                              >
+                                Show
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                      <div className="space-y-1.5">
+                        <div className="text-[11px] font-mono-tabular font-bold text-sky-300 uppercase">Sustainability — Recycled Content (Upcycled Aluminum)</div>
+                        <label className="block">
+                          <span className="text-[10px] font-mono-tabular text-slate-500 uppercase">Recycled Content (%)</span>
+                          <input
+                            type="number"
+                            min={0}
+                            max={100}
+                            step={5}
+                            value={recycledPct}
+                            onChange={(e) => setRecycledPct(Math.max(0, Math.min(100, parseFloat(e.target.value) || 0)))}
+                            className="w-full min-h-[40px] px-2 rounded-lg bg-[#0E1420] border border-slate-700 font-mono-tabular text-xs text-slate-100 focus:outline-none focus:border-sky-400"
+                          />
+                        </label>
+                        <label className="block">
+                          <span className="text-[10px] font-mono-tabular text-slate-500 uppercase">Source</span>
+                          <input
+                            type="text"
+                            value={recycledSource}
+                            onChange={(e) => setRecycledSource(e.target.value)}
+                            className="w-full min-h-[40px] px-2 rounded-lg bg-[#0E1420] border border-slate-700 text-xs text-slate-100 focus:outline-none focus:border-sky-400"
+                          />
+                        </label>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setRecycledPct(100);
+                            setRecycledSource('Ray’s upcycled aluminum — salvaged after the Malibu fires, from homes, cars, and possessions people lost');
+                            notify('Recycled content set to Ray’s upcycled aluminum');
+                          }}
+                          className="w-full min-h-[44px] px-3 rounded-lg bg-[#070A10] border border-slate-700 text-xs font-bold text-slate-200 touch-manipulation active:scale-95"
+                        >
+                          Use Ray’s Upcycled Aluminum
+                        </button>
+                        <div className="p-2.5 rounded-lg bg-[#070A10] border border-slate-800 text-xs font-mono-tabular space-y-1">
+                          <div className="text-slate-300">Recycled mass: {(telemetry.massLb * recycledPct / 100).toFixed(1)} lb of {telemetry.massStr}</div>
+                          <div className="text-slate-400">Source: {recycledSource || '—'}</div>
+                        </div>
+                      </div>
+                      <div className="space-y-1.5">
+                        <div className="text-[11px] font-mono-tabular font-bold text-sky-300 uppercase">Command Palette &amp; Shortcuts</div>
+                        <button
+                          type="button"
+                          onClick={() => setPaletteOpen(true)}
+                          className="w-full min-h-[44px] px-3 rounded-lg bg-[#070A10] border border-slate-700 text-xs font-bold text-slate-200 touch-manipulation active:scale-95"
+                        >
+                          Open Command Palette (Ctrl / Cmd + K)
+                        </button>
+                        <div className="p-2.5 rounded-lg bg-[#070A10] border border-slate-800 text-[11px] text-slate-400 leading-relaxed">
+                          Ctrl/Cmd+K palette · Ctrl+Z undo · Ctrl+Shift+Z redo · F focus 3D · Esc
+                          exit focus · Ctrl+Enter generate in LEO.
+                        </div>
+                      </div>
+                    </div>
+                  )}
                       </form>
                     </div>
                   )}
@@ -5294,6 +7734,66 @@
                         </div>
                       ))}
                     </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+
+            {/* =============================================================== */}
+            {/* v4: COMMAND PALETTE (Ctrl/Cmd+K)                                */}
+            {/* =============================================================== */}
+            {paletteOpen && (
+              <div
+                onClick={() => setPaletteOpen(false)}
+                className="fixed inset-0 bg-black/75 flex items-start justify-center p-4 z-50"
+              >
+                <div
+                  onClick={(e) => e.stopPropagation()}
+                  className="w-full max-w-xl mt-16 rounded-xl bg-[#0E1420] border border-slate-700 p-4 space-y-3 shadow-2xl"
+                >
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-sm font-bold uppercase tracking-wider text-sky-400">
+                      Command Palette — ⌘K
+                    </h3>
+                    <button
+                      type="button"
+                      onClick={() => setPaletteOpen(false)}
+                      className="min-h-[44px] min-w-[44px] px-3 rounded-lg bg-slate-900 border border-slate-700 text-xs font-bold text-slate-200 touch-manipulation"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                  <input
+                    type="text"
+                    autoFocus
+                    value={paletteQuery}
+                    onChange={(e) => setPaletteQuery(e.target.value)}
+                    placeholder="Type a command — open drafting, focus 3d, undo, download MBD..."
+                    className="w-full min-h-[44px] px-3 rounded-lg bg-[#070A10] border border-slate-700 text-xs text-slate-100 focus:outline-none focus:border-sky-400"
+                  />
+                  <div className="max-h-[50vh] overflow-y-auto space-y-1">
+                    {paletteCommands.map((c, i) => (
+                      <button
+                        key={i}
+                        type="button"
+                        onClick={() => {
+                          setPaletteOpen(false);
+                          setPaletteQuery('');
+                          c.run();
+                        }}
+                        className="w-full min-h-[44px] px-3 rounded-lg bg-[#070A10] border border-slate-800 text-left text-xs text-slate-200 touch-manipulation flex items-center justify-between gap-2"
+                      >
+                        <span className="font-semibold">{c.label}</span>
+                        <span className="font-mono-tabular text-[10px] text-slate-500">{c.hint}</span>
+                      </button>
+                    ))}
+                    {paletteCommands.length === 0 && (
+                      <div className="text-xs text-slate-400 p-2">No command matches “{paletteQuery}”.</div>
+                    )}
+                  </div>
+                  <div className="text-[11px] text-slate-500">
+                    Shortcuts: Ctrl/Cmd+K palette · Ctrl+Z undo · Ctrl+Shift+Z redo · F focus 3D · Esc exit focus.
                   </div>
                 </div>
               </div>
