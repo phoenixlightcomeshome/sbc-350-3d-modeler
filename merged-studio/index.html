@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>Quantum Aerospace &amp; SBC-350 v16/v20 Merged CAD Studio — v4 R2027x Upgrade</title>
+  <title>Quantum Aerospace &amp; SBC-350 v16/v20 Merged CAD Studio — v4.1 R2027x Upgrade</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -390,7 +390,7 @@
     // =========================================================================
     // v4 R2027x — DATA (SBC family configurations, Design Matrix, voice, sim)
     // =========================================================================
-    const V4_APP_VERSION = 'v4';
+    const V4_APP_VERSION = 'v4.1';
     const FIRING_ORDER_SBC = [1, 8, 4, 3, 6, 5, 7, 2];
 
     // SBC family configurations of ONE master model. 283 / 302 / 327 / 350 / 400 come
@@ -5319,7 +5319,8 @@
                 </div>
               </section>
 
-              {!focus3d && (rightInspectorOpen || (activeRoom === 'build' && sketchPanelOpen)) && (
+              {/* v4.1 fix: the right panel holds EVERY room's UI, so it must render for any non-build room even when the Inspector is hidden — otherwise hiding the Inspector blanked the Design Matrix and every other room. */}
+              {!focus3d && (rightInspectorOpen || activeRoom !== 'build' || sketchPanelOpen) && (
                 <aside className="w-full lg:w-[440px] xl:w-[470px] bg-[#0E1420] overflow-y-auto p-3.5 shrink-0 select-text">
                   {/* ROOM 1: SKETCH & BUILD */}
                   {activeRoom === 'build' && (
