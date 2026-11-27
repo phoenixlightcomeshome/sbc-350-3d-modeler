@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>Quantum Aerospace &amp; SBC-350 v16/v20 Merged CAD Studio — v4.1 R2027x Upgrade</title>
+  <title>Quantum Aerospace &amp; SBC-350 v16/v20 Merged CAD Studio — v4.2 R2027x Upgrade</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -390,7 +390,7 @@
     // =========================================================================
     // v4 R2027x — DATA (SBC family configurations, Design Matrix, voice, sim)
     // =========================================================================
-    const V4_APP_VERSION = 'v4.1';
+    const V4_APP_VERSION = 'v4.2';
     const FIRING_ORDER_SBC = [1, 8, 4, 3, 6, 5, 7, 2];
 
     // SBC family configurations of ONE master model. 283 / 302 / 327 / 350 / 400 come
@@ -6383,6 +6383,10 @@
                         >
                           Generate
                         </button>
+                      {/* v4.2 fix: close the cinema room here — its form/div/conditional were left open, swallowing all ten v4 rooms so none could ever render. */}
+                      </form>
+                    </div>
+                  )}
 
                   {/* v4 ROOM 9: DESIGN MATRIX — tools on a separate design matrix */}
                   {activeRoom === 'designmatrix' && (
@@ -7664,9 +7668,6 @@
                           exit focus · Ctrl+Enter generate in LEO.
                         </div>
                       </div>
-                    </div>
-                  )}
-                      </form>
                     </div>
                   )}
                 </aside>
