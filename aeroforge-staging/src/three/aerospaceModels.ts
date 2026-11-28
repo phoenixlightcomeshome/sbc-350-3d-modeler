@@ -363,7 +363,13 @@ export function buildAerospaceAssembly(
 
     const sparGeo = trackGeo(new THREE.BoxGeometry(0.52, 0.14, halfSpan * 1.45));
     const sparMesh = new THREE.Mesh(sparGeo, placeholderMat);
-    sparMesh.position.set(0.25 * lengthScale, 0.62, 0);
+    // Carry-through spar must sit inside the swept wing box: the wing leading
+    // edge sweeps aft outboard, so the old x (0.25) left the spar ahead of the
+    // leading edge (and below the wing) for f > 0.23. Local x 2.04 is the
+    // straight-spar window inside the planform at default sweep 38 deg; y 0.74
+    // centres it in the wing thickness (<=0.03 sliver at the extremes — a flat
+    // spar cannot perfectly follow the 0.04 rad dihedral).
+    sparMesh.position.set(2.04 - 0.65 * lengthScale, 0.74, 0);
     registerMesh(sparMesh, 'internal', 'Carry-Through Wing Box Main Spar', 'SBC-402', 6, new THREE.Vector3(0, -0.85, 0));
     root.add(sparMesh);
 
@@ -390,7 +396,10 @@ export function buildAerospaceAssembly(
 
       const wletGeo = trackGeo(createWingletGeometry(0.75, 0.72, 0.28));
       const wletMesh = new THREE.Mesh(wletGeo, placeholderMat);
-      wletMesh.position.set(-0.65 * lengthScale + sweepDist, 0.65 + halfSpan * 0.04, side * (0.44 + halfSpan));
+      // Winglet sits at its own wingtip: the swept-wing geometry extends toward
+      // -z (flipped for port), so the tip is at side*(0.44 - halfSpan). The old
+      // +halfSpan put each winglet 9.70 units away, floating past the far wingtip.
+      wletMesh.position.set(-0.65 * lengthScale + sweepDist, 0.65 + halfSpan * 0.04, side * (0.44 - halfSpan));
       wletMesh.rotation.x = side * -0.22;
       registerMesh(
         wletMesh,
@@ -406,7 +415,7 @@ export function buildAerospaceAssembly(
       const strobeMat = new THREE.MeshBasicMaterial({ color: side === 1 ? 0x22c55e : 0xef4444 });
       createdMaterials.push(strobeMat);
       const strobe = new THREE.Mesh(strobeGeo, strobeMat);
-      strobe.position.set(-0.65 * lengthScale + sweepDist + 0.15, 0.68 + halfSpan * 0.04, side * (0.44 + halfSpan + 0.04));
+      strobe.position.set(-0.65 * lengthScale + sweepDist + 0.15, 0.68 + halfSpan * 0.04, side * (0.44 - halfSpan - 0.04));
       navStrobes.push(strobe);
       root.add(strobe);
     });
@@ -415,7 +424,11 @@ export function buildAerospaceAssembly(
     const vTailGeo = trackGeo(createWingletGeometry(1.45, 1.15, 0.42));
     [-1, 1].forEach((side) => {
       const tailMesh = new THREE.Mesh(vTailGeo, placeholderMat);
-      tailMesh.position.set(3.55 * lengthScale, 1.32, side * 0.24);
+      // V-tail fin seated on the tail cone: at the old (1.32, +/-0.24) the aft
+      // ~0.95 of the base chord floated above the tapering fuselage (worst
+      // containment 3.9x outside the lathe profile). At (1.12, +/-0.08) the
+      // base stays inside the fuselage profile along its full chord.
+      tailMesh.position.set(3.55 * lengthScale, 1.12, side * 0.08);
       tailMesh.rotation.x = side * 0.62;
       registerMesh(
         tailMesh,
